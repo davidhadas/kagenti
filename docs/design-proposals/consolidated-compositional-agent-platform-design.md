@@ -27,7 +27,7 @@
 
 This proposal distinguishes between **short-term** and **long-term** goals. The current design reflects what is practical to implement now, while acknowledging that certain capabilities will be introduced as the platform matures.
 
-### Short-Term (Current Design)
+## Short-Term (Current Design)
 
 The immediate goal is a working, secure composition model with minimal complexity:
 
@@ -39,37 +39,196 @@ The immediate goal is a working, secure composition model with minimal complexit
 
 This is the model described in detail throughout this document.
 
-### Long-Term (Future Enhancements)
+## Long-Term (Future Enhancements)
 
-As the platform matures, the following improvements are planned:
+As the platform matures, the following improvements are planned. These are **not implemented in the current design** and are called out here to provide direction without overcomplicating the immediate implementation.
 
-- **CR-configured webhook defaults**: Two dedicated CRDs will replace static ConfigMaps with a proper Kubernetes-native API for managing defaults:
-  - `AgentRuntimeClusterConfig` (cluster-scoped) — stores cluster-wide defaults, set by cluster administrators
-  - `AgentRuntimeConfig` (namespace-scoped) — stores namespace-level overrides, deployed alongside workloads in each team namespace; overrides `AgentRuntimeClusterConfig` for any setting it specifies, set by cluster administrators
+The core direction: move from "labels + optional CR + layered CRD defaults" to "mandatory CR as source of truth + flat defaults + composition via tooling."
 
+---
 
-- **Move webhook injection target from workload objects to pods**: The current `MutatingWebhookConfiguration` targets higher-level workload objects (`deployments`, `statefulsets`, `daemonsets`). This means the webhook mutates the pod template embedded inside those objects — the injected sidecar containers are stored directly in the Deployment's `spec.template` in etcd.
+### 1. Make AgentRuntime CR Mandatory
 
-  This creates a structural conflict with GitOps-based continuous delivery pipelines (Argo CD, Flux, and similar tools):
+**Current design**: AgentRuntime is optional — most agents work with just two labels and zero CRs, relying on layered defaults.
 
-  - CD tools continuously reconcile live Kubernetes resources against a Git source of truth (the Deployment manifest in a repository).
-  - When the webhook mutates a Deployment's pod template, the live Deployment diverges from the Git-stored manifest — the live object contains injected sidecars that the Git manifest does not.
-  - CD tools detect this as configuration drift. Depending on their configuration they either raise a continuous alert (false positive noise) or actively remediate the drift by reverting the mutation — stripping the injected sidecars on the next sync cycle and leaving pods without identity infrastructure.
-  - Additionally, mutating the Deployment's pod template can overwrite configuration the developer intentionally placed there — volume mounts, secret references, environment variables — because the webhook and the developer are competing to define the same object.
+**Proposed change**: Every agent/tool deployment has a corresponding AgentRuntime CR.
 
-  The proven alternative — used by Istio, Linkerd, and Vault Agent injector — is to register the webhook against `pods` at `CREATE` time instead:
-
-  - The webhook fires when Kubernetes instantiates a pod from any workload controller (a Deployment rollout, a StatefulSet scale event, a Job run, etc.).
-  - The Deployment manifest in Git remains unmodified — no injected sidecars appear in the pod template spec.
-  - CD tools see no drift because the Deployment object is unchanged from what Git describes.
-  - Injected sidecars are visible at the pod level (`kubectl get pod -o yaml`) but not in the Deployment, which reflects only the developer's intended container definition.
-  - Conflicts with developer-defined volume mounts and secret references are confined to pod creation time and do not affect the stored Deployment spec.
-
-  This change requires updating the `MutatingWebhookConfiguration` `resources` list from `deployments/statefulsets/daemonsets` to `pods`, and updating the webhook handler to operate on `Pod` admission requests. The `objectSelector` logic — filtering on `kagenti.io/inject: enabled` — would move to the pod's labels (propagated from the workload's pod template labels) rather than the Deployment's metadata labels.
+**Rationale**: The AgentRuntime CR records all options selected at deployment time and serves as the single source of truth. This resolves the ambiguity of "is the label or the CR the source of truth?" The CR is typed, versioned, and supports controller-driven migration if the schema changes. It aligns with the MCP Gateway pattern where you create a Deployment first and then create an MCPServerRegistration CR with a `targetRef` pointing back to your workload.
 
 
 
-These long-term goals are **not implemented in the current design** and are called out here to provide direction without overcomplicating the immediate implementation.
+
+---
+
+### 2. Switch Injection Trigger from Label to CR Existence
+
+**Current design**: `kagenti.io/inject: enabled` label on the workload triggers webhook injection. AgentRuntime CR is optional.
+
+**Proposed change**: The existence of an AgentRuntime CR targeting a workload (via `targetRef`) becomes the injection trigger.
+
+**Implementation approach**: Use a CR-aware webhook (not a controller-based approach). At admission time, the webhook queries for an AgentRuntime CR targeting the incoming workload. If one exists, inject sidecars. This preserves the admission-time security guarantee -- no race window where a pod runs without identity sidecars.
+
+**What this changes**:
+
+- Workload manifests stay completely clean -- no Kagenti labels required for injection
+- The `kagenti.io/type: agent|tool` label becomes operator-managed (see section 4), not developer-set
+- Argo CD drift concerns around labels are eliminated
+- Auditability improves: `kubectl get agentruntime -A` shows all enrolled workloads
+
+**Trade-off**: Every injected workload needs an AgentRuntime CR. But the CR is generated by tooling (Helm, CLI, UI) so the developer experience remains simple.
+
+---
+
+### 3. Drop the Layered CRD Defaults Hierarchy
+
+**Current design (long-term plan)**: Replace ConfigMaps with `AgentRuntimeClusterConfig` (cluster-scoped) + `AgentRuntimeConfig` (namespace-scoped) CRDs forming a layered override chain.
+
+**Proposed change**: Do not introduce parent/child or cluster-to-namespace CR layering. Keep defaults in ConfigMaps (or a single, independent cluster-scoped config entity purely for global settings like container image versions).
+
+**Rationale** -- analysis of layered CR failure modes:
+1. **Deletion**: Parent CR deleted, children orphaned with broken references -- the child AgentRuntime is not owned by the parent, so it is not cascade-deleted. It won't receive a reconcile event, leaving the agent in an undefined state. Rollback is not possible because the deletion of the parent is not the immediate previous known state change.
+
+2. **Circular dependencies**: If a parent CR is updated to reference a child (or an intermediate is inserted), the state becomes undefined. Depending on controller logic, you either end up with an infinite reconcile loop or incomplete state.
+
+3. **Parent update doesn't trigger child reconcile**: A parent update fires a reconcile for the parent but not for the child. The operator must manually discover and update all dependent children -- a pattern the operator framework is not optimized for.
+
+4. **Parent update breaks child configuration**: The parent knows nothing about the child's specific needs. A config change in the parent cascades to deployments that were never modified, referencing an AgentRuntime that was never touched, which references a parent that got changed with a totally decoupled lifecycle. This is opaque, confusing, and hard to debug.
+
+Additionally, cluster-wide CRDs make multi-tenancy challenging: all tenants share the same cluster-wide CRD, and updating it changes behavior for all tenants.
+
+**Instead, handle composition at manifest-generation time**:
+
+- **Helm values**: Cluster-wide defaults live in `values.yaml`; per-namespace overrides in per-namespace value files; per-agent overrides in the chart's agent template
+- **Kustomize**: Base AgentRuntime template with overlays per namespace/agent
+- **Templates/examples**: Well-documented AgentRuntime templates in the repo
+
+This keeps the in-cluster model simple (one flat AgentRuntime per workload, no inheritance) and pushes composition complexity to tools designed for it (Helm, Kustomize).
+
+---
+
+### 4. Make `kagenti.io/type` Label Operator-Managed
+
+**Current design**: Developer must set `kagenti.io/type: agent|tool` on the workload.
+
+**Proposed change**: The `type` field moves into the AgentRuntime CR spec. The operator (not the developer) applies the `kagenti.io/type` label to the workload based on the CR.
+
+This means:
+
+- The CR is the single authoritative declaration of "this is an agent" or "this is a tool"
+- The label becomes a derived artifact managed by the controller (useful for selectors, UI queries, AgentCard discovery)
+- If Argo CD's self-heal removes the label, the operator re-applies it on next reconcile -- no conflict because the operator is the owner
+- Developers never need to touch workload labels for Kagenti purposes
+
+---
+
+### 5. Move Webhook Injection Target from Workload Objects to Pods
+
+The current `MutatingWebhookConfiguration` targets workload objects (`deployments`, `statefulsets`), mutating the pod template spec stored in etcd. This creates drift detected by GitOps CD tools (Argo CD, Flux) and risks overwriting developer-defined volumes or environment variables.
+
+The proven alternative — used by Istio, Linkerd, and Vault Agent injector — is to register the webhook against `pods` at `CREATE` time:
+
+- The Deployment manifest in Git remains unmodified — no injected sidecars appear in the pod template spec
+- CD tools see no drift because the Deployment object is unchanged
+- Injected sidecars are visible at the pod level (`kubectl get pod -o yaml`) but not in the Deployment
+
+This requires updating the `MutatingWebhookConfiguration` `resources` list from `deployments/statefulsets` to `pods` and updating the webhook handler to operate on `Pod` admission requests.
+
+**Priority note**: This is still the right long-term direction, but it is lower priority once the CR-trigger approach (item 2 above) is implemented — the CR-trigger already eliminates the primary GitOps concern around labels. Recommended sequence: (1) CR-trigger webhook first, (2) pod-level targeting second.
+
+
+### Proposed Model Summary
+
+```
+Developer creates:
+  1. Deployment/StatefulSet (standard K8s workload, NO Kagenti labels needed)
+  2. AgentRuntime CR (with targetRef pointing to the workload)
+     - Contains: type (agent|tool), identity config, trace config
+     - Reasonable defaults for all fields (most can be omitted)
+  3. AgentCard CR (optional, for A2A discovery)
+
+At admission time:
+  Webhook sees new workload
+    -> queries for AgentRuntime CR with matching targetRef
+    -> Found: inject sidecars with CR config (merged with cluster defaults from ConfigMap)
+    -> Not found: no injection
+
+Post-admission:
+  Operator reconciles AgentRuntime
+    -> propagates config updates to running sidecars
+  Operator applies kagenti.io/type label to workload (derived from CR)
+  Operator reconciles AgentCard
+    -> fetches and caches agent capabilities
+
+Defaults:
+  Cluster-wide: ConfigMap (or single independent cluster config entity)
+  Per-namespace: NOT a CRD -- handled by Helm/Kustomize at deploy time
+  Per-workload: AgentRuntime CR (explicit, no inheritance)
+```
+
+### Developer Experience: Minimal Case
+
+```yaml
+# 1. Standard Deployment (no Kagenti labels)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-agent
+  namespace: team1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weather-agent
+  template:
+    metadata:
+      labels:
+        app: weather-agent
+    spec:
+      containers:
+        - name: agent
+          image: weather-agent:latest
+          ports:
+            - containerPort: 8080
+---
+# 2. AgentRuntime CR (source of truth, triggers injection)
+apiVersion: kagenti.io/v1alpha1
+kind: AgentRuntime
+metadata:
+  name: weather-agent
+  namespace: team1
+spec:
+  type: agent
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: weather-agent
+  # All other fields use cluster defaults -- only override what you need
+```
+
+Everything else (identity, trace, sidecar config) comes from cluster-level ConfigMap defaults. The Helm chart generates both resources from a single set of values.
+
+---
+
+#### Migration Path from Current Design
+
+| Current | Long-Term | Migration |
+|---------|-----------|-----------|
+| `kagenti.io/inject: enabled` label triggers injection | AgentRuntime CR existence triggers injection | Generate AgentRuntime CRs for existing labeled workloads via migration script |
+| `kagenti.io/type` label (developer-set) | `type` field in AgentRuntime spec; operator applies label | Operator reads existing labels, creates/updates CRs |
+| Optional AgentRuntime CR | Mandatory AgentRuntime CR | Helm charts generate CRs by default |
+| Planned `AgentRuntimeClusterConfig` + `AgentRuntimeConfig` CRDs | ConfigMap defaults + Helm/Kustomize composition | No migration needed (not yet implemented) |
+
+---
+
+#### Alignment with Ecosystem Patterns
+
+| Pattern | Used By | How This Aligns |
+|---------|---------|-----------------|
+| CR with `targetRef` triggers integration | MCP Gateway, cert-manager, KEDA | AgentRuntime CR with `targetRef` triggers sidecar injection |
+| Flat CRs, no inheritance | Most Kubernetes operators | One AgentRuntime per workload, no parent/child CRs |
+| Composition via Helm/Kustomize | Industry standard | Defaults and shared config managed outside the cluster |
+| Operator manages derived labels | Istio, Argo CD | Operator applies `kagenti.io/type` based on CR spec |
+
 
 ---
 
