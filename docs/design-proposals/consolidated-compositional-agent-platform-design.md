@@ -31,11 +31,13 @@ This proposal distinguishes between **short-term** and **long-term** goals. The 
 
 The immediate goal is a working, secure composition model with minimal complexity:
 
-- **Explicit workload opt-in**: Developers label workloads with `kagenti.io/inject: enabled` to trigger AuthBridge sidecar injection. This is a conscious, visible act in the workload manifest.
+- **Injection enabled by default for agents**: AuthBridge sidecars are injected by default into any workload labeled `kagenti.io/type: agent`. No additional injection label is required — the type label is the single declaration a developer needs to add. By default, injection applies to agents only; workloads labeled `kagenti.io/type: tool` are not injected unless the platform engineer explicitly enables injection for tools via a feature gate in `kagenti-webhook-feature-gates`. When that feature gate is enabled, tool workloads receive the same AuthBridge injection as agents.
+- **Explicit opt-out supported**: Developers can suppress injection on a labeled workload by adding `kagenti.io/inject: disabled`. 
+- **Per-sidecar disable via dedicated labels**: Individual AuthBridge components can be disabled using dedicated labels without opting the entire workload out of injection.
+- **No namespace label required**: Injection is triggered solely by the workload's own labels. No namespace-level configuration is needed.
 - **Webhook with ConfigMap-based defaults**: The webhook reads cluster-level defaults from two ConfigMaps in the `kagenti-webhook-system` namespace:
   - `kagenti-webhook-feature-gates` — controls which AuthBridge components are enabled globally (`globalEnabled`, `envoyProxy`, `spiffeHelper`, `clientRegistration`)
   - `kagenti-webhook-defaults` — provides default container images, proxy port configuration, and per-component resource requests/limits for all injected sidecars
-- **Two workload labels required**: `kagenti.io/inject: enabled` (injection opt-in) and `kagenti.io/type` (classification) are the only labels developers need to add.
 
 This is the model described in detail throughout this document.
 
