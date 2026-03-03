@@ -327,7 +327,7 @@ The core thesis from the original proposal remains: **higher-level Kubernetes ab
 
 **Platform Engineer**:
 
-- As a platform engineer, I want workloads labeled `kagenti.io/type: agent` to automatically receive identity infrastructure at admission time without any additional developer action
+- As a platform engineer, I want any workload a developer classifies as an agent to automatically receive identity infrastructure at admission time — without requiring developers to understand or configure the injection mechanism
 - As a platform engineer, I want to set cluster-wide and namespace-level defaults for identity and observability so that agents work securely out of the box without per-workload configuration
 - As a platform engineer, I want to audit agent runtime configuration with `kubectl get agentruntime -A`
 
