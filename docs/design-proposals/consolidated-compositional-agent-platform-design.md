@@ -51,7 +51,7 @@ The core direction: move from "labels + optional CR + layered CRD defaults" to "
 
 ### 1. Make AgentRuntime CR Mandatory
 
-**Current design**: AgentRuntime is optional — most agents work with just two labels and zero CRs, relying on layered defaults.
+**Current design**: AgentRuntime is optional — most agents work with just one label and zero CRs, relying on layered defaults.
 
 **Proposed change**: Every agent/tool deployment has a corresponding AgentRuntime CR.
 
@@ -64,7 +64,7 @@ The core direction: move from "labels + optional CR + layered CRD defaults" to "
 
 ### 2. Switch Injection Trigger from Label to CR Existence
 
-**Current design**: `kagenti.io/inject: enabled` label on the workload triggers webhook injection. AgentRuntime CR is optional.
+**Current design**: `kagenti.io/type: agent` label on the workload triggers webhook injection by default (with `kagenti.io/inject: disabled` available to opt out). AgentRuntime CR is optional.
 
 **Proposed change**: The existence of an AgentRuntime CR targeting a workload (via `targetRef`) becomes the injection trigger.
 
@@ -215,7 +215,7 @@ Everything else (identity, trace, sidecar config) comes from cluster-level Confi
 
 | Current | Long-Term | Migration |
 |---------|-----------|-----------|
-| `kagenti.io/inject: enabled` label triggers injection | AgentRuntime CR existence triggers injection | Generate AgentRuntime CRs for existing labeled workloads via migration script |
+| `kagenti.io/type: agent` label triggers injection (with `inject: disabled` opt-out) | AgentRuntime CR existence triggers injection | Generate AgentRuntime CRs for existing labeled workloads via migration script |
 | `kagenti.io/type` label (developer-set) | `type` field in AgentRuntime spec; operator applies label | Operator reads existing labels, creates/updates CRs |
 | Optional AgentRuntime CR | Mandatory AgentRuntime CR | Helm charts generate CRs by default |
 | Planned `AgentRuntimeClusterConfig` + `AgentRuntimeConfig` CRDs | ConfigMap defaults + Helm/Kustomize composition | No migration needed (not yet implemented) |
@@ -243,8 +243,8 @@ This design proposal consolidates two earlier proposals into a unified architect
 
 This consolidated design retains the strengths of both while resolving their disagreements:
 
-- **Workload-level injection** uses an explicit opt-in label — developers add `kagenti.io/inject: enabled` to workloads they want injected
-- **Workload labels are retained** for classification (agents vs. tools) — developers add `kagenti.io/type` and `kagenti.io/inject: enabled` to opt in
+- **Workload-level injection** is enabled by default for workloads labeled `kagenti.io/type: agent` — developers opt out with `kagenti.io/inject: disabled` if needed
+- **Workload labels are retained** for classification and injection trigger — developers add `kagenti.io/type: agent` (or `tool`) as the single required label
 - **TokenExchange and AgentTrace are consolidated** into a single `AgentRuntime` CR — reducing resource count while preserving configurability
 - **AgentCard remains a separate CR** — different cardinality model, existing implementation, and distinct concern (discovery vs. runtime)
 - **The mutating webhook is retained** for admission-time sidecar injection — security-first, already implemented
@@ -257,7 +257,7 @@ The result is a two-CR model (`AgentRuntime` + `AgentCard`) atop a label-and-web
 
 This architecture separates configuration into two fundamentally different lifecycle stages that must not be conflated:
 
-**1. Admission-time configuration** — occurs when a workload is first created (or updated). The mutating webhook intercepts the request, merges cluster defaults → namespace defaults → AgentRuntime CR overrides, and injects the AuthBridge sidecars with the resulting configuration baked in. This is a one-shot operation: the webhook fires, sidecars are injected, and the pod starts. Security is guaranteed — a workload cannot bypass injection once it carries `kagenti.io/inject: enabled`.
+**1. Admission-time configuration** — occurs when a workload is first created (or updated). The mutating webhook intercepts the request, merges cluster defaults → namespace defaults → AgentRuntime CR overrides, and injects the AuthBridge sidecars with the resulting configuration baked in. This is a one-shot operation: the webhook fires, sidecars are injected, and the pod starts. Security is guaranteed — any workload labeled `kagenti.io/type: agent` will have sidecars injected at admission time unless explicitly opted out with `kagenti.io/inject: disabled`.
 
 **2. Reconfiguration of running workloads** — occurs after pods are already running. When defaults or an AgentRuntime CR change, those changes must reach the already-running sidecars without restarting pods. This is handled by the operator, which detects configuration drift and propagates updates to running sidecars (see [Configuration Propagation](#configuration-propagation-open-design)). Note that some changes — such as modifications to injected sidecar images or init container configuration — inherently require a pod restart.
 
@@ -267,8 +267,8 @@ These two concerns are handled by different components (webhook vs. operator), o
 
 ```
 Developer Creates Standard Deployment
-  + kagenti.io/inject: enabled   (opts in to AuthBridge injection)
-  + kagenti.io/type: agent (or tool)
+  + kagenti.io/type: agent        (triggers AuthBridge injection by default)
+  [+ kagenti.io/inject: disabled] (optional — suppresses injection if needed)
         ↓
 Webhook Injects AuthBridge Sidecars (workload is labeled)
   • Reads cluster/namespace defaults
@@ -299,7 +299,7 @@ Operator Reconciles
 
 ### Prior Proposals
 
-**Original Proposal (Three Pillars)**: Proposed a mutating webhook triggered by `kagenti.io/inject: enabled` label, plus three independent pillar CRs (`TokenExchange`, `AgentTrace`, `AgentCard`). Strong on composition-over-inheritance thesis, proven ecosystem analysis, and working webhook implementation. Weakness: four objects per fully-configured agent.
+**Original Proposal (Three Pillars)**: Proposed a mutating webhook triggered by an explicit `kagenti.io/inject: enabled` label, plus three independent pillar CRs (`TokenExchange`, `AgentTrace`, `AgentCard`). Strong on composition-over-inheritance thesis, proven ecosystem analysis, and working webhook implementation. Weakness: four objects per fully-configured agent.
 
 **Counter-Proposal (AgentRuntime)**: Proposed a single `AgentRuntime` CR with `workloadRef`, eliminating labels and the webhook in favor of controller-based injection. Strong on auditability and single-resource-per-agent simplicity. Weaknesses: loses admission-time security guarantees, creates race conditions during injection, requires reimplementing a working webhook.
 
@@ -307,7 +307,7 @@ Operator Reconciles
 
 | Topic | Original | Counter-Proposal | This Design |
 |-------|----------|-------------------|-------------|
-| Labels | Required on workload for injection | Remove entirely | **Workload label required** for injection (`kagenti.io/inject: enabled`); **workload label** (`kagenti.io/type`) for classification |
+| Labels | Required on workload for injection | Remove entirely | **Single workload label** (`kagenti.io/type: agent`) triggers injection by default; `kagenti.io/inject: disabled` to opt out |
 | Injection | Mutating webhook | Controller patching | **Webhook** (admission-time, security-first) |
 | CR count | 3 pillar CRs | 1 unified CR | **2 CRs**: AgentRuntime + AgentCard |
 | Defaults | Per-CR defaults | CR sections optional | **Layered**: cluster → namespace → CR |
@@ -327,14 +327,14 @@ The core thesis from the original proposal remains: **higher-level Kubernetes ab
 
 **Platform Engineer**:
 
-- As a platform engineer, I want workloads that explicitly opt in via `kagenti.io/inject: enabled` to automatically receive identity infrastructure at admission time
+- As a platform engineer, I want workloads labeled `kagenti.io/type: agent` to automatically receive identity infrastructure at admission time without any additional developer action
 - As a platform engineer, I want to set cluster-wide and namespace-level defaults for identity and observability so that agents work securely out of the box without per-workload configuration
 - As a platform engineer, I want to audit agent runtime configuration with `kubectl get agentruntime -A`
 
 **Application Developer**:
 
-- As a developer, I want to deploy my AI agent using a standard Kubernetes Deployment and opt in to identity infrastructure by adding `kagenti.io/inject: enabled` to my workload labels
-- As a developer, I want to classify my workload as an agent or tool using a `kagenti.io/type` label so the Kagenti UI displays it correctly — these two labels are all the Kagenti labels I need to add
+- As a developer, I want to deploy my AI agent using a standard Kubernetes Deployment and have identity infrastructure injected automatically by adding a single label `kagenti.io/type: agent`
+- As a developer, I want to classify my workload as an agent or tool using `kagenti.io/type` so the Kagenti UI displays it correctly — this single label is all I need to add for both classification and injection
 - As a developer, I want to override the platform defaults for my specific workload using an AgentRuntime CR when the namespace or cluster defaults don't fit my agent's requirements
 - As a developer, I want to expose my agent's capabilities through a standard discovery mechanism by creating an AgentCard CR so other agents can find and invoke it
 
@@ -348,9 +348,9 @@ The core thesis from the original proposal remains: **higher-level Kubernetes ab
 ## Goals
 
 1. **Compose with existing Kubernetes workload types** — Never require users to abandon Deployment, StatefulSet, or Job
-2. **Minimize per-workload configuration** — Two workload labels (`kagenti.io/inject: enabled` + `kagenti.io/type`) plus layered defaults are all most agents need
+2. **Minimize per-workload configuration** — One workload label (`kagenti.io/type: agent`) plus layered defaults are all most agents need
 3. **Retain labels for workload classification** — The Kagenti UI and ecosystem tooling rely on `kagenti.io/type` labels to identify agents and tools
-4. **Provide workload-scoped admission-time identity injection** — Developers explicitly opt workloads in with `kagenti.io/inject: enabled`; opted-in workloads never run without identity infrastructure
+4. **Provide workload-scoped admission-time identity injection** — Workloads labeled `kagenti.io/type: agent` automatically receive identity infrastructure at admission time; developers opt out with `kagenti.io/inject: disabled` if needed
 5. **Consolidate related concerns** — Identity and observability in one CR; discovery separate
 6. **Support dynamic reconfiguration** — Configuration changes without pod restarts where possible; some changes (e.g., modifications to injected sidecar images or init container configuration) may require a pod restart to take effect
 
@@ -359,7 +359,7 @@ The core thesis from the original proposal remains: **higher-level Kubernetes ab
 
 ## Non-Goals
 
-1. **Removing all labels from workloads** — `kagenti.io/inject: enabled` and `kagenti.io/type` labels serve injection opt-in and classification respectively. Developers own both declarations
+1. **Removing all labels from workloads** — `kagenti.io/type` serves as both the injection trigger and classification label. Developers own this declaration
 2. **Replacing the mutating webhook with controller-based injection** — The webhook provides security guarantees that controller patching cannot
 3. **Folding AgentCard into AgentRuntime** — Different cardinality model, existing implementation, distinct concern
 4. **Building another workload orchestrator** — Users keep their existing orchestration tools
@@ -375,8 +375,8 @@ The core thesis from the original proposal remains: **higher-level Kubernetes ab
 ┌──────────────────────────────────────────────────────────────┐
 │ LAYER 1: Automatic Identity Infrastructure                   │
 │──────────────────────────────────────────────────────────────│
-│ Trigger: workload labeled kagenti.io/inject: enabled         │
-│          (required — no workload label, no injection)        │
+│ Trigger: workload labeled kagenti.io/type: agent             │
+│          (opt-out via kagenti.io/inject: disabled)           │
 │                                                              │
 │ • Mutating webhook intercepts workload creation              │
 │ • Reads layered defaults (cluster → namespace)               │
@@ -406,12 +406,12 @@ Labels serve two distinct purposes on workloads in this architecture:
 
 | Label | Level | Purpose | Set By |
 |-------|-------|---------|--------|
-| `kagenti.io/inject: enabled` | Workload | **Required** — explicitly opts the workload in to AuthBridge sidecar injection | Developer |
-| `kagenti.io/type: agent` or `tool` | Workload | Classifies workload for Kagenti UI and tooling | Developer |
+| `kagenti.io/type: agent` or `tool` | Workload | **Required** — classifies the workload and triggers AuthBridge injection (agents by default; tools when feature gate enabled) | Developer |
+| `kagenti.io/inject: disabled` | Workload | Optional — suppresses injection on a labeled workload without removing its type classification | Developer |
 
-#### Workload-Level Opt-In (Primary Model)
+#### Injection by Default (Primary Model)
 
-The **primary mechanism** for enabling AuthBridge sidecar injection is an explicit label on the workload itself:
+The **primary mechanism** for AuthBridge sidecar injection is the `kagenti.io/type: agent` label on the workload. No additional injection label is required:
 
 ```yaml
 apiVersion: apps/v1
@@ -420,28 +420,33 @@ metadata:
   name: weather-agent
   labels:
     app: weather-agent
-    kagenti.io/inject: enabled    # Opts this workload in to AuthBridge injection
-    kagenti.io/type: agent        # Classifies the workload for the Kagenti UI
+    kagenti.io/type: agent        # Single label: classifies workload + triggers injection
 ```
 
-When a workload carries `kagenti.io/inject: enabled`, the mutating webhook intercepts its creation and injects the AuthBridge sidecars. Workloads without this label are never injected, regardless of which namespace they live in.
+When a workload carries `kagenti.io/type: agent`, the mutating webhook intercepts its creation and injects the AuthBridge sidecars. By default only agents are injected; tool injection is controlled by a feature gate in `kagenti-webhook-feature-gates`.
 
-This model gives developers explicit control: they consciously declare that a workload should receive Kagenti identity infrastructure. There is no ambient injection based on namespace membership.
+#### Opting Out of Injection
 
-#### Injection Label Is Required — No Exceptions
+A workload can carry a `kagenti.io/type` label for classification purposes while suppressing injection by adding `kagenti.io/inject: disabled`:
 
-If a workload does **not** carry `kagenti.io/inject: enabled`, no sidecar injection occurs. This is a hard requirement. There is no namespace-level override or cluster-wide default that injects sidecars into unlabeled workloads.
+```yaml
+labels:
+  kagenti.io/type: agent
+  kagenti.io/inject: disabled   # Classified as agent but sidecars not injected
+```
 
-#### Why developers must set both labels (addressing the "ownership inversion" argument)
+This is useful during migration, testing, or for workloads that need the type classification for UI display but are not yet ready for full AuthBridge injection.
 
-The counter-proposal argued that labels force workload owners to opt into platform concerns. This conflates classification with configuration:
+#### Why a single label serves both purposes
 
-- **Injection** ("this workload should get identity sidecars") is a developer concern. The developer knows whether their workload participates in the Kagenti identity and auth fabric. Explicit opt-in prevents accidental injection of non-agent workloads and makes the intent clear in the workload manifest.
-- **Classification** ("this is an agent") is a developer concern. The developer knows what their workload is. A platform engineer should not have to declare that a weather service is an agent. The Kagenti UI requires `kagenti.io/type` to display workloads in the correct category (agent vs. tool).
-- **Default configuration** ("use this trust domain, export traces here") is a platform engineer concern. This belongs in namespace/cluster defaults — not in workload labels.
-- **Per-workload configuration overrides** are a developer concern. When platform defaults don't fit a specific workload, the developer creates an AgentRuntime CR to override only what needs to change.
+The type label unifies two concerns that were previously separate:
 
-Labels handle opt-in and classification (developer-owned). Defaults handle baseline configuration (platform engineer-owned). AgentRuntime CRs handle per-workload overrides (developer-owned). The ownership is clean at every level.
+- **Classification** ("this is an agent") is a developer concern. The developer knows what their workload is and the Kagenti UI relies on `kagenti.io/type` to display workloads correctly.
+- **Injection** follows automatically from type: if you declare a workload as an agent, it should get identity infrastructure. Separating these into two labels created unnecessary friction and risk of misconfiguration (classified but not injected, or injected but not classified).
+- **Default configuration** ("use this trust domain, export traces here") remains a platform engineer concern — in namespace/cluster defaults, not workload labels.
+- **Per-workload configuration overrides** remain a developer concern via AgentRuntime CR.
+
+The `kagenti.io/type` label handles classification and injection trigger (developer-owned). Defaults handle baseline configuration (platform engineer-owned). AgentRuntime CRs handle per-workload overrides (developer-owned). The ownership is clean at every level.
 
 ### Layered Defaults
 
@@ -701,11 +706,12 @@ The `targetRef` pattern establishes a 1:1 relationship between an AgentRuntime C
 
 | Scenario | What the developer creates | AgentRuntime CR needed? |
 |----------|---------------------------|------------------------|
-| Standard agent | Deployment + `kagenti.io/inject: enabled` + `kagenti.io/type` | No |
-| Agent in a namespace with custom IdP realm | Deployment + `kagenti.io/inject: enabled` + `kagenti.io/type` | No (namespace defaults) |
-| Agent needing custom token exchange rules | Deployment + `kagenti.io/inject: enabled` + `kagenti.io/type` + AgentRuntime | Yes |
-| Fleet of 50 identical agents | 50 Deployments + `kagenti.io/inject: enabled` + `kagenti.io/type` | No (defaults cover them) |
-| Workload without `kagenti.io/inject: enabled` | No injection occurs, regardless of namespace | N/A |
+| Standard agent | Deployment + `kagenti.io/type: agent` | No |
+| Agent in a namespace with custom IdP realm | Deployment + `kagenti.io/type: agent` | No (namespace defaults) |
+| Agent needing custom token exchange rules | Deployment + `kagenti.io/type: agent` + AgentRuntime | Yes |
+| Fleet of 50 identical agents | 50 Deployments + `kagenti.io/type: agent` | No (defaults cover them) |
+| Workload without `kagenti.io/type: agent` | No injection occurs, regardless of namespace | N/A |
+| Agent that should not be injected | Deployment + `kagenti.io/type: agent` + `kagenti.io/inject: disabled` | N/A |
 
 **The 1:1 constraint is not a burden on developers** because most developers will never create an AgentRuntime CR. Namespace-level defaults handle the common case. When defaults do not fit a specific workload, the developer creates an AgentRuntime CR to override only the fields that differ — this is a developer-owned resource, not a platform engineer concern.
 
@@ -748,9 +754,12 @@ webhooks:
     resources: ["jobs", "cronjobs"]
   objectSelector:
     matchExpressions:
-    - key: kagenti.io/inject
+    - key: kagenti.io/type
       operator: In
-      values: ["enabled"]
+      values: ["agent"]      # "tool" added when tool injection feature gate is enabled
+    - key: kagenti.io/inject
+      operator: NotIn
+      values: ["disabled"]   # honours explicit opt-out
   admissionReviewVersions: ["v1"]
   sideEffects: None
   timeoutSeconds: 10
@@ -758,19 +767,21 @@ webhooks:
   reinvocationPolicy: Never
 ```
 
-> **Note**: The webhook's `objectSelector` is the sole gate for injection. Only workloads explicitly labeled `kagenti.io/inject: enabled` trigger the webhook. A workload without this label is never injected — regardless of which namespace it lives in.
+> **Note**: The webhook's `objectSelector` is the gate for injection. Workloads labeled `kagenti.io/type: agent` are injected by default. Tool injection requires the feature gate in `kagenti-webhook-feature-gates` to be enabled. Adding `kagenti.io/inject: disabled` to any workload suppresses injection regardless of its type label.
 
 **Webhook Injection Decision Logic**:
 
 ```
-Is workload labeled kagenti.io/inject: enabled?
-  ├─ YES → Inject sidecars
-  └─ NO  → No injection (hard requirement, no exceptions)
+Is workload labeled kagenti.io/type: agent (or tool with feature gate enabled)?
+  ├─ NO  → No injection
+  └─ YES → Is kagenti.io/inject: disabled present?
+             ├─ YES → No injection (explicit opt-out)
+             └─ NO  → Inject sidecars
 ```
 
 **Webhook Behavior**:
 
-1. Intercepts workload creation/update **only** when the workload carries `kagenti.io/inject: enabled`
+1. Intercepts workload creation/update when workload carries `kagenti.io/type: agent` (or `tool` with feature gate) and does **not** carry `kagenti.io/inject: disabled`
 2. Reads cluster defaults from `kagenti-system`
 3. Reads namespace defaults from workload namespace (if exists)
 4. Checks for an AgentRuntime CR targeting this workload (if exists)
@@ -936,7 +947,7 @@ if __name__ == '__main__':
 ### After (Composition — Custom Configuration Needed)
 
 ```yaml
-# Standard Kubernetes Deployment with explicit injection opt-in
+# Standard Kubernetes Deployment — single label triggers injection
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -944,7 +955,6 @@ metadata:
   namespace: team1
   labels:
     app: weather-agent
-    kagenti.io/inject: enabled
     kagenti.io/type: agent
 spec:
   replicas: 1
@@ -1007,10 +1017,10 @@ spec:
 | Aspect | Inheritance (Agent CR) | Original (3 Pillar CRs) | Counter (AgentRuntime only) | This Design |
 |--------|----------------------|-------------------------|---------------------------|-------------|
 | Objects per agent | 1 | 1-4 | 2 | 1-3 (usually 1) |
-| Labels needed | No | Yes (injection + type) | No | `kagenti.io/inject: enabled` + `kagenti.io/type` on workload |
+| Labels needed | No | Yes (injection + type) | No | `kagenti.io/type: agent` (single label) |
 | Webhook | No | Yes | No | Yes |
 | Admission-time security | No | Yes | No (race window) | Yes |
-| Workload modification | Yes (replaced) | Yes (injection label) | No | Minimal (two labels only) |
+| Workload modification | Yes (replaced) | Yes (injection label) | No | Minimal (one label only) |
 | Per-workload CR required | Always | Optional | Always | Optional |
 | Auditability | `kubectl get agent` | Mixed | `kubectl get agentruntime` | Workload labels + CRs |
 | Fleet configuration | N/A | Per-workload CRs | Per-workload CRs | Layered defaults |
@@ -1020,22 +1030,21 @@ spec:
 1. **Defaults storage mechanism**: How should cluster and namespace defaults be stored and managed? (ConfigMap, dedicated CRD, or other)
 2. **Configuration propagation mechanism**: How should configuration updates reach running sidecars? (See [Configuration Propagation](#configuration-propagation-open-design))
 3. **AgentRuntime CR lifecycle**: Should deleting an AgentRuntime CR revert to defaults or remove configuration entirely?
-4. **Injection trigger mechanism — label vs CR** *(unresolved, more discussion needed)*: The current design uses a workload label (`kagenti.io/inject: enabled`) as the sole trigger for AuthBridge injection. An alternative is to use the existence of an `AgentRuntime` CR targeting a workload as the injection trigger, eliminating the need for the label entirely. Each approach has trade-offs that have not yet been fully evaluated:
+4. **Injection trigger mechanism — type label vs CR** *(unresolved, more discussion needed)*: The current design uses `kagenti.io/type: agent` as the injection trigger (with `kagenti.io/inject: disabled` for opt-out). An alternative is to use the existence of an `AgentRuntime` CR targeting a workload as the injection trigger, eliminating the need for any workload label. Each approach has trade-offs that have not yet been fully evaluated:
 
-   **Label-trigger (current)**:
+   **Type-label-trigger (current)**:
 
    ```yaml
-   # Workload carries the injection label
+   # Single label triggers injection + classifies workload
    apiVersion: apps/v1
    kind: Deployment
    metadata:
      name: weather-agent
      labels:
-       kagenti.io/inject: enabled
        kagenti.io/type: agent
    ```
 
-   Simple and GitOps-friendly — no CR required for basic injection. Developer adds a label; the webhook injects sidecars. Downside: injection and configuration are decoupled — a workload can be injected without any AgentRuntime CR, relying entirely on defaults. There is an architectural tension: a label on the workload contradicts the goal that platform engineers should be able to configure identity policies centrally without modifying agent workload manifests.
+   Simple and GitOps-friendly — no CR required for injection. Developer adds a single label; the webhook injects sidecars. Downside: injection and detailed configuration are decoupled — a workload can be injected without any AgentRuntime CR, relying entirely on defaults.
 
    **CR-trigger (alternative)**:
 
@@ -1077,7 +1086,7 @@ spec:
 
 ### Pros
 
-1. **Explicit developer intent**: Developers consciously opt workloads in with `kagenti.io/inject: enabled` — no accidental injection, clear manifest ownership
+1. **Clear developer intent**: Developers declare workload type with `kagenti.io/type: agent` — injection follows automatically, with explicit opt-out available via `kagenti.io/inject: disabled`
 2. **Secure by default**: Webhook ensures agents never run without identity infrastructure
 3. **Platform engineer friendly**: Defaults set once, override only when needed
 4. **Low object count**: 1 object (Deployment) for common case, up to 3 for full customization
@@ -1088,7 +1097,7 @@ spec:
 
 ### Cons
 
-1. **Two labels required**: Developers must add both `kagenti.io/inject: enabled` and `kagenti.io/type` to workloads — minimal burden, but not zero
+1. **Single label required**: Developers add only `kagenti.io/type: agent` — injection is automatic. Opt-out adds a second label (`kagenti.io/inject: disabled`) only when needed
 2. **Webhook dependency**: If webhook is unavailable, workload creation blocks (mitigated by replicas)
 3. **Defaults complexity**: Three-layer merge adds implementation complexity
 4. **Two CRs still needed for full functionality**: AgentRuntime + AgentCard remain separate resources
