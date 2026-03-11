@@ -47,7 +47,7 @@ This is the model described in detail throughout this document.
 
 As the platform matures, the following improvements are planned. These are **not implemented in the current design** and are called out here to provide direction without overcomplicating the immediate implementation.
 
-The short-term design already implements: mandatory CR as source of truth, controller-managed labels, pod-level webhook targeting, and flat ConfigMap defaults. The remaining long-term items focus on sidecar consolidation, advanced config propagation, and tooling maturation.
+The short-term design already implements: mandatory CR as source of truth, controller-managed labels, pod-level webhook targeting, and flat ConfigMap defaults. The remaining long-term items focus on sidecar consolidation, advanced config propagation, and tooling maturation. These long-term items may be moved to a separate design document in the future to keep this proposal focused on the current architecture.
 
 ---
 
@@ -562,6 +562,8 @@ AgentCard remains a separate CR. It is reproduced here for completeness but is n
 - **Different cardinality**: AgentCard uses a label selector (can match multiple pods across workloads). AgentRuntime uses `targetRef` (1:1 with a workload). Forcing these into one CR would require supporting both targeting models in one resource.
 - **Different concern**: Discovery ("what can agents do") is distinct from runtime ("how are agents configured"). The name `AgentRuntime` does not naturally encompass capability discovery.
 - **Existing implementation**: Code exists and works. Refactoring it into a subsection of another CR is churn without benefit.
+
+> **Future consideration — multi-agent-per-pod and Route-based keying**: When multiple A2A agents share a single pod, they also share a single SPIFFE identity. In this scenario, Route (not Pod) may be the more natural key for AgentCard creation, since each agent has its own route/endpoint but not its own pod or identity. The current label-selector model does not address this multi-agent-per-pod case. This does not need to be solved now but should be revisited when multi-agent pods become a supported pattern.
 
 **API Structure**:
 
