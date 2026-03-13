@@ -55,11 +55,14 @@
     - not (enable_openshift | default(false))
     - runtime_info_raw.rc | default(1) == 0
 
-# Docker uses top-level MemTotal/NCPU; Podman nests under .Host
+# Docker uses top-level MemTotal/NCPU; Podman nests under .Host.
+# Podman's Docker compat API may return MemTotal=0 at the top level (defined
+# but zero), so `default()` won't trigger. Use `| int or` to fall through to
+# the Podman path when the Docker path returns 0.
 - name: Preflight - Extract resources from runtime info
   set_fact:
-    runtime_memory_bytes: "{{ runtime_json.MemTotal | default(runtime_json.Host.MemTotal | default(0)) | int }}"
-    runtime_cpus: "{{ runtime_json.NCPU | default(runtime_json.Host.CPUs | default(0)) | int }}"
+    runtime_memory_bytes: "{{ (runtime_json.MemTotal | default(0) | int) or (runtime_json.Host.MemTotal | default(0) | int) }}"
+    runtime_cpus: "{{ (runtime_json.NCPU | default(0) | int) or (runtime_json.Host.CPUs | default(0) | int) }}"
   when:
     - create_kind_cluster | default(false)
     - not (enable_openshift | default(false))
