@@ -20,6 +20,7 @@ metadata:
         "createHttpRoute": false
       }
 spec:
+  serviceAccount: pipeline
   source:
     type: Git
     git:
