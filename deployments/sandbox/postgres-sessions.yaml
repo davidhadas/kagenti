@@ -47,7 +47,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: postgres
-        image: docker.io/postgres:16-bookworm
+        image: registry.redhat.io/rhel9/postgresql-16:1-123
         securityContext:
           runAsNonRoot: true
           allowPrivilegeEscalation: false
@@ -62,11 +62,11 @@ spec:
           name: postgres
           protocol: TCP
         env:
-        - name: POSTGRES_DB
+        - name: POSTGRESQL_DATABASE
           value: sessions
-        - name: POSTGRES_USER
+        - name: POSTGRESQL_USER
           value: kagenti
-        - name: POSTGRES_PASSWORD
+        - name: POSTGRESQL_PASSWORD
           valueFrom:
             secretKeyRef:
               name: postgres-sessions-secret
@@ -80,7 +80,7 @@ spec:
             memory: 512Mi
         volumeMounts:
         - name: postgres-data
-          mountPath: /var/lib/postgresql/data
+          mountPath: /var/lib/pgsql/data
         - name: tmp
           mountPath: /tmp
         - name: run
