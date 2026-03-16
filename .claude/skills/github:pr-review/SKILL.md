@@ -30,7 +30,6 @@ comments, and posts a GitHub review after user approval.
 - [Phase 1: Gather PR Data](#phase-1-gather-pr-data)
 - [Phase 2: Analyze Changes](#phase-2-analyze-changes)
 - [Phase 3: Review Checklist](#phase-3-review-checklist)
-  - [3.10 Feature Gate / Dual-Mode Code](#310-feature-gate--dual-mode-code)
 - [Phase 4: Draft Review](#phase-4-draft-review)
 - [Phase 5: Submit Review](#phase-5-submit-review)
 - [Troubleshooting](#troubleshooting)
@@ -240,8 +239,8 @@ Dual-mode bugs often appear as a value read from CM-A in the new path but CM-B i
 legacy path — the inconsistency is only visible by comparing both files side-by-side.
 
 ```bash
-# Example: find all ConfigMap name references in the diff
-grep -E '"[a-z-]+-config"|"environments"|"authbridge"' $LOG_DIR/pr-<number>.diff
+# Example: find all ConfigMap name references in the diff (substring match)
+grep -E 'authbridge-config|environments|spiffe-helper' $LOG_DIR/pr-<number>.diff
 ```
 
 This check catches a class of bugs where a new code path was written against a planned
