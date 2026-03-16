@@ -30,6 +30,7 @@ def _safe(value: object) -> str:
     """Strip control characters from a value before logging."""
     return _LOG_UNSAFE.sub("", str(value))
 
+
 logger = logging.getLogger("llm-budget-proxy")
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s"
@@ -223,7 +224,10 @@ async def _check_budget(
             error_message=msg,
         )
         logger.warning(
-            "Budget exceeded for session %s: %d/%d", _safe(session_id[:12]), used, max_tokens
+            "Budget exceeded for session %s: %d/%d",
+            _safe(session_id[:12]),
+            used,
+            max_tokens,
         )
         return JSONResponse(
             status_code=402,
