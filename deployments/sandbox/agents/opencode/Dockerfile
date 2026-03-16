@@ -1,7 +1,9 @@
+# hadolint ignore=DL3007
 FROM kagenti-agent-base:latest
 
 # Install Node.js for OpenCode CLI
 USER root
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
