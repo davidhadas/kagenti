@@ -20,6 +20,10 @@ spec:
         kagenti.io/framework: opencode
         kagenti.io/runtime: platform-base
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: agent
         image: image-registry.openshift-image-registry.svc:5000/team1/opencode-agent:v0.0.1
@@ -66,6 +70,7 @@ spec:
         securityContext:
           runAsNonRoot: true
           allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
           capabilities:
             drop: ["ALL"]
           seccompProfile:
@@ -73,10 +78,14 @@ spec:
         volumeMounts:
         - name: workspace
           mountPath: /workspace
+        - name: tmp
+          mountPath: /tmp
       volumes:
       - name: workspace
         emptyDir:
           sizeLimit: 5Gi
+      - name: tmp
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service

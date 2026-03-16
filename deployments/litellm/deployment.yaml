@@ -21,17 +21,24 @@ spec:
         istio.io/use-waypoint: waypoint
     spec:
       serviceAccountName: litellm-proxy
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: litellm
         # TODO: Build a custom LiteLLM image that relocates Prisma cache from
         # /root/.cache to a non-root path, so we can drop the anyuid SCC.
-        # Upstream issue: Prisma binaries are baked at build time under /root/.cache
-        # and are only readable by root. On OpenShift with restricted SCC, the
-        # arbitrary UID cannot read these binaries. Options:
-        #   1. Custom Dockerfile: COPY --chown=1001 /root/.cache /home/litellm/.cache
-        #   2. Upstream PR to litellm to use a non-root user in Dockerfile
-        #   3. Init container that copies binaries to an emptyDir with world-read
         image: ghcr.io/berriai/litellm-database:main-v1.63.14-stable
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+          capabilities:
+            drop:
+            - ALL
         args:
         - --config
         - /app/config.yaml
@@ -64,6 +71,10 @@ spec:
           mountPath: /app/config.yaml
           subPath: config.yaml
           readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /root/.cache
         resources:
           requests:
             cpu: 200m
@@ -89,3 +100,7 @@ spec:
       - name: config
         configMap:
           name: litellm-config
+      - name: tmp
+        emptyDir: {}
+      - name: cache
+        emptyDir: {}
