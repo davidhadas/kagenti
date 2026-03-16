@@ -30,6 +30,7 @@ comments, and posts a GitHub review after user approval.
 - [Phase 1: Gather PR Data](#phase-1-gather-pr-data)
 - [Phase 2: Analyze Changes](#phase-2-analyze-changes)
 - [Phase 3: Review Checklist](#phase-3-review-checklist)
+  - [3.10 Feature Gate / Dual-Mode Code](#310-feature-gate--dual-mode-code)
 - [Phase 4: Draft Review](#phase-4-draft-review)
 - [Phase 5: Submit Review](#phase-5-submit-review)
 - [Troubleshooting](#troubleshooting)
@@ -222,6 +223,31 @@ If the PR touches `.yaml`/`.yml` files:
 | Updated | User-facing changes have docs/README updates |
 | Accurate | Docs match the actual behavior |
 
+### 3.10 Feature Gate / Dual-Mode Code
+
+If the PR introduces two code paths behind a feature gate (e.g. `legacy` vs `resolved`,
+`ValueFrom` vs `literal`):
+
+| Check | What |
+|-------|------|
+| Source parity | Both paths read config from the **same** ConfigMaps/keys |
+| Env var parity | Both paths inject the **same** env var names |
+| Fallback parity | Missing-resource behavior is equivalent across paths |
+
+**Cross-file search**: For each key constant or ConfigMap name introduced in new code,
+grep across ALL files in the diff to verify both paths reference the same source.
+Dual-mode bugs often appear as a value read from CM-A in the new path but CM-B in the
+legacy path — the inconsistency is only visible by comparing both files side-by-side.
+
+```bash
+# Example: find all ConfigMap name references in the diff
+grep -E '"[a-z-]+-config"|"environments"|"authbridge"' $LOG_DIR/pr-<number>.diff
+```
+
+This check catches a class of bugs where a new code path was written against a planned
+data layout that differs from the actual deployment (e.g. design doc says key X lives in
+CM-A, but existing deployments have it in CM-B).
+
 ## Phase 4: Draft Review
 
 Present proposed review to user for approval before posting.
@@ -356,6 +382,21 @@ latest upstream, which has newer dependency versions.
 
 **Fix**: Always run `git fetch upstream main` and use `git show upstream/main:<file>`
 before cross-referencing PR claims against source files. See §1.5.
+
+### Subagent model access denied (401)
+
+If the Explore subagent fails with `team not allowed to access model` or similar 401
+error, fall back to reading the diff directly in the main context.
+
+When reading large diffs without subagent help, **explicitly cross-reference** related
+files — don't read them sequentially and assume consistency:
+
+1. After reading each new function/struct, search for its key constants/field names
+   across the entire diff: `grep "ConstantName\|fieldName" $LOG_DIR/pr-<number>.diff`
+2. For any new config source (ConfigMap names, API paths), verify both the new code
+   AND any legacy/fallback code use the same source name.
+3. For dual-mode PRs: compare the two paths side-by-side rather than reading each
+   path file-by-file in sequence.
 
 ### gh api array parameters
 
