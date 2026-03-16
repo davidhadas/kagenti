@@ -59,7 +59,7 @@ common:
 keycloak:
   image:
     repository: quay.io/keycloak/keycloak
-    tag: "26.3.3"
+    tag: "26.5.2"
   namespace: keycloak
   # Set to false to disable the bundled PostgreSQL and run Keycloak in dev mode (H2 database)
   database:

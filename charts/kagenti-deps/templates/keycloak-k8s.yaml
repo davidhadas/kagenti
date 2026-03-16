@@ -218,6 +218,8 @@ Default env vars for the Keycloak container.
 extraEnvVars with the same name override these defaults.
 */}}
 {{- define "kagenti.keycloak.defaultEnv" -}}
+- name: KC_FEATURES
+  value: "client-auth-federated:v1,spiffe:v1"
 - name: KC_BOOTSTRAP_ADMIN_USERNAME
   value: "admin"
 - name: KC_BOOTSTRAP_ADMIN_PASSWORD
