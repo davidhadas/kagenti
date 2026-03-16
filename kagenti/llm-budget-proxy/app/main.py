@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -20,6 +21,14 @@ import asyncpg
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+
+# Sanitize user-provided values for safe logging (prevent log injection CWE-117)
+_LOG_UNSAFE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _safe(value: object) -> str:
+    """Strip control characters from a value before logging."""
+    return _LOG_UNSAFE.sub("", str(value))
 
 logger = logging.getLogger("llm-budget-proxy")
 logging.basicConfig(
@@ -188,10 +197,10 @@ async def _record_call(
     if total_tokens > 0:
         logger.info(
             "Recorded: session=%s agent=%s tokens=%d status=%s",
-            session_id[:12] if session_id else "none",
-            agent_name or "unknown",
+            _safe(session_id[:12]) if session_id else "none",
+            _safe(agent_name) or "unknown",
             total_tokens,
-            status,
+            _safe(status),
         )
 
 
@@ -214,7 +223,7 @@ async def _check_budget(
             error_message=msg,
         )
         logger.warning(
-            "Budget exceeded for session %s: %d/%d", session_id[:12], used, max_tokens
+            "Budget exceeded for session %s: %d/%d", _safe(session_id[:12]), used, max_tokens
         )
         return JSONResponse(
             status_code=402,
@@ -243,9 +252,9 @@ async def chat_completions(request: Request):
 
     logger.info(
         "LLM request: session=%s agent=%s model=%s stream=%s max_tokens=%d",
-        session_id[:12] if session_id else "none",
-        meta["agent_name"] or "unknown",
-        model,
+        _safe(session_id[:12]) if session_id else "none",
+        _safe(meta["agent_name"]) or "unknown",
+        _safe(model),
         body.get("stream", False),
         max_tokens,
     )
