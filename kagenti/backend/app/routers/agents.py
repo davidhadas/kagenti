@@ -1860,7 +1860,9 @@ def _build_env_vars(request: "CreateAgentRequest") -> List[dict]:
         List of environment variable dictionaries.
     """
     env_vars = list(DEFAULT_ENV_VARS)
-    env_vars.append({"name": AGENT_ENDPOINT, "value": _get_agent_url(request.name, request.namespace)})
+    env_vars.append(
+        {"name": AGENT_ENDPOINT, "value": _get_agent_url(request.name, request.namespace)}
+    )
     if request.envVars:
         for ev in request.envVars:
             if ev.value is not None:
