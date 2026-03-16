@@ -16,6 +16,9 @@ else
     log_info "Using Kind registry: $WEATHER_TOOL_IMAGE"
 fi
 
+# Create ServiceAccount (required by webhook for correct SPIFFE ID derivation)
+kubectl create serviceaccount weather-tool -n team1 --dry-run=client -o yaml | kubectl apply -f -
+
 # Create Deployment
 cat <<DEPLOYMENT_EOF | kubectl apply -f -
 apiVersion: apps/v1
@@ -47,6 +50,7 @@ spec:
         kagenti.io/framework: Python
         app.kubernetes.io/name: weather-tool
     spec:
+      serviceAccountName: weather-tool
       securityContext:
         runAsNonRoot: true
         seccompProfile:

@@ -107,6 +107,9 @@ log_success "BuildRun completed successfully"
 
 log_info "Creating Deployment and Service..."
 
+# Create ServiceAccount (required by webhook for correct SPIFFE ID derivation)
+kubectl create serviceaccount weather-service -n team1 --dry-run=client -o yaml | kubectl apply -f -
+
 # Clean up any operator-created deployment to apply our version
 # (the operator may auto-create a Deployment from the Shipwright Build)
 kubectl delete deployment weather-service -n team1 --ignore-not-found 2>/dev/null || true
