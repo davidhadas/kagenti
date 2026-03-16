@@ -90,7 +90,7 @@ kubectl exec test-client -n team1 -- sh -c '
     -d "grant_type=password" -d "client_id=admin-cli" -d "username=admin" -d "password=admin" | jq -r ".access_token")
 
   curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
-    "http://keycloak-service.keycloak.svc:8080/admin/realms/demo/identity-provider/instances/spire-spiffe" | \
+    "http://keycloak-service.keycloak.svc:8080/admin/realms/kagenti/identity-provider/instances/spire-spiffe" | \
     jq "{realm: \"demo\", trustDomain: .config.trustDomain, providerId, enabled}"
 '
 

@@ -14,7 +14,7 @@ Usage:
 
 Environment Variables:
     KEYCLOAK_BASE_URL: Keycloak server URL (default: http://keycloak.keycloak.svc:8080)
-    KEYCLOAK_REALM: Target realm name (default: demo)
+    KEYCLOAK_REALM: Target realm name (default: kagenti)
     KEYCLOAK_NAMESPACE: Namespace containing Keycloak (default: keycloak)
     KEYCLOAK_ADMIN_SECRET_NAME: Secret name containing admin credentials (default: keycloak-initial-admin)
     KEYCLOAK_ADMIN_USERNAME_KEY: Key in Secret for username (default: username)
@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration from environment
 KEYCLOAK_BASE_URL = os.getenv("KEYCLOAK_BASE_URL", "http://keycloak-service.keycloak.svc:8080")
-KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "demo")
+KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "kagenti")
 KEYCLOAK_NAMESPACE = os.getenv("KEYCLOAK_NAMESPACE", "keycloak")
 KEYCLOAK_ADMIN_SECRET_NAME = os.getenv("KEYCLOAK_ADMIN_SECRET_NAME", "keycloak-initial-admin")
 KEYCLOAK_ADMIN_USERNAME_KEY = os.getenv("KEYCLOAK_ADMIN_USERNAME_KEY", "username")

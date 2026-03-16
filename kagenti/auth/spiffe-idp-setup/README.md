@@ -44,7 +44,7 @@ docker build -t spiffe-idp-setup:dev .
 
 # Run locally (requires kubectl access and environment variables)
 export KEYCLOAK_BASE_URL="http://keycloak.localtest.me:8080"
-export KEYCLOAK_REALM="demo"
+export KEYCLOAK_REALM="kagenti"
 export KEYCLOAK_ADMIN_USERNAME="admin"
 export KEYCLOAK_ADMIN_PASSWORD="admin"
 export SPIFFE_TRUST_DOMAIN="spiffe://localtest.me"

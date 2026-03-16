@@ -39,7 +39,7 @@ python kagenti/auth/agent-oauth-secret/agent_oauth_secret.py
   - Default: `"http://keycloak.localtest.me:8080"`
   
 - **`KEYCLOAK_DEMO_REALM`** - Name of the realm to create/use
-  - Default: `"demo"`
+  - Default: `"kagenti"`
 
 - **`KAGENTI_KEYCLOAK_CLIENT_NAME`** - OAuth client name to create
   - Default: `"kagenti-keycloak-client"`
