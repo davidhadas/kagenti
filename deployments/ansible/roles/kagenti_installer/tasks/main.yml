@@ -1067,6 +1067,44 @@
             name: kagenti-spiffe-idp-pod-reader
             apiGroup: rbac.authorization.k8s.io
 
+    - name: Create Role for SPIFFE IdP setup (Keycloak pod reading)
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: Role
+          metadata:
+            name: kagenti-spiffe-idp-pod-reader
+            namespace: "{{ kagenti_deps_values.keycloak.namespace }}"
+            labels:
+              app.kubernetes.io/managed-by: ansible
+              app.kubernetes.io/part-of: kagenti
+          rules:
+            - apiGroups: [""]
+              resources: ["pods"]
+              verbs: ["get", "list", "watch"]
+
+    - name: Create RoleBinding for SPIFFE IdP setup (Keycloak pod reading)
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: RoleBinding
+          metadata:
+            name: kagenti-spiffe-idp-pod-reader
+            namespace: "{{ kagenti_deps_values.keycloak.namespace }}"
+            labels:
+              app.kubernetes.io/managed-by: ansible
+              app.kubernetes.io/part-of: kagenti
+          subjects:
+            - kind: ServiceAccount
+              name: kagenti-spiffe-idp-setup
+              namespace: "{{ (charts['kagenti-deps'] | default({})).get('namespace', 'kagenti-system') }}"
+          roleRef:
+            kind: Role
+            name: kagenti-spiffe-idp-pod-reader
+            apiGroup: rbac.authorization.k8s.io
+
     - name: Delete existing SPIFFE IdP setup job if it exists
       kubernetes.core.k8s:
         state: absent
