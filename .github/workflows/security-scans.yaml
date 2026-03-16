@@ -433,6 +433,8 @@ jobs:
           skip-dirs: 'kagenti/examples'
           # Use .trivyignore for documented exceptions (base images, CI RBAC)
           trivyignores: '.trivyignore'
+          # Use trivy.yaml for trusted registries and other config
+          trivy-config: 'trivy.yaml'
           # Fail on misconfigurations in production code
           exit-code: '1'
           format: 'table'
