@@ -26,13 +26,3 @@ AVD-KSV-0048
 
 # AVD-KSV-0049: ClusterRole managing configmaps (required for Kagenti config)
 AVD-KSV-0049
-
-# Sandbox agent deployment exceptions
-# AVD-KSV-0013: postgres-sessions uses :latest-equivalent pinned tag (registry.redhat.io)
-AVD-KSV-0013
-
-# AVD-KSV-0014: postgres needs writable rootfs for /var/lib/pgsql/data
-AVD-KSV-0014
-
-# AVD-KSV-0125: Internal OpenShift registry and Red Hat registry are trusted
-AVD-KSV-0125

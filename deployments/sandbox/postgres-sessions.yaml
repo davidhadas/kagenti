@@ -51,7 +51,7 @@ spec:
         securityContext:
           runAsNonRoot: true
           allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: false
+          readOnlyRootFilesystem: true
           seccompProfile:
             type: RuntimeDefault
           capabilities:
@@ -81,6 +81,15 @@ spec:
         volumeMounts:
         - name: postgres-data
           mountPath: /var/lib/pgsql/data
+        - name: tmp
+          mountPath: /tmp
+        - name: run
+          mountPath: /var/run/postgresql
+      volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: run
+        emptyDir: {}
   volumeClaimTemplates:
   - metadata:
       name: postgres-data
