@@ -825,20 +825,27 @@ export const SandboxPage: React.FC = () => {
   // Sidecar agents state
   const [sidecars, setSidecars] = useState<SidecarInfo[]>([]);
   const [reconfigureOpen, setReconfigureOpen] = useState(false);
-  // Poll sidecars list when we have a contextId
+  const sidecarErrorCount = useRef(0);
+  // Poll sidecars list when we have a contextId (with error backoff)
   useEffect(() => {
     if (!contextId || !namespace) return;
+    let timer: ReturnType<typeof setTimeout>;
+    let cancelled = false;
     const poll = async () => {
       try {
         const list = await sidecarService.list(namespace, contextId);
         setSidecars(list);
+        sidecarErrorCount.current = 0;
       } catch {
-        // Sidecar API not available — ignore
+        sidecarErrorCount.current++;
+      }
+      if (!cancelled) {
+        const delay = Math.min(5000 * (1 + sidecarErrorCount.current), 60000);
+        timer = setTimeout(poll, delay);
       }
     };
     poll();
-    const interval = setInterval(poll, 5000);
-    return () => clearInterval(interval);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [contextId, namespace]);
 
   const handleSidecarToggleEnable = async (sidecarType: string, enabled: boolean) => {

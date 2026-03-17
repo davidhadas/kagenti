@@ -51,6 +51,25 @@ import { NamespaceSelector } from '@/components/NamespaceSelector';
 // NOTE: We use the sandboxService.listSessions() which returns TaskListResponse
 // The session metadata contains: parent_context_id, session_type, passover_from, passover_to
 
+/** Shape of a session item returned by sandboxService.listSessions(). */
+interface SessionItem {
+  context_id?: string;
+  id?: string;
+  metadata?: {
+    session_type?: string;
+    parent_context_id?: string;
+    title?: string;
+    agent_variant?: string;
+    created_at?: string;
+    passover_from?: string;
+    passover_to?: string;
+  };
+  status?: {
+    state?: string;
+    timestamp?: string;
+  };
+}
+
 type SessionType = 'all' | 'root' | 'child' | 'passover';
 
 export const SessionsTablePage: React.FC = () => {
@@ -60,7 +79,7 @@ export const SessionsTablePage: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<SessionType>('all');
   const [searchText, setSearchText] = useState('');
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [sessionToDelete, setSessionToDelete] = useState<any>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<SessionItem | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
@@ -78,7 +97,7 @@ export const SessionsTablePage: React.FC = () => {
   const sessions = sessionsResponse?.items ?? [];
 
   // Filter by session type and search text
-  const filteredSessions = sessions.filter((s: any) => {
+  const filteredSessions = sessions.filter((s: SessionItem) => {
     // Type filter
     if (typeFilter !== 'all') {
       const sessionType = s.metadata?.session_type || 'root';
@@ -101,7 +120,7 @@ export const SessionsTablePage: React.FC = () => {
     },
   });
 
-  const handleDeleteClick = (session: any) => {
+  const handleDeleteClick = (session: SessionItem) => {
     setSessionToDelete(session);
     setDeleteModalOpen(true);
     setOpenMenuId(null);
@@ -124,11 +143,11 @@ export const SessionsTablePage: React.FC = () => {
 
   const truncateId = (id: string) => id ? id.slice(0, 8) + '...' : '';
 
-  const getSessionType = (session: any): string => {
+  const getSessionType = (session: SessionItem): string => {
     return session.metadata?.session_type || 'root';
   };
 
-  const renderTypeBadge = (session: any) => {
+  const renderTypeBadge = (session: SessionItem) => {
     const type = getSessionType(session);
     const colors: Record<string, 'blue' | 'cyan' | 'purple' | 'grey'> = {
       root: 'blue',
@@ -138,7 +157,7 @@ export const SessionsTablePage: React.FC = () => {
     return <Label color={colors[type] || 'grey'} isCompact>{type}</Label>;
   };
 
-  const renderStatusBadge = (session: any) => {
+  const renderStatusBadge = (session: SessionItem) => {
     const state = session.status?.state || 'unknown';
     let color: 'green' | 'blue' | 'red' | 'grey' = 'grey';
     let label = state;
@@ -242,7 +261,7 @@ export const SessionsTablePage: React.FC = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {filteredSessions.map((session: any) => {
+              {filteredSessions.map((session: SessionItem) => {
                 const contextId = session.context_id || session.id;
                 const parentId = session.metadata?.parent_context_id;
                 const title = session.metadata?.title || session.metadata?.agent_variant || 'Untitled';
