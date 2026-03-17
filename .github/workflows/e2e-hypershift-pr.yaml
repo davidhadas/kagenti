@@ -97,17 +97,24 @@ jobs:
       - name: Parse command options
         id: parse-options
         if: steps.check-permission.outputs.check-result == 'true'
-        shell: bash
-        run: |
-          COMMENT_BODY="${{ github.event.comment.body }}"
-          # Parse --extensions-ref <branch> from comment
-          # Usage: /run-e2e --extensions-ref fix/proxy-init-drop-privileged
-          if [[ "$COMMENT_BODY" =~ --extensions-ref[[:space:]]+([^[:space:]]+) ]]; then
-            echo "extensions_ref=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
-            echo "Parsed extensions_ref: ${BASH_REMATCH[1]}"
-          else
-            echo "extensions_ref=" >> "$GITHUB_OUTPUT"
-          fi
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
+        with:
+          script: |
+            const commentBody = context.payload.comment.body;
+            console.log('Parsing comment:', commentBody);
+
+            // Parse --extensions-ref <branch> from comment
+            // Usage: /run-e2e --extensions-ref fix/proxy-init-drop-privileged
+            const match = commentBody.match(/--extensions-ref\s+(\S+)/);
+
+            if (match) {
+              const extensionsRef = match[1];
+              console.log('Parsed extensions_ref:', extensionsRef);
+              core.setOutput('extensions_ref', extensionsRef);
+            } else {
+              console.log('No extensions_ref found');
+              core.setOutput('extensions_ref', '');
+            }
 
       - name: Add safe-to-test label
         if: steps.check-permission.outputs.check-result == 'true'
