@@ -267,6 +267,7 @@ def create_route_for_agent_or_tool(
     else:
         create_httproute(kube, name, namespace, service_name, service_port)
 
+
 def get_agent_url(name: str, namespace: str) -> str:
     """Get the URL for an A2A agent.
 
