@@ -361,15 +361,28 @@ Use the diff file for all analysis.
 
 ### Cross-repo reviews
 
-When reviewing PRs on repos other than `kagenti/kagenti` (e.g. `kagenti-extensions`):
+When verifying cross-repo dependency files (e.g. checking whether `kagenti-extensions`
+already handles something being removed from `kagenti/kagenti`), **always fetch directly
+from GitHub — never trust a local clone:**
 
-1. Ensure the repo is cloned locally (check `~/.repos/` or sibling directories)
-2. `cd` into the local clone before verifying claims
-3. `git fetch upstream main` to sync with the remote
-4. Use `git show upstream/main:<path>` for all source verification
+```bash
+# Fetch a specific file from the latest main of another repo
+gh api repos/{owner}/{repo}/contents/{path/to/file} --jq '.content' \
+  | base64 -d > /tmp/file-from-upstream.go
+```
 
-The `--repo` flag works with `gh pr` commands, but local file verification
-requires being in the correct repo directory.
+This is more reliable than a local clone, which may be stale or have no `upstream`
+remote configured. Use the GitHub API for targeted single-file verification; a local
+clone is only appropriate for broad multi-file exploration.
+
+**Anti-pattern — stale cross-repo local clone:**
+
+`git show upstream/main:<file>` in a sibling repo can silently return stale content
+if the repo hasn't been fetched this session, or if there is no `upstream` remote.
+A fetch you didn't explicitly run this session is a stale fetch.
+
+The `--repo` flag works with `gh pr` commands, but cross-repo source verification
+should go through the API, not the local filesystem.
 
 ### Stale local checkout (anti-pattern)
 
