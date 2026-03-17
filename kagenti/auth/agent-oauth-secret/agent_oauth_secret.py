@@ -444,25 +444,6 @@ def create_secrets(**kwargs):
     # Setup Keycloak demo realm, user, and agent client (pass v1_api for secret reading)
     kagenti_keycloak_client_secret = setup_keycloak(v1_api)
 
-    # Optionally update the 'environments' ConfigMap in each namespace with Keycloak info
-    update_envs = parse_bool(get_optional_env("UPDATE_ENV_CONFIGMAPS", "false"))
-    typer.echo(f"Update environments ConfigMaps: {update_envs}")
-    if update_envs:
-        # Compute admin credentials to write into ConfigMaps
-        admin_username, admin_password = get_keycloak_admin_credentials(v1_api)
-        # Reuse shared env config to ensure consistency with setup_keycloak
-        base_url, demo_realm_name, _, _ = get_keycloak_env_config()
-        try:
-            update_environments_configmaps(
-                v1_api,
-                admin_username,
-                admin_password,
-                base_url,
-                demo_realm_name,
-            )
-        except Exception as e:
-            typer.secho(f"Failed to update 'environments' ConfigMaps: {e}", fg="yellow")
-
     # Distribute client secret to agent namespaces
     namespaces_str = os.getenv("AGENT_NAMESPACES", "")
     if not namespaces_str:
@@ -501,81 +482,6 @@ def create_secrets(**kwargs):
                     err=True,
                 )
                 raise
-
-
-def update_environments_configmaps(
-    v1_api: client.CoreV1Api,
-    admin_username: str,
-    admin_password: str,
-    base_url: str,
-    realm_name: str,
-    timeout: int = 120,
-    interval: int = 5,
-) -> None:
-    """Wait for and update the `environments` ConfigMap in each agent namespace.
-
-    Writes the following keys into the ConfigMap `data`:
-      - KEYCLOAK_URL
-      - KEYCLOAK_REALM
-      - KEYCLOAK_ADMIN_USERNAME
-      - KEYCLOAK_ADMIN_PASSWORD
-
-    The function will wait up to `timeout` seconds for the ConfigMap to exist in
-    each namespace, polling every `interval` seconds.
-    """
-    namespaces_str = os.getenv("AGENT_NAMESPACES", "")
-    if not namespaces_str:
-        typer.echo("No AGENT_NAMESPACES set; skipping ConfigMap updates")
-        return
-
-    agent_namespaces = [ns.strip() for ns in namespaces_str.split(",") if ns.strip()]
-    cm_name = "environments"
-
-    for ns in agent_namespaces:
-        typer.echo(
-            f"Waiting for ConfigMap '{cm_name}' in namespace '{ns}' (timeout {timeout}s)..."
-        )
-        start_time = time.monotonic()
-        cm = None
-        while time.monotonic() - start_time < timeout:
-            try:
-                cm = v1_api.read_namespaced_config_map(cm_name, ns)
-                break
-            except ApiException as e:
-                if getattr(e, "status", None) == 404:
-                    time.sleep(interval)
-                    continue
-                else:
-                    raise
-
-        if cm is None:
-            typer.secho(
-                f"ConfigMap '{cm_name}' not found in namespace '{ns}' after {timeout}s; skipping",
-                fg="yellow",
-            )
-            continue
-
-        patch_body = {
-            "data": {
-                "KEYCLOAK_URL": base_url,
-                "KEYCLOAK_REALM": realm_name,
-                "KEYCLOAK_ADMIN_USERNAME": admin_username,
-                "KEYCLOAK_ADMIN_PASSWORD": admin_password,
-            }
-        }
-
-        try:
-            v1_api.patch_namespaced_config_map(cm_name, ns, patch_body)
-            typer.echo(
-                f"Patched ConfigMap '{cm_name}' in namespace '{ns}' with Keycloak settings"
-            )
-        except ApiException as e:
-            typer.secho(
-                f"Failed to patch ConfigMap '{cm_name}' in '{ns}': {e}",
-                fg="red",
-                err=True,
-            )
-            raise
 
 
 def main() -> None:

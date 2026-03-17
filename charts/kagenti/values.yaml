@@ -108,7 +108,6 @@ agentOAuthSecret:
   # and will usually not validate external OpenShift route certificates.
   useServiceAccountCA: false
   spiffePrefix: spiffe://localtest.me/sa
-  updateEnvConfigMaps: true
   clientName: kagenti-keycloak-client
 
 # ------------------------------------------------------------------
