@@ -46,13 +46,15 @@ charts:
             tag: local
             pullPolicy: Never
 
-      # Override webhook image
+      # Override webhook image (subchart values)
+      kagenti-webhook-chart:
+        image:
+          repository: ghcr.io/kagenti/kagenti-extensions/kagenti-webhook
+          tag: local
+          pullPolicy: Never
+
+      # Component enable/disable flags
       components:
-        platformWebhook:
-          image:
-            repository: ghcr.io/kagenti/kagenti-extensions/kagenti-webhook
-            tag: local
-            pullPolicy: Never
         # Disable mcpGateway component (avoid mcp-system namespace issue)
         mcpGateway:
           enabled: false
