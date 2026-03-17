@@ -39,7 +39,7 @@ spellcheck) for comprehensive coverage.
 ## Phase 1: Gather Changed Docs
 
 ```bash
-export LOG_DIR=/tmp/kagenti/docs-review
+export LOG_DIR=/tmp/kagenti/docs-review/$PR_NUMBER
 mkdir -p $LOG_DIR
 
 # Get list of changed markdown files

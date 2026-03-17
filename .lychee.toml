@@ -42,9 +42,6 @@ max_concurrency = 8
 # Don't follow redirects beyond this depth
 max_redirects = 5
 
-# Skip link checking for mail addresses
-exclude_mail = true
-
 # Only check links that were modified in the PR (speeds up CI)
 # Note: lychee checks all links in matched files; this is handled
 # by the workflow's paths filter instead
