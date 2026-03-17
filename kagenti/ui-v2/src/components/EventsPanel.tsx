@@ -38,6 +38,23 @@ interface EventsPanelProps {
 
 const ARTIFACT_TRUNCATE_LENGTH = 500;
 
+/** CSS injected once at module level — avoids re-injection on every render. */
+const EVENTS_PANEL_STYLES = `
+  .events-panel-container {
+    transition: all 0.3s ease-out;
+  }
+  .events-panel-container .pf-v5-c-expandable-section__content {
+    transition: max-height 0.3s ease-out, opacity 0.2s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .event-item {
+    animation: fadeIn 0.2s ease-out;
+  }
+`;
+
 export const EventsPanel: React.FC<EventsPanelProps> = ({
   events,
   isComplete,
@@ -184,23 +201,7 @@ export const EventsPanel: React.FC<EventsPanelProps> = ({
 
   return (
     <>
-      <style>
-        {`
-          .events-panel-container {
-            transition: all 0.3s ease-out;
-          }
-          .events-panel-container .pf-v5-c-expandable-section__content {
-            transition: max-height 0.3s ease-out, opacity 0.2s ease-out;
-          }
-          @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-4px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-          .event-item {
-            animation: fadeIn 0.2s ease-out;
-          }
-        `}
-      </style>
+      <style>{EVENTS_PANEL_STYLES}</style>
       <ExpandableSection
         toggleText={`Events (${events.length})`}
         isExpanded={isExpanded}
