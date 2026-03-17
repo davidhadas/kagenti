@@ -1,0 +1,383 @@
+---
+name: release
+description: Tag and release Kagenti across org repos — alpha, RC, GA, and patch releases with full verification
+---
+
+```mermaid
+flowchart TD
+    START(["/release"]) --> ASSESS["Phase 1: Assess"]
+    ASSESS --> PREPARE["Phase 2: Prepare"]
+    PREPARE --> TAG["Phase 3: Tag"]
+    TAG --> VERIFY["Phase 4: Verify"]
+    VERIFY --> NOTES["Phase 5: Release Notes"]
+    NOTES --> ANNOUNCE["Phase 6: Announce"]
+```
+
+> Follow this diagram as the workflow. Reference `docs/releasing.md` for the
+> full maintainer guide.
+
+# Release Kagenti
+
+Guided workflow for creating tagged releases across the Kagenti organization.
+Handles the multi-repo dependency order, image tag pinning, artifact
+verification, and release notes.
+
+## Table of Contents
+
+- [When to Use](#when-to-use)
+- [Invocation](#invocation)
+- [Phase 1: Assess Current State](#phase-1-assess-current-state)
+- [Phase 2: Prepare the Release](#phase-2-prepare-the-release)
+- [Phase 3: Tag Repos](#phase-3-tag-repos)
+- [Phase 4: Verify Artifacts](#phase-4-verify-artifacts)
+- [Phase 5: Release Notes](#phase-5-release-notes)
+- [Phase 6: Announce](#phase-6-announce)
+- [Quick Reference: Release Types](#quick-reference-release-types)
+- [Related Skills](#related-skills)
+
+## When to Use
+
+- Cutting an alpha, RC, GA, or patch release for any Kagenti repo
+- Coordinating a multi-repo release across the organization
+- Verifying that all release artifacts were produced correctly
+
+## Invocation
+
+```
+/release alpha vX.Y.0-alpha.N          # Cut an alpha release
+/release rc vX.Y.0-rc.N                # Cut a release candidate
+/release ga vX.Y.0                     # Cut a GA release
+/release patch vX.Y.Z                  # Cut a patch release
+/release status                        # Show current release state across repos
+```
+
+If no arguments are given, start with Phase 1 to assess and ask the user what
+type of release to cut.
+
+## Phase 1: Assess Current State
+
+Gather the current release landscape before making any changes.
+
+### 1.1 Current tags across repos
+
+```bash
+echo "=== kagenti/kagenti ==="
+gh release list --repo kagenti/kagenti --limit 5
+
+echo "=== kagenti/kagenti-extensions ==="
+gh release list --repo kagenti/kagenti-extensions --limit 5
+
+echo "=== kagenti/kagenti-operator ==="
+gh release list --repo kagenti/kagenti-operator --limit 5
+
+echo "=== kagenti/agent-examples ==="
+gh release list --repo kagenti/agent-examples --limit 5
+```
+
+### 1.2 Chart dependency versions
+
+```bash
+cat charts/kagenti/Chart.yaml | grep -A2 'name: kagenti-'
+```
+
+### 1.3 Image tags in values.yaml
+
+```bash
+grep -n 'tag:' charts/kagenti/values.yaml
+```
+
+Flag any `tag: latest` entries — these must be pinned before RC or GA.
+
+### 1.4 Determine release type
+
+Present the user with a summary:
+
+```
+Current state:
+  kagenti:            v0.5.0 (GA), v0.5.0-alpha.11 (latest pre-release)
+  kagenti-extensions: v0.4.0-alpha.8 (latest pre-release), v0.3.1 (GA)
+  kagenti-operator:   v0.2.0-alpha.21 (latest pre-release)
+
+Chart.yaml pins:
+  kagenti-webhook-chart: 0.4.0-alpha.8
+  kagenti-operator-chart: 0.2.0-alpha.21
+
+Image tag issues:
+  5 images using tag: latest (must fix before RC/GA)
+```
+
+Ask: "What release would you like to cut? (alpha / rc / ga / patch)"
+
+## Phase 2: Prepare the Release
+
+Steps depend on the release type. Always follow the dependency order:
+
+```
+1. kagenti/kagenti-operator     →  first
+2. kagenti/kagenti-extensions   →  second
+3. kagenti/agent-examples       →  third (if applicable)
+4. kagenti/kagenti              →  last (update Chart.yaml + values.yaml, then tag)
+```
+
+### 2.1 For Alpha
+
+Minimal preparation — alphas are tagged from `main`.
+
+- [ ] Confirm CI passes on `main` for each repo being tagged
+- [ ] Determine next alpha number for each repo
+
+### 2.2 For RC
+
+- [ ] All planned features merged; feature freeze in effect
+- [ ] No known critical or blocking bugs
+- [ ] Dependency repos tagged with RC first
+- [ ] `charts/kagenti/Chart.yaml` updated with RC sub-chart versions
+- [ ] `helm dependency update charts/kagenti/` run to regenerate `Chart.lock`
+- [ ] **All `tag: latest` in `charts/kagenti/values.yaml` replaced** with RC tag
+- [ ] `ui.tag` and `backend.tag` updated to the RC tag
+- [ ] Release branch created:
+
+```bash
+git checkout -b release-X.Y main
+git push origin release-X.Y
+```
+
+### 2.3 For GA
+
+- [ ] At least one RC validated (minimum 1 week soak recommended)
+- [ ] No open release-blocking issues
+- [ ] At least one maintainer sign-off
+- [ ] Dependency repos tagged with GA first
+- [ ] `charts/kagenti/Chart.yaml` updated with GA sub-chart versions
+- [ ] `helm dependency update charts/kagenti/` regenerates `Chart.lock`
+- [ ] **All image tags in `charts/kagenti/values.yaml` pinned to GA tag**
+- [ ] Documentation reviewed and updated
+
+### 2.4 For Patch
+
+- [ ] Fix(es) cherry-picked into `release-X.Y` branch
+- [ ] CI passes on the release branch
+- [ ] For non-trivial fixes, consider an RC first (`vX.Y.Z-rc.1`)
+
+### Pin image tags helper
+
+Run this to find and display all images that need pinning:
+
+```bash
+echo "=== Images using 'latest' tag ==="
+grep -n 'tag: latest' charts/kagenti/values.yaml
+
+echo ""
+echo "=== All image:tag pairs ==="
+grep -n 'tag:\|image:' charts/kagenti/values.yaml
+
+echo ""
+echo "=== Hardcoded :latest in templates ==="
+grep -rn ':latest' charts/kagenti/templates/
+```
+
+## Phase 3: Tag Repos
+
+For each repo in dependency order, create and push the signed tag.
+
+### 3.1 Tag a dependency repo
+
+```bash
+# Clone (or cd into) the repo
+gh repo clone kagenti/<repo-name> /tmp/kagenti-release/<repo-name>
+cd /tmp/kagenti-release/<repo-name>
+
+# Verify CI passes on main
+gh run list --branch main --limit 3
+
+# Determine next tag
+git tag --list 'v*' --sort=-v:refname | head -5
+
+# Create signed tag
+git tag -s <version> -m "<version>"
+git push origin <version>
+
+# Wait for CI
+echo "Waiting for CI to complete..."
+sleep 10
+gh run list --limit 3
+```
+
+### 3.2 Tag kagenti/kagenti (last)
+
+After all dependency repos are tagged and their CI has completed:
+
+```bash
+cd /tmp/kagenti-repo  # or wherever kagenti/kagenti is cloned
+
+# Verify Chart.yaml and values.yaml are updated
+grep -A2 'name: kagenti-' charts/kagenti/Chart.yaml
+grep -n 'tag: latest' charts/kagenti/values.yaml  # should return nothing
+
+# Create signed tag
+git tag -s <version> -m "<version>"
+git push origin <version>
+```
+
+## Phase 4: Verify Artifacts
+
+After tagging, verify that CI produced all expected artifacts.
+
+### 4.1 GitHub Releases
+
+```bash
+for repo in kagenti kagenti-extensions kagenti-operator; do
+  echo "=== kagenti/$repo ==="
+  gh release view <version> --repo kagenti/$repo --json tagName,isPrerelease,publishedAt 2>/dev/null || echo "  Not found"
+done
+```
+
+### 4.2 Container images
+
+```bash
+REGISTRY="ghcr.io/kagenti"
+VERSION="<version>"
+
+# kagenti/kagenti images
+for img in ui-v2 backend ui-oauth-secret agent-oauth-secret api-oauth-secret; do
+  echo -n "$img:$VERSION ... "
+  gh api -H "Accept: application/vnd.github.v3+json" \
+    "/orgs/kagenti/packages/container/kagenti%2F$img/versions" \
+    --jq ".[].metadata.container.tags[] | select(. == \"$VERSION\")" 2>/dev/null \
+    && echo "OK" || echo "MISSING"
+done
+
+# kagenti-extensions images
+for img in envoy-with-processor proxy-init client-registration; do
+  echo -n "$img:$VERSION ... "
+  gh api -H "Accept: application/vnd.github.v3+json" \
+    "/orgs/kagenti/packages/container/kagenti-extensions%2F$img/versions" \
+    --jq ".[].metadata.container.tags[] | select(. == \"$VERSION\")" 2>/dev/null \
+    && echo "OK" || echo "MISSING"
+done
+```
+
+### 4.3 Helm charts
+
+```bash
+# Check OCI registry for charts
+helm show chart oci://ghcr.io/kagenti/kagenti-extensions/kagenti-webhook-chart --version <chart-version> 2>/dev/null \
+  && echo "webhook chart OK" || echo "webhook chart MISSING"
+
+helm show chart oci://ghcr.io/kagenti/kagenti-operator/kagenti-operator-chart --version <chart-version> 2>/dev/null \
+  && echo "operator chart OK" || echo "operator chart MISSING"
+```
+
+### 4.4 Pre-release flag
+
+For alpha and RC releases, confirm the GitHub Release is marked as pre-release.
+For GA releases, confirm it is marked as "Latest":
+
+```bash
+gh release view <version> --repo kagenti/kagenti --json isPrerelease --jq '.isPrerelease'
+# Expected: true for alpha/RC, false for GA
+```
+
+## Phase 5: Release Notes
+
+### For Alpha
+
+Auto-generated changelog is sufficient. Optionally add a one-line summary of
+known breaking changes from the previous alpha:
+
+```bash
+gh release edit <version> --repo kagenti/kagenti \
+  --notes "Alpha release — auto-generated changelog below. Known issues: <list any>"
+```
+
+### For RC
+
+Brief summary highlighting what changed since the last alpha or RC:
+
+```bash
+gh release edit <version> --repo kagenti/kagenti \
+  --notes "Release candidate for vX.Y.0. Feature-complete; bug fixes only from here.
+
+## Testing needed
+- [ ] Clean Kind install
+- [ ] OpenShift install
+- [ ] Upgrade from previous GA
+- [ ] E2E tests
+
+## Changes since <previous-tag>
+<auto-generated changelog>"
+```
+
+### For GA
+
+Full release notes with component compatibility table:
+
+```markdown
+## Highlights
+- Feature 1
+- Feature 2
+
+## Breaking Changes
+- (list any)
+
+## Component Versions
+
+| Component | Version |
+|-----------|---------|
+| kagenti (platform) | vX.Y.0 |
+| kagenti-extensions (webhook) | vA.B.0 |
+| kagenti-operator | vC.D.0 |
+| agent-examples | vE.F.0 |
+
+## Upgrade Notes
+- (any special steps for upgrading from previous GA)
+
+## Full Changelog
+<auto-generated>
+```
+
+Edit with:
+
+```bash
+gh release edit <version> --repo kagenti/kagenti --notes-file /tmp/release-notes.md
+```
+
+## Phase 6: Announce
+
+For GA and significant RC releases:
+
+```bash
+echo "Announce the release on:"
+echo "  - Discord: https://discord.gg/aJ92dNDzqB"
+echo "  - Mailing list: kagenti-maintainers@googlegroups.com"
+echo "  - Blog post (major releases): add entry to docs/blogs.md"
+```
+
+Draft an announcement message:
+
+```
+Kagenti vX.Y.0 is now available!
+
+Highlights:
+- <feature 1>
+- <feature 2>
+
+Install: https://github.com/kagenti/kagenti/blob/main/docs/install.md
+Release notes: https://github.com/kagenti/kagenti/releases/tag/vX.Y.0
+```
+
+## Quick Reference: Release Types
+
+| Type | Branch | Pin images? | Release notes | Announce? |
+|------|--------|-------------|---------------|-----------|
+| Alpha | `main` | No (optional) | Auto-generated | No |
+| RC | `release-X.Y` | **Yes** — no `latest` | Summary + testing checklist | Team only |
+| GA | `release-X.Y` | **Yes** — no `latest` | Full notes + compatibility table | Public |
+| Patch | `release-X.Y` | **Yes** | Brief fix description | Public |
+
+## Related Skills
+
+- `docs/releasing.md` — Full maintainer reference guide
+- `git:commit` — Commit format conventions
+- `github:pr-review` — PR review workflow
+- `ci:status` — CI failure analysis
