@@ -66,7 +66,7 @@ for wt in "$@"; do
 
     echo ""
     echo "--- $wt ($branch, $count commits) ---"
-    if (cd "$wt_path" && "$SIGN_SCRIPT" upstream/main --no-gpg); then
+    if (cd "$wt_path" && "$SIGN_SCRIPT" upstream/main --no-gpg --yes); then
         # Push after signing
         echo "Pushing $branch..."
         if git -C "$wt_path" push upstream "$branch" --force-with-lease 2>&1 | tail -1; then

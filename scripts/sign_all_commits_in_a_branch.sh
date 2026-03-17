@@ -21,10 +21,12 @@ NC='\033[0m' # No Color
 
 # Parse arguments
 GPG_SIGN="-S"
+AUTO_YES=false
 UPSTREAM_REF="upstream/main"
 for arg in "$@"; do
     case "$arg" in
         --no-gpg) GPG_SIGN="--no-gpg-sign" ;;
+        --yes|-y) AUTO_YES=true ;;
         *) UPSTREAM_REF="$arg" ;;
     esac
 done
@@ -63,9 +65,13 @@ echo -e "${GREEN}Will sign each commit and replace Co-Authored-By trailers with:
 echo "  $ASSISTED_BY"
 echo ""
 
-# Prompt for confirmation
-echo -ne "${YELLOW}Run this? [y/N]: ${NC}"
-read -r REPLY
+# Prompt for confirmation (skip with --yes/-y)
+if [ "$AUTO_YES" = "true" ]; then
+    REPLY="y"
+else
+    echo -ne "${YELLOW}Run this? [y/N]: ${NC}"
+    read -r REPLY
+fi
 
 if [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
     echo -e "${RED}Cancelled.${NC}"
