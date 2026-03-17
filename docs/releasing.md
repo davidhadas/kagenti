@@ -22,6 +22,37 @@ vX.Y.0-alpha.N   →   vX.Y.0-rc.N   →   vX.Y.0   →   vX.Y.Z (patches)
 GoReleaser's `prerelease: auto` setting automatically marks tags containing
 `-alpha` or `-rc` as pre-releases on GitHub. No manual intervention is needed.
 
+## Release Governance
+
+Any Kagenti maintainer (member of the
+[kagenti-maintainers](mailto:kagenti-maintainers@googlegroups.com) team) can
+cut a release. For GA releases, at least one other maintainer must sign off
+before tagging.
+
+## Version Compatibility
+
+Each `kagenti/kagenti` release tag represents a tested set of component versions
+across the organization. The Helm chart (`charts/kagenti/Chart.yaml`) pins the
+exact sub-chart versions, and `charts/kagenti/values.yaml` pins the container
+image tags.
+
+GA release notes should include a compatibility table:
+
+```markdown
+## Component Versions
+
+| Component | Version |
+|-----------|---------|
+| kagenti (platform) | v0.6.0 |
+| kagenti-extensions (webhook) | v0.5.0 |
+| kagenti-operator | v0.3.0 |
+| agent-examples | v0.2.0 |
+```
+
+Users who install via the Ansible installer or Helm charts do not need to manage
+version compatibility manually — checking out a Kagenti release tag gives a
+consistent, tested set of components.
+
 ## Repositories and Artifacts
 
 The Kagenti platform spans multiple repositories. Each produces different
@@ -93,6 +124,53 @@ dependencies:
 Run `helm dependency update charts/kagenti/` to regenerate `Chart.lock`, commit,
 merge, then tag `kagenti/kagenti`.
 
+## Pinning Image Tags Before Release
+
+The `charts/kagenti/values.yaml` file references internal container images.
+Some of these currently use `tag: latest`, which must be pinned to the release
+version before cutting an RC or GA tag.
+
+### Images that require pinning
+
+Check `charts/kagenti/values.yaml` for any `tag: latest` entries. As of v0.5.0,
+these include:
+
+| Image | values.yaml key | Purpose |
+|-------|----------------|---------|
+| `ghcr.io/kagenti/kagenti/ui-oauth-secret` | `uiOAuthSecret.tag` | UI Keycloak client registration |
+| `ghcr.io/kagenti/kagenti/agent-oauth-secret` | `agentOAuthSecret.tag` | Agent Keycloak client registration |
+| `ghcr.io/kagenti/kagenti/api-oauth-secret` | `apiOAuthSecret.tag` | API Keycloak client registration |
+| `ghcr.io/kagenti/kagenti/phoenix-oauth-secret` | `phoenixOAuthSecret.tag` | Phoenix observability auth |
+| `mlflowOAuthSecret.image` | `mlflowOAuthSecret.tag` | MLflow auth |
+
+Additionally, some Helm templates hardcode `:latest` for utility images
+(`bitnami/kubectl:latest`, `ose-cli:latest`). These should be pinned to
+specific versions over time.
+
+### What to do
+
+Before tagging an RC or GA release, update `charts/kagenti/values.yaml`:
+
+```yaml
+uiOAuthSecret:
+  image: ghcr.io/kagenti/kagenti/ui-oauth-secret
+  tag: vX.Y.0       # <-- pin to release tag, not "latest"
+
+agentOAuthSecret:
+  image: ghcr.io/kagenti/kagenti/agent-oauth-secret
+  tag: vX.Y.0       # <-- pin to release tag
+
+# ... repeat for all oauth-secret images
+```
+
+The `ui.tag` and `backend.tag` fields are already pinned to specific versions
+(e.g., `v0.5.0-alpha.11`). Ensure these are also updated to the release tag.
+
+**Why this matters:** Using `latest` means different installs at different times
+get different image versions, making it impossible to reproduce issues or
+guarantee a tested set of components. Every image referenced in `values.yaml`
+should resolve to a specific, immutable tag for any RC or GA release.
+
 ## Cutting a Release Candidate
 
 Release candidates signal feature-complete code ready for broader testing.
@@ -112,37 +190,43 @@ Release candidates signal feature-complete code ready for broader testing.
    the new sub-chart RC versions. Run `helm dependency update charts/kagenti/`
    to regenerate `Chart.lock`.
 
-3. **(Optional) Create a release branch** if parallel development on `main` is
-   expected:
+3. **Pin all image tags** in `charts/kagenti/values.yaml` to the RC tag.
+   Replace any `tag: latest` entries with the RC version (see
+   [Pinning Image Tags Before Release](#pinning-image-tags-before-release)).
+
+4. **Create a release branch** for stabilization:
 
    ```bash
    git checkout -b release-X.Y main
    git push origin release-X.Y
    ```
 
-   If no parallel work is planned, tag directly from `main`.
+   Release branches are the target for cherry-picks and patch releases. If no
+   parallel work is planned, you may tag directly from `main`, but the release
+   branch will still be needed for any future patches.
 
-4. **Tag the RC:**
+5. **Tag the RC:**
 
    ```bash
    git tag -s vX.Y.0-rc.1 -m "vX.Y.0-rc.1"
    git push origin vX.Y.0-rc.1
    ```
 
-5. **Verify all artifacts:**
+6. **Verify all artifacts:**
    - [ ] Container images pushed with the RC tag
    - [ ] Helm charts pushed to OCI registry
    - [ ] GitHub Release created as **Pre-release**
+   - [ ] No `tag: latest` remains in `charts/kagenti/values.yaml`
 
-6. **Test the RC:**
+7. **Test the RC:**
    - [ ] Clean Kind cluster install using the RC tag succeeds
    - [ ] OpenShift install (if applicable) succeeds
    - [ ] E2E tests pass
    - [ ] Upgrade from previous GA version works
    - [ ] Documentation reviewed and updated for new features
 
-7. **If bugs are found:** Fix on the release branch (or `main`), cherry-pick as
-   needed, bump to `rc.2`, and repeat from step 4.
+8. **If bugs are found:** Fix on the release branch (or `main`), cherry-pick as
+   needed, bump to `rc.2`, and repeat from step 5.
 
 ## Cutting a GA Release
 
@@ -163,26 +247,34 @@ A GA release is the final, stable, production-ready version.
    GA versions. Run `helm dependency update charts/kagenti/` to regenerate
    `Chart.lock`.
 
-3. **Tag the GA release:**
+3. **Pin all image tags** in `charts/kagenti/values.yaml` to the GA tag.
+   Verify no `tag: latest` entries remain (see
+   [Pinning Image Tags Before Release](#pinning-image-tags-before-release)).
+
+4. **Tag the GA release:**
 
    ```bash
    git tag -s vX.Y.0 -m "vX.Y.0"
    git push origin vX.Y.0
    ```
 
-4. **Write release notes:**
+5. **Write release notes:**
    - Use GitHub's auto-generated changelog as a starting point.
    - Add a summary section highlighting key features, breaking changes, and
      upgrade notes.
    - List the compatible versions of all Kagenti org repos.
 
-5. **Verify:**
+6. **Verify:**
    - [ ] GitHub Release is marked as **Latest** (not Pre-release)
    - [ ] All container images tagged and pushed
    - [ ] Helm charts published to OCI registry
+   - [ ] No `tag: latest` remains in `charts/kagenti/values.yaml`
    - [ ] Installation guide version references are up to date
 
-6. **Announce** the release to the community (Discord, mailing list).
+7. **Announce** the release:
+   - [Discord](https://discord.gg/aJ92dNDzqB)
+   - [Mailing list](mailto:kagenti-maintainers@googlegroups.com)
+   - Consider a blog post for major releases (publish under `docs/blogs.md`)
 
 ## Cutting a Patch Release
 
@@ -219,3 +311,30 @@ stages.
 
 The `version` field in `Chart.yaml` should match the release tag (minus the `v`
 prefix). The `appVersion` field may differ if it tracks a different cadence.
+
+### `tag: latest` in values.yaml
+
+If a GA release ships with `tag: latest` in `values.yaml`, users installing at
+different times will get different image versions, making issues unreproducible.
+Search for remaining `latest` references:
+
+```bash
+grep -n 'tag: latest' charts/kagenti/values.yaml
+grep -rn ':latest' charts/kagenti/templates/
+```
+
+Fix any found before tagging.
+
+## Future Work
+
+The following items are recommended for CNCF project maturity but are not yet
+implemented. Track these as separate issues:
+
+- **Artifact signing and provenance** — Sign container images with
+  Sigstore/cosign and generate SLSA provenance attestations
+- **SBOM generation** — Produce SPDX or CycloneDX SBOMs for every release
+  artifact
+- **Support window / EOL policy** — Define how many minor releases are
+  supported concurrently (e.g., N and N-1) and for how long
+- **Security release process** — Document how CVEs and embargoed fixes are
+  handled (private fork, coordinated disclosure, patch timeline)
