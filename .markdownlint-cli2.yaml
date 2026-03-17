@@ -1,0 +1,27 @@
+# markdownlint-cli2 configuration
+# https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
+
+config:
+  # Disable line length — many existing docs have long lines
+  MD013: false
+
+  # Allow inline HTML — used for <details>/<summary>, <br>, <img> tags
+  MD033: false
+
+  # Allow non-H1 first line — files may start with YAML frontmatter or badges
+  MD041: false
+
+  # Allow duplicate headings in different nesting contexts (e.g., multiple "Prerequisites")
+  MD024:
+    siblings_only: true
+
+  # Allow trailing punctuation in headings (e.g., "4.18 → 4.19")
+  MD026: false
+
+# Ignore generated and vendored content
+ignores:
+  - "node_modules/**"
+  - "venv/**"
+  - "**/vendor/**"
+  - "charts/**"
+  - ".claude/**"
