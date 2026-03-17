@@ -199,12 +199,6 @@ spec:
                   key: SCOPE
                   optional: true
             {{- if .Values.featureFlags.sandbox }}
-            - name: LITELLM_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: litellm-proxy-secret
-                  key: master-key
-                  optional: true
             - name: LITELLM_MASTER_KEY
               valueFrom:
                 secretKeyRef:
