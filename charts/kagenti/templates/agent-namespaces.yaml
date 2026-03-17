@@ -122,9 +122,11 @@ stringData:
 {{- end }}
 
 # ——————————————————————————————————————————————————————————————————————————————
-#  ConfigMap for Webhook (Client Registration) in Namespace: {{ . }}
-#  Used by kagenti-client-registration sidecar injected by the webhook
-#  Note: KEYCLOAK_URL and KEYCLOAK_REALM are in the environments ConfigMap (shared)
+#  ConfigMap for Webhook Injector in Namespace: {{ . }}
+#  Consumed by kagenti-webhook sidecar injector to configure client-registration container.
+#  Keys (CLIENT_AUTH_TYPE, SPIFFE_IDP_ALIAS, JWT_AUDIENCE) are injected as env vars.
+#  Note: This is separate from authbridge-config (used by sidecars at runtime).
+#  Coordination: This ConfigMap structure is stable across kagenti-extensions PR #233.
 # ——————————————————————————————————————————————————————————————————————————————
 apiVersion: v1
 kind: ConfigMap

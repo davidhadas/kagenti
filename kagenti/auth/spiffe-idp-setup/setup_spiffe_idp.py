@@ -19,6 +19,7 @@ Environment Variables:
     KEYCLOAK_ADMIN_SECRET_NAME: Secret name containing admin credentials (default: keycloak-initial-admin)
     KEYCLOAK_ADMIN_USERNAME_KEY: Key in Secret for username (default: username)
     KEYCLOAK_ADMIN_PASSWORD_KEY: Key in Secret for password (default: password)
+    KEYCLOAK_TLS_VERIFY: Enable TLS certificate verification (default: true, set to "false" to disable)
     SPIFFE_TRUST_DOMAIN: SPIFFE trust domain (default: spiffe://localtest.me)
     SPIFFE_BUNDLE_ENDPOINT: JWKS URL (default: http://spire-spiffe-oidc-discovery-provider.spire-server.svc.cluster.local/keys)
     SPIFFE_IDP_ALIAS: Identity Provider alias (default: spire-spiffe)
@@ -61,6 +62,8 @@ SPIFFE_BUNDLE_ENDPOINT = os.getenv(
 )
 SPIFFE_IDP_ALIAS = os.getenv("SPIFFE_IDP_ALIAS", "spire-spiffe")
 SPIRE_NAMESPACE = os.getenv("SPIRE_NAMESPACE", "spire-server")
+# TLS verification - defaults to True (secure), set KEYCLOAK_TLS_VERIFY=false to disable
+KEYCLOAK_TLS_VERIFY = os.getenv("KEYCLOAK_TLS_VERIFY", "true").lower() != "false"
 
 
 def read_keycloak_credentials() -> Tuple[str, str]:
@@ -323,7 +326,7 @@ def main() -> int:
             password=admin_password,
             realm_name="master",
             user_realm_name="master",
-            verify=False,  # For development; use proper certs in production
+            verify=KEYCLOAK_TLS_VERIFY,
         )
         logger.info("✅ Connected to Keycloak master realm")
     except Exception as e:
@@ -354,7 +357,7 @@ def main() -> int:
             password=admin_password,
             realm_name=KEYCLOAK_REALM,
             user_realm_name="master",
-            verify=False,
+            verify=KEYCLOAK_TLS_VERIFY,
         )
         logger.info(f"✅ Switched to realm: {KEYCLOAK_REALM}")
     except Exception as e:

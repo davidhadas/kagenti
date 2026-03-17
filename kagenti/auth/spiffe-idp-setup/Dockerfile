@@ -13,5 +13,10 @@ COPY setup_spiffe_idp.py .
 # Make script executable
 RUN chmod +x setup_spiffe_idp.py
 
+# Create non-root user and switch to it
+RUN useradd -r -u 1000 -s /bin/false appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
 # Run the setup script
 CMD ["python3", "setup_spiffe_idp.py"]
