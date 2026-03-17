@@ -231,14 +231,33 @@ otel:
           trace_statements:
             - context: span
               statements:
-                - set(attributes["llm.model_name"], attributes["gen_ai.request.model"]) where attributes["gen_ai.request.model"] != nil
-                - set(attributes["llm.model_name"], attributes["gen_ai.response.model"]) where attributes["gen_ai.response.model"] != nil and attributes["llm.model_name"] == nil
-                - set(attributes["llm.token_count.prompt"], attributes["gen_ai.usage.input_tokens"]) where attributes["gen_ai.usage.input_tokens"] != nil
-                - set(attributes["llm.token_count.completion"], attributes["gen_ai.usage.output_tokens"]) where attributes["gen_ai.usage.output_tokens"] != nil
-                - set(attributes["llm.token_count.total"], attributes["gen_ai.usage.input_tokens"] + attributes["gen_ai.usage.output_tokens"]) where attributes["gen_ai.usage.input_tokens"] != nil and attributes["gen_ai.usage.output_tokens"] != nil
-                - set(attributes["llm.provider"], attributes["gen_ai.system"]) where attributes["gen_ai.system"] != nil
-                - set(attributes["llm.system"], attributes["gen_ai.system"]) where attributes["gen_ai.system"] != nil
-                - set(attributes["llm.invocation_parameters"], Concat(["{\"temperature\":", Concat([attributes["gen_ai.request.temperature"], "}"], "")], "")) where attributes["gen_ai.request.temperature"] != nil
+                - >-
+                  set(attributes["llm.model_name"], attributes["gen_ai.request.model"])
+                  where attributes["gen_ai.request.model"] != nil
+                - >-
+                  set(attributes["llm.model_name"], attributes["gen_ai.response.model"])
+                  where attributes["gen_ai.response.model"] != nil and attributes["llm.model_name"] == nil
+                - >-
+                  set(attributes["llm.token_count.prompt"], attributes["gen_ai.usage.input_tokens"])
+                  where attributes["gen_ai.usage.input_tokens"] != nil
+                - >-
+                  set(attributes["llm.token_count.completion"], attributes["gen_ai.usage.output_tokens"])
+                  where attributes["gen_ai.usage.output_tokens"] != nil
+                - >-
+                  set(attributes["llm.token_count.total"],
+                  attributes["gen_ai.usage.input_tokens"] + attributes["gen_ai.usage.output_tokens"])
+                  where attributes["gen_ai.usage.input_tokens"] != nil
+                  and attributes["gen_ai.usage.output_tokens"] != nil
+                - >-
+                  set(attributes["llm.provider"], attributes["gen_ai.system"])
+                  where attributes["gen_ai.system"] != nil
+                - >-
+                  set(attributes["llm.system"], attributes["gen_ai.system"])
+                  where attributes["gen_ai.system"] != nil
+                - >-
+                  set(attributes["llm.invocation_parameters"],
+                  Concat(["{\"temperature\":", Concat([attributes["gen_ai.request.temperature"], "}"], "")], ""))
+                  where attributes["gen_ai.request.temperature"] != nil
       service:
         pipelines:
           traces/phoenix:
@@ -409,4 +428,3 @@ mlflow:
     # Set to true in ocp_values.yaml for production deployments
     enabled: false
     secretName: mlflow-oauth-secret
-

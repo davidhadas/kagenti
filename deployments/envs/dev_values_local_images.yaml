@@ -21,6 +21,8 @@ kind_cluster_name: kagenti-dev
 charts:
   # kagenti-deps chart overrides
   kagenti-deps:
+    # Skip helm dependency update (dependencies already exist as tarballs)
+    dependency_update: false
     values:
       # Override SPIFFE IdP setup image
       # Ansible creates job automatically after set_key_use patch (no race condition)
@@ -32,6 +34,8 @@ charts:
 
   # kagenti chart overrides
   kagenti:
+    # Skip helm dependency update (dependencies already exist as tarballs)
+    dependency_update: false
     values:
       # Override AuthBridge sidecar images
       authBridge:
@@ -60,10 +64,5 @@ charts:
           enabled: false
 
   # Disable mcp-gateway (not needed for testing, has ghcr.io access issues)
-  # Skip helm dependency update for kagenti (dependencies already exist as tarballs)
   mcpGateway:
     enabled: false
-  kagentiDeps:
-    dependency_update: false
-  kagenti:
-    dependency_update: false

@@ -240,5 +240,3 @@ kind_min_cpus: 4
 kind_config: "./kind/kind-config.yaml"
 kind_config_registry: "./kind/kind-config-registry.yaml"
 preload_images_file: "./kind/preload-images.txt"
-
-

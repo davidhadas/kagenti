@@ -78,7 +78,7 @@ def read_keycloak_credentials() -> Tuple[str, str]:
 
         v1 = client.CoreV1Api()
 
-        logger.info(f"Reading credentials from Secret: {KEYCLOAK_NAMESPACE}/{KEYCLOAK_ADMIN_SECRET_NAME}")
+        logger.info(f"Reading credentials from Secret in namespace: {KEYCLOAK_NAMESPACE}")
 
         secret = v1.read_namespaced_secret(
             name=KEYCLOAK_ADMIN_SECRET_NAME,
@@ -103,7 +103,7 @@ def read_keycloak_credentials() -> Tuple[str, str]:
 
     except ApiException as e:
         logger.error(f"❌ Failed to read Secret: {e}")
-        logger.error(f"Ensure Secret exists: kubectl get secret -n {KEYCLOAK_NAMESPACE} {KEYCLOAK_ADMIN_SECRET_NAME}")
+        logger.error(f"Ensure Secret exists in namespace: {KEYCLOAK_NAMESPACE}")
         raise
     except Exception as e:
         logger.error(f"❌ Unexpected error reading credentials: {e}")
