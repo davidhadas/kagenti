@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Sign all commits in current branch that are ahead of upstream/main.
-# This adds both sign-off (-s) and GPG signature (-S) to each commit,
+# This adds sign-off (-s) to each commit (DCO compliance),
 # and replaces any Co-Authored-By trailers with Assisted-By.
 #
 # Usage: ./scripts/sign_all_commits_in_a_branch.sh [upstream-ref]
@@ -84,7 +84,7 @@ COMMIT_COUNT=$(git rev-list --count "$UPSTREAM_REF"..HEAD)
 echo ""
 echo -e "${BLUE}Step 2/2: Signing $COMMIT_COUNT commits...${NC}"
 git rebase "HEAD~${COMMIT_COUNT}" \
-    --exec 'git commit --amend --no-verify --no-edit -s -S'
+    --exec 'git commit --amend --no-verify --no-edit -s --no-gpg-sign'
 
 echo ""
 echo -e "${GREEN}Done! All $COMMIT_COUNT commits have been signed and trailers updated.${NC}"
