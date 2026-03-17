@@ -39,22 +39,25 @@ from kubernetes.client.rest import ApiException
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
 # Configuration from environment
-KEYCLOAK_BASE_URL = os.getenv("KEYCLOAK_BASE_URL", "http://keycloak-service.keycloak.svc:8080")
+KEYCLOAK_BASE_URL = os.getenv(
+    "KEYCLOAK_BASE_URL", "http://keycloak-service.keycloak.svc:8080"
+)
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "kagenti")
 KEYCLOAK_NAMESPACE = os.getenv("KEYCLOAK_NAMESPACE", "keycloak")
-KEYCLOAK_ADMIN_SECRET_NAME = os.getenv("KEYCLOAK_ADMIN_SECRET_NAME", "keycloak-initial-admin")
+KEYCLOAK_ADMIN_SECRET_NAME = os.getenv(
+    "KEYCLOAK_ADMIN_SECRET_NAME", "keycloak-initial-admin"
+)
 KEYCLOAK_ADMIN_USERNAME_KEY = os.getenv("KEYCLOAK_ADMIN_USERNAME_KEY", "username")
 KEYCLOAK_ADMIN_PASSWORD_KEY = os.getenv("KEYCLOAK_ADMIN_PASSWORD_KEY", "password")
 SPIFFE_TRUST_DOMAIN = os.getenv("SPIFFE_TRUST_DOMAIN", "spiffe://localtest.me")
 SPIFFE_BUNDLE_ENDPOINT = os.getenv(
     "SPIFFE_BUNDLE_ENDPOINT",
-    "http://spire-spiffe-oidc-discovery-provider.spire-server.svc.cluster.local/keys"
+    "http://spire-spiffe-oidc-discovery-provider.spire-server.svc.cluster.local/keys",
 )
 SPIFFE_IDP_ALIAS = os.getenv("SPIFFE_IDP_ALIAS", "spire-spiffe")
 SPIRE_NAMESPACE = os.getenv("SPIRE_NAMESPACE", "spire-server")
@@ -78,11 +81,12 @@ def read_keycloak_credentials() -> Tuple[str, str]:
 
         v1 = client.CoreV1Api()
 
-        logger.info(f"Reading credentials from Secret in namespace: {KEYCLOAK_NAMESPACE}")
+        logger.info(
+            f"Reading credentials from Secret in namespace: {KEYCLOAK_NAMESPACE}"
+        )
 
         secret = v1.read_namespaced_secret(
-            name=KEYCLOAK_ADMIN_SECRET_NAME,
-            namespace=KEYCLOAK_NAMESPACE
+            name=KEYCLOAK_ADMIN_SECRET_NAME, namespace=KEYCLOAK_NAMESPACE
         )
 
         # Decode base64-encoded values
@@ -95,8 +99,8 @@ def read_keycloak_credentials() -> Tuple[str, str]:
                 f"{KEYCLOAK_ADMIN_USERNAME_KEY}, {KEYCLOAK_ADMIN_PASSWORD_KEY}"
             )
 
-        username = base64.b64decode(username_b64).decode('utf-8')
-        password = base64.b64decode(password_b64).decode('utf-8')
+        username = base64.b64decode(username_b64).decode("utf-8")
+        password = base64.b64decode(password_b64).decode("utf-8")
 
         logger.info(f"✅ Successfully read credentials from Secret")
         return username, password
@@ -125,7 +129,9 @@ def wait_for_spire(max_attempts: int = 30, delay_seconds: int = 10) -> bool:
 
     for attempt in range(1, max_attempts + 1):
         try:
-            logger.info(f"Attempt {attempt}/{max_attempts}: Checking SPIRE availability...")
+            logger.info(
+                f"Attempt {attempt}/{max_attempts}: Checking SPIRE availability..."
+            )
             response = requests.get(SPIFFE_BUNDLE_ENDPOINT, timeout=5)
 
             if response.status_code == 200:
@@ -155,8 +161,12 @@ def wait_for_spire(max_attempts: int = 30, delay_seconds: int = 10) -> bool:
                 logger.info(f"  Retrying in {delay_seconds} seconds...")
                 time.sleep(delay_seconds)
 
-    logger.error(f"❌ SPIRE OIDC Discovery Provider not accessible after {max_attempts} attempts")
-    logger.error(f"Ensure SPIRE is installed and running in namespace '{SPIRE_NAMESPACE}'")
+    logger.error(
+        f"❌ SPIRE OIDC Discovery Provider not accessible after {max_attempts} attempts"
+    )
+    logger.error(
+        f"Ensure SPIRE is installed and running in namespace '{SPIRE_NAMESPACE}'"
+    )
     return False
 
 
@@ -188,10 +198,7 @@ def get_or_create_realm(keycloak_admin: KeycloakAdmin, realm_name: str) -> bool:
 
 
 def ensure_spiffe_idp(
-    kc: KeycloakAdmin,
-    alias: str,
-    trust_domain: str,
-    bundle_endpoint: str
+    kc: KeycloakAdmin, alias: str, trust_domain: str, bundle_endpoint: str
 ) -> bool:
     """
     Create or update a SPIFFE Identity Provider.
@@ -226,18 +233,28 @@ def ensure_spiffe_idp(
         if existing_idp:
             # Check if configuration needs updating
             existing_trust_domain = existing_idp.get("config", {}).get("trustDomain")
-            existing_bundle_endpoint = existing_idp.get("config", {}).get("bundleEndpoint")
+            existing_bundle_endpoint = existing_idp.get("config", {}).get(
+                "bundleEndpoint"
+            )
 
-            if (existing_trust_domain == trust_domain and
-                existing_bundle_endpoint == bundle_endpoint):
-                logger.info(f"✅ SPIFFE Identity Provider '{alias}' already exists with correct configuration")
+            if (
+                existing_trust_domain == trust_domain
+                and existing_bundle_endpoint == bundle_endpoint
+            ):
+                logger.info(
+                    f"✅ SPIFFE Identity Provider '{alias}' already exists with correct configuration"
+                )
                 return True
             else:
                 logger.info(f"Updating SPIFFE Identity Provider '{alias}':")
                 if existing_trust_domain != trust_domain:
-                    logger.info(f"  Trust Domain: {existing_trust_domain} → {trust_domain}")
+                    logger.info(
+                        f"  Trust Domain: {existing_trust_domain} → {trust_domain}"
+                    )
                 if existing_bundle_endpoint != bundle_endpoint:
-                    logger.info(f"  Bundle Endpoint: {existing_bundle_endpoint} → {bundle_endpoint}")
+                    logger.info(
+                        f"  Bundle Endpoint: {existing_bundle_endpoint} → {bundle_endpoint}"
+                    )
                 kc.update_idp(alias, idp_payload)
                 logger.info(f"✅ SPIFFE Identity Provider '{alias}' updated")
                 return True
@@ -306,7 +323,7 @@ def main() -> int:
             password=admin_password,
             realm_name="master",
             user_realm_name="master",
-            verify=False  # For development; use proper certs in production
+            verify=False,  # For development; use proper certs in production
         )
         logger.info("✅ Connected to Keycloak master realm")
     except Exception as e:
@@ -322,7 +339,9 @@ def main() -> int:
     logger.info("=" * 60)
 
     if not get_or_create_realm(master_admin, KEYCLOAK_REALM):
-        logger.error(f"❌ Setup failed: Could not create/access realm '{KEYCLOAK_REALM}'")
+        logger.error(
+            f"❌ Setup failed: Could not create/access realm '{KEYCLOAK_REALM}'"
+        )
         return 1
 
     logger.info("")
@@ -335,7 +354,7 @@ def main() -> int:
             password=admin_password,
             realm_name=KEYCLOAK_REALM,
             user_realm_name="master",
-            verify=False
+            verify=False,
         )
         logger.info(f"✅ Switched to realm: {KEYCLOAK_REALM}")
     except Exception as e:
@@ -345,7 +364,9 @@ def main() -> int:
     logger.info("")
 
     # Step 5: Create SPIFFE Identity Provider
-    if not ensure_spiffe_idp(kc, SPIFFE_IDP_ALIAS, SPIFFE_TRUST_DOMAIN, SPIFFE_BUNDLE_ENDPOINT):
+    if not ensure_spiffe_idp(
+        kc, SPIFFE_IDP_ALIAS, SPIFFE_TRUST_DOMAIN, SPIFFE_BUNDLE_ENDPOINT
+    ):
         logger.error("❌ Setup failed: Could not create SPIFFE Identity Provider")
         return 1
 
@@ -356,7 +377,9 @@ def main() -> int:
     logger.info("")
     logger.info("Next steps:")
     logger.info(f"1. Set authBridge.clientAuthType: 'federated-jwt' in values.yaml")
-    logger.info(f"2. Deploy agents - they will automatically use JWT-SVID authentication")
+    logger.info(
+        f"2. Deploy agents - they will automatically use JWT-SVID authentication"
+    )
     logger.info("")
     logger.info("Verification:")
     logger.info(f"  Keycloak UI → {KEYCLOAK_REALM} realm → Identity Providers")
