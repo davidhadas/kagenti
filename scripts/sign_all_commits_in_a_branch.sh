@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 #
 # Sign all commits in current branch that are ahead of upstream/main.
-# This adds sign-off (-s) to each commit (DCO compliance),
+# This adds sign-off (-s) and GPG signature (-S) to each commit,
 # and replaces any Co-Authored-By trailers with Assisted-By.
 #
-# Usage: ./scripts/sign_all_commits_in_a_branch.sh [upstream-ref]
+# Usage: ./scripts/sign_all_commits_in_a_branch.sh [upstream-ref] [--no-gpg]
 #
 # Default upstream-ref: upstream/main
+# --no-gpg: skip GPG signing (DCO sign-off only, no password prompt)
 #
 
 set -euo pipefail
@@ -18,8 +19,15 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Get the upstream reference (default: upstream/main)
-UPSTREAM_REF="${1:-upstream/main}"
+# Parse arguments
+GPG_SIGN="-S"
+UPSTREAM_REF="upstream/main"
+for arg in "$@"; do
+    case "$arg" in
+        --no-gpg) GPG_SIGN="--no-gpg-sign" ;;
+        *) UPSTREAM_REF="$arg" ;;
+    esac
+done
 
 # Verify the upstream ref exists
 if ! git rev-parse --verify "$UPSTREAM_REF" >/dev/null 2>&1; then
@@ -84,7 +92,7 @@ COMMIT_COUNT=$(git rev-list --count "$UPSTREAM_REF"..HEAD)
 echo ""
 echo -e "${BLUE}Step 2/2: Signing $COMMIT_COUNT commits...${NC}"
 git rebase "HEAD~${COMMIT_COUNT}" \
-    --exec 'git commit --amend --no-verify --no-edit -s --no-gpg-sign'
+    --exec "git commit --amend --no-verify --no-edit -s $GPG_SIGN"
 
 echo ""
 echo -e "${GREEN}Done! All $COMMIT_COUNT commits have been signed and trailers updated.${NC}"
