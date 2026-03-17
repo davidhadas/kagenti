@@ -4,11 +4,42 @@ This guide covers installation on both local Kind clusters and OpenShift environ
 
 ## Table of Contents
 
+- [Choosing a Version](#choosing-a-version)
 - [Prerequisites](#prerequisites)
 - [Kind Installation (Local Development)](#kind-installation-local-development)
 - [OpenShift Installation](#openshift-installation)
 - [Accessing the UI](#accessing-the-ui)
 - [Verifying the Installation](#verifying-the-installation)
+
+---
+
+## Choosing a Version
+
+Kagenti uses [Semantic Versioning](https://semver.org/) with pre-release stages:
+
+| Tag pattern | Stability | Recommended for |
+|-------------|-----------|-----------------|
+| `vX.Y.Z` | **Stable (GA)** | Production and general use |
+| `vX.Y.0-rc.N` | **Release Candidate** | Final validation before GA |
+| `vX.Y.0-alpha.N` | **Alpha** | Early testing and development |
+
+**For most users, install the latest stable (GA) release.** You can find it at:
+- **GitHub:** <https://github.com/kagenti/kagenti/releases/latest>
+- **CLI:** `git tag --list 'v*' --sort=-v:refname | grep -v -E '(alpha|rc)' | head -1`
+
+To install a specific version, check out the corresponding tag after cloning:
+
+```bash
+git clone https://github.com/kagenti/kagenti.git
+cd kagenti
+git checkout v0.5.0   # replace with your desired version
+```
+
+> **Note:** The Kagenti Helm chart (`charts/kagenti/Chart.yaml`) pins the exact
+> versions of sub-charts from other Kagenti repositories (e.g.,
+> `kagenti-webhook-chart`, `kagenti-operator-chart`). You do not need to
+> manually coordinate versions across repos — checking out a Kagenti release tag
+> gives you a consistent, tested set of component versions.
 
 ---
 
@@ -50,6 +81,9 @@ This guide covers installation on both local Kind clusters and OpenShift environ
 # Clone the repository
 git clone https://github.com/kagenti/kagenti.git
 cd kagenti
+
+# Check out a stable release (see "Choosing a Version" above)
+git checkout v0.5.0
 ```
 
 #### Ansible-based Installer (Recommended)
@@ -173,8 +207,12 @@ export DOMAIN=apps.$(kubectl get dns cluster -o jsonpath='{ .spec.baseDomain }')
 ### Option A: Install from OCI Charts (Recommended)
 
 ```bash
-# Get latest version
-LATEST_TAG=$(git ls-remote --tags --sort="v:refname" https://github.com/kagenti/kagenti.git | tail -n1 | sed 's|.*refs/tags/v||; s/\^{}//')
+# Get latest stable version (excludes alpha and rc pre-releases)
+LATEST_TAG=$(git ls-remote --tags --sort="v:refname" https://github.com/kagenti/kagenti.git \
+  | sed 's|.*refs/tags/v||; s/\^{}//' \
+  | grep -v -E '(alpha|rc)' \
+  | tail -n1)
+echo "Installing Kagenti v${LATEST_TAG}"
 
 # Prepare secrets
 # Download .secrets_template.yaml from https://github.com/kagenti/kagenti/blob/main/charts/kagenti/.secrets_template.yaml
@@ -204,9 +242,10 @@ helm upgrade --install --create-namespace -n kagenti-system \
 ### Option B: Install from Repository
 
 ```bash
-# Clone repository
+# Clone repository and check out a stable release
 git clone https://github.com/kagenti/kagenti.git
 cd kagenti
+git checkout v0.5.0   # replace with desired version (see "Choosing a Version")
 
 # Prepare secrets
 cp charts/kagenti/.secrets_template.yaml charts/kagenti/.secrets.yaml
@@ -225,8 +264,11 @@ helm install kagenti-deps ./charts/kagenti-deps/ \
 helm install mcp-gateway oci://ghcr.io/kagenti/charts/mcp-gateway \
   --create-namespace --namespace mcp-system --version 0.4.0
 
-# Get latest UI tag
-LATEST_TAG=$(git ls-remote --tags --sort="v:refname" https://github.com/kagenti/kagenti.git | tail -n1 | sed 's|.*refs/tags/||; s/\^{}//')
+# Get latest stable version (excludes alpha and rc pre-releases)
+LATEST_TAG=$(git ls-remote --tags --sort="v:refname" https://github.com/kagenti/kagenti.git \
+  | sed 's|.*refs/tags/||; s/\^{}//' \
+  | grep -v -E '(alpha|rc)' \
+  | tail -n1)
 
 # Install Kagenti (with OpenShift CA workaround)
 helm upgrade --install kagenti ./charts/kagenti/ \

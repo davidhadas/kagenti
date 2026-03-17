@@ -119,6 +119,10 @@ Kagenti provides a set of components and assets that make it easier to manage AI
 git clone https://github.com/kagenti/kagenti.git
 cd kagenti
 
+# Check out the latest stable release (recommended)
+# Find the current version at https://github.com/kagenti/kagenti/releases/latest
+git checkout v0.5.0
+
 # Copy and configure secrets
 cp deployments/envs/secret_values.yaml.example deployments/envs/.secret_values.yaml
 # Edit deployments/envs/.secret_values.yaml with your values
@@ -126,6 +130,11 @@ cp deployments/envs/secret_values.yaml.example deployments/envs/.secret_values.y
 # Run the Ansible-based installer
 deployments/ansible/run-install.sh --env dev
 ```
+
+> **Tip:** To find the latest stable version from the command line:
+> ```bash
+> git tag --list 'v*' --sort=-v:refname | grep -v -E '(alpha|rc)' | head -1
+> ```
 
 Use `deployments/ansible/run-install.sh --help` for options. For more detailed installation instructions including OpenShift refer to [Installation Guide](./docs/install.md).
 
