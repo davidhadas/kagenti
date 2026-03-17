@@ -61,18 +61,6 @@ class ChatResponse(BaseModel):
     username: Optional[str] = None
 
 
-def _get_agent_url_with_port(name: str, namespace: str, port: int = 8080) -> str:
-    """Get agent URL with custom port (for sandbox agents on port 8000).
-
-    For standard agents, use get_agent_url() from app.utils.routes instead.
-    """
-    if settings.is_running_in_cluster:
-        return f"http://{name}.{namespace}.svc.cluster.local:{port}"
-    else:
-        domain = settings.domain_name
-        return f"http://{name}.{namespace}.{domain}:{port}"
-
-
 @router.get(
     "/{namespace}/{name}/agent-card",
     response_model=AgentCardResponse,
@@ -85,23 +73,15 @@ async def get_agent_card(
     Fetch the A2A agent card for an agent.
 
     The agent card describes the agent's capabilities, skills, and metadata.
+    All agents (including sandbox) go through AuthBridge on port 8080.
     """
-    # Try port 8080 first (AuthBridge agents), fallback to 8000 (direct agents)
-    # TODO: discover port from K8s Service spec
     agent_url = get_agent_url(name, namespace)
     card_url = f"{agent_url}{A2A_AGENT_CARD_PATH}"
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                response = await client.get(card_url)
-                response.raise_for_status()
-            except (httpx.ConnectError, httpx.HTTPStatusError):
-                # Fallback to port 8000 (sandbox agents without AuthBridge)
-                agent_url = _get_agent_url_with_port(name, namespace, port=8000)
-                card_url = f"{agent_url}{A2A_AGENT_CARD_PATH}"
-                response = await client.get(card_url)
-                response.raise_for_status()
+            response = await client.get(card_url)
+            response.raise_for_status()
             card_data = response.json()
 
             # Parse capabilities
@@ -170,7 +150,6 @@ async def send_message(
     Forwards the Authorization header from the client to the agent for
     authenticated requests.
     """
-    # TODO: discover port from K8s Service. Try 8080 (AuthBridge), fallback 8000 (direct)
     agent_url = get_agent_url(name, namespace)
     session_id = request.session_id or uuid4().hex
 
@@ -537,7 +516,6 @@ async def stream_message(
     Forwards the Authorization header from the client to the agent for
     authenticated requests.
     """
-    # TODO: discover port from K8s Service. Try 8080 (AuthBridge), fallback 8000 (direct)
     agent_url = get_agent_url(name, namespace)
     session_id = request.session_id or uuid4().hex
 
