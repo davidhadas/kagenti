@@ -129,5 +129,5 @@ DEFAULT_ENV_VARS = [
     {"name": "UV_CACHE_DIR", "value": "/app/.cache/uv"},
 ]
 
-# Environment variable name for the agent endpoint (the model card URL for the agent)
+# Environment variable name for the agent endpoint (the agent card URL for the agent)
 AGENT_ENDPOINT = "AGENT_ENDPOINT"

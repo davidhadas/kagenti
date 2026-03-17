@@ -20,7 +20,7 @@ from kubernetes.client import ApiException
 from pydantic import BaseModel, field_validator
 
 from app.core.auth import ROLE_OPERATOR, ROLE_VIEWER, require_roles
-from app.routers.chat import _get_agent_url
+from app.utils.routes import get_agent_url
 from app.core.constants import (
     CRD_GROUP,
     CRD_VERSION,
@@ -1861,7 +1861,7 @@ def _build_env_vars(request: "CreateAgentRequest") -> List[dict]:
     """
     env_vars = list(DEFAULT_ENV_VARS)
     env_vars.append(
-        {"name": AGENT_ENDPOINT, "value": _get_agent_url(request.name, request.namespace)}
+        {"name": AGENT_ENDPOINT, "value": get_agent_url(request.name, request.namespace)}
     )
     if request.envVars:
         for ev in request.envVars:
