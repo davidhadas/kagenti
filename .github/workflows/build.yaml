@@ -5,6 +5,9 @@ on:
   push:
     tags:
     - 'v*'
+    # Trigger on PR merges to main
+    branches:
+    - main
   # Allows also to run this workflow manually from the Actions tab
   workflow_dispatch:
 
@@ -80,6 +83,9 @@ jobs:
           images: ghcr.io/${{ github.repository }}/${{ matrix.image_config.name }}
           tags: |
             type=ref,event=tag
+            type=sha,prefix={{branch}}-,enable=${{ github.ref_type != 'tag' }}
+            # Add 'latest' tag for version tags, workflow_dispatch, and pushes to main
+            type=raw,value=latest,enable=${{ (github.ref_type == 'tag' && startsWith(github.ref_name, 'v')) || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
 
       - name: Wait before retry
         if: steps.meta.outcome == 'failure'
@@ -95,6 +101,9 @@ jobs:
           images: ghcr.io/${{ github.repository }}/${{ matrix.image_config.name }}
           tags: |
             type=ref,event=tag
+            type=sha,prefix={{branch}}-,enable=${{ github.ref_type != 'tag' }}
+            # Add 'latest' tag for version tags, workflow_dispatch, and pushes to main
+            type=raw,value=latest,enable=${{ (github.ref_type == 'tag' && startsWith(github.ref_name, 'v')) || github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
 
       - name: Build and push ${{ matrix.image_config.name }}
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7.0.0
@@ -107,6 +116,7 @@ jobs:
           labels: ${{ steps.meta_retry.outputs.labels || steps.meta.outputs.labels }}
 
       - name: Package and push kagenti chart
+        if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
         run: |
           chartVersion=$(echo ${{ github.ref_name }} | cut -c 2-)
           chartPackageName="kagenti-${chartVersion}.tgz"
@@ -118,6 +128,7 @@ jobs:
           helm push "./${chartPackageName}" oci://${{ env.REGISTRY }}/${{ env.REPO }}
 
       - name: Package and push kagenti-deps chart
+        if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
         run: |
           chartVersion=$(echo ${{ github.ref_name }} | cut -c 2-)
           chartPackageName="kagenti-deps-${chartVersion}.tgz"
