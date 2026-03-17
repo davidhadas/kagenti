@@ -109,6 +109,10 @@ jobs:
 
             if (match) {
               const extensionsRef = match[1];
+              if (!/^[\w.\-\/]+$/.test(extensionsRef)) {
+                core.setFailed(`Invalid extensions-ref: ${extensionsRef}`);
+                return;
+              }
               console.log('Parsed extensions_ref:', extensionsRef);
               core.setOutput('extensions_ref', extensionsRef);
             } else {
