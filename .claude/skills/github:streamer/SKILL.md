@@ -199,15 +199,9 @@ Or use `/git:rebase` skill which handles this automatically — it always target
 
 ### Step 2: Sign and push
 
-After rebase, print the signing command for the user to run in their own terminal.
-**NEVER run the signing script from Claude Code.** Never enter passwords or passphrases
-in Claude Code — they are visible in the session transcript. The user must run signing
-in their own terminal where GPG/SSH prompts render correctly.
-
-Print this for the user:
+Run the signing script from Claude Code — it uses `--no-gpg-sign` so no password prompts:
 
 ```bash
-# Sign specific worktrees (run in your terminal, not Claude Code)
 cd /path/to/kagenti
 ./scripts/sign_all_pr_worktrees.sh pr-feature-flags pr-k2-skills pr-k5-deploy
 
@@ -215,15 +209,13 @@ cd /path/to/kagenti
 ./scripts/sign_all_pr_worktrees.sh
 ```
 
-The script adds `Signed-off-by` trailers (DCO) without GPG signing (`--no-gpg-sign`).
-The user can GPG-sign separately if needed.
+The script adds `Signed-off-by` trailers (DCO only, no GPG) and force-pushes each branch.
 
 ### IMPORTANT
 - Always rebase BEFORE signing — signing rewrites commits, rebasing after signing creates duplicates
 - Always use `upstream/main` — NOT `origin/main` (origin is the fork, upstream is kagenti org)
 - Always verify `pwd` and `git branch --show-current` before any rebase — wrong worktree = wrong branch rewritten
 - If rebase has conflicts, resolve them manually — do NOT use `--skip` unless you understand what commit you're dropping
-- NEVER run signing scripts from Claude Code — passwords are visible in session transcripts and prompts don't render
 
 ## Phase 6: Test on Cluster
 
