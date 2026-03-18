@@ -90,21 +90,25 @@ Flag any `tag: latest` entries — these must be pinned before RC or GA.
 
 ### 1.4 Determine release type
 
-Present the user with a summary:
+Present the user with a summary built from the live data gathered in 1.1–1.3:
 
 ```
 Current state:
-  kagenti:            v0.5.0 (GA), v0.5.0-alpha.11 (latest pre-release)
-  kagenti-extensions: v0.4.0-alpha.8 (latest pre-release), v0.3.1 (GA)
-  kagenti-operator:   v0.2.0-alpha.21 (latest pre-release)
+  kagenti:            <latest GA tag> (GA), <latest pre-release tag> (latest pre-release)
+  kagenti-extensions: <latest pre-release tag> (latest pre-release), <latest GA tag> (GA)
+  kagenti-operator:   <latest pre-release tag> (latest pre-release)
 
 Chart.yaml pins:
-  kagenti-webhook-chart: 0.4.0-alpha.8
-  kagenti-operator-chart: 0.2.0-alpha.21
+  kagenti-webhook-chart: <version from Chart.yaml>
+  kagenti-operator-chart: <version from Chart.yaml>
 
 Image tag issues:
-  5 images using tag: latest (must fix before RC/GA)
+  <N> images using tag: latest (must fix before RC/GA)
 ```
+
+**IMPORTANT:** Always use the LIVE values from steps 1.1–1.3. Never copy stale
+versions from this skill file — hardcoded examples drift and cause releases to
+pin outdated dependencies.
 
 Ask: "What release would you like to cut? (alpha / rc / ga / patch)"
 
