@@ -147,7 +147,7 @@ Now that the agent and tool have been deployed, the Keycloak Administrator must 
 ### Set up Python environment
 
 ```console
-cd kagenti/auth/auth_demo/
+cd kagenti/demo-setup/keycloak-config/slack/
 python -m venv venv
 ```
 
@@ -173,7 +173,7 @@ Now run the configuration script:
 python set_up_slack_demo.py
 ```
 
-For more information about the configuration script check the [detailed README.md](../../kagenti/auth/auth_demo/README.md) file.
+For more information about the configuration script check the [detailed README.md](../../kagenti/demo-setup/keycloak-config/slack/README.md) file.
 
 ### Enable Token exchange for the agent
 
