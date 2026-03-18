@@ -147,7 +147,7 @@ these include:
 | `ghcr.io/kagenti/kagenti/agent-oauth-secret` | `agentOAuthSecret.tag` | Agent Keycloak client registration |
 | `ghcr.io/kagenti/kagenti/api-oauth-secret` | `apiOAuthSecret.tag` | API Keycloak client registration |
 | `ghcr.io/kagenti/kagenti/phoenix-oauth-secret` | `phoenixOAuthSecret.tag` | Phoenix observability auth |
-| `mlflowOAuthSecret.image` | `mlflowOAuthSecret.tag` | MLflow auth |
+| `quay.io/ladas/mlflow-oauth-secret` | `mlflowOAuthSecret.tag` | MLflow auth (move to `ghcr.io/kagenti/kagenti/mlflow-oauth-secret` once published) |
 
 Additionally, some Helm templates hardcode `:latest` for utility images
 (`bitnami/kubectl:latest`, `ose-cli:latest`). These should be pinned to
@@ -303,7 +303,7 @@ A GA release is the final, stable, production-ready version.
 7. **Announce** the release:
    - [Discord](https://discord.gg/aJ92dNDzqB)
    - [Mailing list](mailto:kagenti-maintainers@googlegroups.com)
-   - Consider a blog post for major releases (publish under `docs/blogs.md`)
+   - Consider a blog post for major releases
 
 ## Cutting a Patch Release
 
@@ -356,9 +356,10 @@ Fix any found before tagging.
 
 ## Using the Release Skill
 
-The `.claude/skills/release/SKILL.md` skill provides an interactive, AI-assisted
-workflow that automates the steps in this guide. It handles multi-repo
-coordination, artifact verification, and release notes generation.
+The `.claude/skills/release/SKILL.md` skill (see [PR #1021](https://github.com/kagenti/kagenti/pull/1021))
+provides an interactive, AI-assisted workflow that automates the steps in this
+guide. It handles multi-repo coordination, artifact verification, and release
+notes generation.
 
 ### Quick examples
 
