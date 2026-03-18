@@ -205,9 +205,9 @@ charts:
     values:
       ui:
         frontend:
-          tag: "v0.5.0"  # Replace with your desired version
+          tag: "v0.5.1"  # Replace with your desired version
         backend:
-          tag: "v0.5.0"  # Replace with your desired version
+          tag: "v0.5.1"  # Replace with your desired version
 
 ## Notes / tips
 - Chart paths referenced in the values are relative to the `deployments/ansible`
