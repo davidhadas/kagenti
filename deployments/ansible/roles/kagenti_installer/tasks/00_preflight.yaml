@@ -100,6 +100,7 @@
     - create_kind_cluster | default(false)
     - not (enable_openshift | default(false))
     - runtime_memory_gb is defined
+    - runtime_memory_gb | float > 0
     - (runtime_memory_gb | float) < (kind_min_memory_gb | float)
 
 - name: Preflight - Fail if container runtime has insufficient CPUs
@@ -113,4 +114,5 @@
     - create_kind_cluster | default(false)
     - not (enable_openshift | default(false))
     - runtime_cpus is defined
+    - (runtime_cpus | int) > 0
     - (runtime_cpus | int) < (kind_min_cpus | int)
