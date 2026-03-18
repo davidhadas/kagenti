@@ -77,7 +77,7 @@ gh release list --repo kagenti/agent-examples --limit 5
 ### 1.2 Chart dependency versions
 
 ```bash
-cat charts/kagenti/Chart.yaml | grep -A2 'name: kagenti-'
+grep -A2 'name: kagenti-' charts/kagenti/Chart.yaml
 ```
 
 ### 1.3 Image tags in values.yaml
@@ -183,7 +183,8 @@ For each repo in dependency order, create and push the signed tag.
 ### 3.1 Tag a dependency repo
 
 ```bash
-# Clone (or cd into) the repo
+# Clone (or cd into) the repo — clean up first if dir exists from a previous attempt
+rm -rf /tmp/kagenti-release/<repo-name>
 gh repo clone kagenti/<repo-name> /tmp/kagenti-release/<repo-name>
 cd /tmp/kagenti-release/<repo-name>
 
@@ -193,14 +194,12 @@ gh run list --branch main --limit 3
 # Determine next tag
 git tag --list 'v*' --sort=-v:refname | head -5
 
-# Create signed tag
+# Create signed tag (requires GPG to be configured; use -a instead of -s for unsigned annotated tags)
 git tag -s <version> -m "<version>"
 git push origin <version>
 
-# Wait for CI
-echo "Waiting for CI to complete..."
-sleep 10
-gh run list --limit 3
+# Wait for CI to complete (watches the latest workflow run until it finishes)
+gh run watch
 ```
 
 ### 3.2 Tag kagenti/kagenti (last)
@@ -214,7 +213,7 @@ cd /tmp/kagenti-repo  # or wherever kagenti/kagenti is cloned
 grep -A2 'name: kagenti-' charts/kagenti/Chart.yaml
 grep -n 'tag: latest' charts/kagenti/values.yaml  # should return nothing
 
-# Create signed tag
+# Create signed tag (requires GPG to be configured; use -a instead of -s for unsigned annotated tags)
 git tag -s <version> -m "<version>"
 git push origin <version>
 ```
@@ -350,7 +349,7 @@ For GA and significant RC releases:
 echo "Announce the release on:"
 echo "  - Discord: https://discord.gg/aJ92dNDzqB"
 echo "  - Mailing list: kagenti-maintainers@googlegroups.com"
-echo "  - Blog post (major releases): add entry to docs/blogs.md"
+echo "  - Blog post (major releases)"
 ```
 
 Draft an announcement message:
