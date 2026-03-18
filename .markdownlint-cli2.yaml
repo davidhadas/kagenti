@@ -20,6 +20,7 @@ config:
 
   # Disable rules that fire extensively on pre-existing docs.
   # These can be re-enabled iteratively as files are cleaned up.
+  MD007: false  # Unordered list indentation (existing docs use 3-space indent)
   MD022: false  # Headings should be surrounded by blank lines
   MD031: false  # Fenced code blocks should be surrounded by blank lines
   MD032: false  # Lists should be surrounded by blank lines

@@ -16,7 +16,7 @@ flowchart TD
 # Documentation Review
 
 AI-assisted review of documentation changes in Kagenti PRs. Checks structure,
-accuracy, links, conciseness, and consistency against the `meta:write-docs`
+accuracy, links, conciseness, and consistency against the `meta:write-docs` (planned)
 standards. Use alongside the automated `Docs CI` workflow (markdownlint, lychee,
 spellcheck) for comprehensive coverage.
 
@@ -94,7 +94,7 @@ categories. Use subagents for large PRs (>5 files changed).
 - [ ] Component names match official naming (e.g., "AuthBridge" not "auth bridge" or "Auth-Bridge")
 - [ ] Code block language tags are present and correct (`bash`, `yaml`, `text`)
 - [ ] Callout style matches project convention (`> **Note:**`, `> **Warning:**`, `> **Tip:**`)
-- [ ] Formatting conventions from `meta:write-docs` are followed
+- [ ] Formatting conventions from `meta:write-docs` (planned) are followed
 
 ## Phase 3: Report Findings
 
@@ -118,7 +118,7 @@ Produce a structured summary grouped by severity:
 - **docs/install.md:130** — Consider adding `git checkout` step to the OpenShift clone block
 
 #### Looks good
-- Structure follows `meta:write-docs` template
+- Structure follows `meta:write-docs` (planned) template
 - All shell commands are syntactically valid
 - Version numbers match current releases
 ```
@@ -157,10 +157,10 @@ Quick reference for the complete review criteria:
 - [ ] No bare URLs
 - [ ] Concise — no walls of text
 - [ ] Consistent terminology
-- [ ] Follows `meta:write-docs` conventions
+- [ ] Follows `meta:write-docs` (planned) conventions
 
 ## Related Skills
 
-- `meta:write-docs` — Documentation writing standards and templates
+- `meta:write-docs` (planned) — Documentation writing standards and templates
 - `github:pr-review` — General PR review workflow (code + docs)
 - `repo:pr` — PR creation conventions
