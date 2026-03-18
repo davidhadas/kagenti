@@ -997,77 +997,6 @@
     - skip_cert_manager_operator | default(false)
     - cert_manager_existing_check.rc == 0
 
-# TektonConfig patching (set-security-context, SCC defaults, pruner) is now
-# handled by kagenti-operator's TektonConfigReconciler. The operator detects
-# the TektonConfig CRD at startup and reconciles the required settings.
-#
-# We still wait for TektonConfig to be Ready here because the OpenShift Builds
-# operator (Shipwright) depends on it before deploying build components.
-- name: Wait for TektonConfig to be Ready on OpenShift
-  block:
-    - name: Wait for TektonConfig to exist
-      command: kubectl get tektonconfig config
-      register: tektonconfig_check
-      retries: 30
-      delay: 10
-      until: tektonconfig_check.rc == 0
-      changed_when: false
-
-    - name: Wait for TektonConfig Ready condition
-      command: >-
-        kubectl get tektonconfig config
-        -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
-      register: tektonconfig_ready_status
-      retries: 90
-      delay: 10
-      until: tektonconfig_ready_status.stdout == "True"
-      changed_when: false
-  rescue:
-    - name: Get TektonConfig full status for debugging
-      command: kubectl get tektonconfig config -o yaml
-      register: tektonconfig_full_status
-      failed_when: false
-
-    - name: Get Tekton operator pod status
-      command: kubectl get pods -n openshift-operators -l app=tekton-operator -o wide
-      register: tekton_operator_pods
-      failed_when: false
-
-    - name: Get Tekton operator logs
-      shell: kubectl logs -n openshift-operators -l app=tekton-operator --tail=100 2>&1 || echo "No logs available"
-      register: tekton_operator_logs
-      failed_when: false
-
-    - name: Get Tekton pipelines controller status
-      command: kubectl get pods -n openshift-pipelines -o wide
-      register: tekton_pipelines_pods
-      failed_when: false
-
-    - name: Display TektonConfig failure diagnostics
-      debug:
-        msg: |
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-          TektonConfig Failed to Become Ready
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-          TEKTONCONFIG STATUS:
-          {{ tektonconfig_full_status.stdout | default('unable to get status') }}
-
-          TEKTON OPERATOR PODS:
-          {{ tekton_operator_pods.stdout | default('unable to get pods') }}
-
-          TEKTON OPERATOR LOGS (last 100 lines):
-          {{ tekton_operator_logs.stdout | default('no logs') }}
-
-          TEKTON PIPELINES PODS:
-          {{ tekton_pipelines_pods.stdout | default('unable to get pods') }}
-          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-    - name: Fail with TektonConfig error
-      fail:
-        msg: "TektonConfig did not become Ready after 15 minutes. See diagnostics above."
-  when: enable_openshift | default(false)
-
 # Wait for OpenShift Builds operator to be ready.
 # The operator is installed via OLM subscription in kagenti-deps.
 # The OpenShiftBuild operand CR is created via Helm hook (post-install).
@@ -1576,3 +1505,72 @@
   when:
     - (charts['kagenti'] | default({})).get('enabled', false) | bool
     - (charts['kagenti'] | default({})).get('chart') is defined
+
+# TektonConfig patching (set-security-context, SCC defaults, pruner) is now
+# handled by kagenti-operator's TektonConfigReconciler. The operator is deployed
+# as part of the kagenti chart above, so we wait for TektonConfig to be Ready
+# after the chart install, giving the operator time to reconcile.
+- name: Wait for TektonConfig to be Ready on OpenShift
+  block:
+    - name: Wait for TektonConfig to exist
+      command: kubectl get tektonconfig config
+      register: tektonconfig_check
+      retries: 30
+      delay: 10
+      until: tektonconfig_check.rc == 0
+      changed_when: false
+
+    - name: Wait for TektonConfig Ready condition
+      command: >-
+        kubectl get tektonconfig config
+        -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      register: tektonconfig_ready_status
+      retries: 90
+      delay: 10
+      until: tektonconfig_ready_status.stdout == "True"
+      changed_when: false
+  rescue:
+    - name: Get TektonConfig full status for debugging
+      command: kubectl get tektonconfig config -o yaml
+      register: tektonconfig_full_status
+      failed_when: false
+
+    - name: Get Tekton operator pod status
+      command: kubectl get pods -n openshift-operators -l app=tekton-operator -o wide
+      register: tekton_operator_pods
+      failed_when: false
+
+    - name: Get Tekton operator logs
+      shell: kubectl logs -n openshift-operators -l app=tekton-operator --tail=100 2>&1 || echo "No logs available"
+      register: tekton_operator_logs
+      failed_when: false
+
+    - name: Get Tekton pipelines controller status
+      command: kubectl get pods -n openshift-pipelines -o wide
+      register: tekton_pipelines_pods
+      failed_when: false
+
+    - name: Display TektonConfig failure diagnostics
+      debug:
+        msg: |
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+          TektonConfig Failed to Become Ready
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+          TEKTONCONFIG STATUS:
+          {{ tektonconfig_full_status.stdout | default('unable to get status') }}
+
+          TEKTON OPERATOR PODS:
+          {{ tekton_operator_pods.stdout | default('unable to get pods') }}
+
+          TEKTON OPERATOR LOGS (last 100 lines):
+          {{ tekton_operator_logs.stdout | default('no logs') }}
+
+          TEKTON PIPELINES PODS:
+          {{ tekton_pipelines_pods.stdout | default('unable to get pods') }}
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    - name: Fail with TektonConfig error
+      fail:
+        msg: "TektonConfig did not become Ready after 15 minutes. See diagnostics above."
+  when: enable_openshift | default(false)
