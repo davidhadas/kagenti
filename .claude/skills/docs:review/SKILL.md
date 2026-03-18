@@ -17,8 +17,8 @@ flowchart TD
 
 AI-assisted review of documentation changes in Kagenti PRs. Checks structure,
 accuracy, links, conciseness, and consistency against the `meta:write-docs` (planned)
-standards. Use alongside the automated `Docs CI` workflow (markdownlint, lychee,
-spellcheck) for comprehensive coverage.
+standards. Use alongside the automated `Docs CI` workflow (markdownlint, lychee)
+for comprehensive coverage.
 
 ## Table of Contents
 

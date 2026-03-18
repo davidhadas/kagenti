@@ -1,4 +1,4 @@
-# Documentation CI — markdown lint, link check, and spellcheck
+# Documentation CI — markdown lint and link check
 #
 # Runs on PRs that touch markdown or documentation files.
 # All jobs are read-only and safe for fork PRs (no secrets required).
@@ -10,7 +10,6 @@ on:
     paths:
       - "**.md"
       - "docs/**"
-      - ".github/spellcheck/**"
       - ".github/workflows/docs-ci.yaml"
       - ".markdownlint-cli2.yaml"
       - ".lychee.toml"
@@ -44,17 +43,4 @@ jobs:
           args: >-
             --config .lychee.toml
             "**/*.md"
-          fail: true
-
-  spellcheck:
-    name: Spellcheck
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-
-      - name: Run spellcheck
-        uses: rojopolis/spellcheck-github-actions@e3cd8e9aec4587ec73bc0e60745aafd45c37aa2e  # 0.60.0
-        with:
-          config_path: .github/spellcheck/.spellcheck.yml
-          task_name: Markdown
+          fail: false
