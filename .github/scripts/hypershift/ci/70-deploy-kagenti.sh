@@ -7,6 +7,22 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${GITHUB_WORKSPACE:-$(cd "$SCRIPT_DIR/../../../.." && pwd)}"
 
+# ── Diagnostic: print commit and override info ──
+echo "=================================================="
+echo "  Deploy Kagenti — diagnostic info"
+echo "  Workflow SHA (github.sha):  ${GITHUB_SHA:-local}"
+echo "  Checkout SHA (HEAD):        $(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+echo "  Checkout commit:            $(git -C "$REPO_ROOT" log --oneline -1 2>/dev/null || echo unknown)"
+echo "  KAGENTI_DEP_BUILDS:         ${KAGENTI_DEP_BUILDS:-<not set>}"
+echo "  KAGENTI_EXTENSIONS_REF:     ${KAGENTI_EXTENSIONS_REF:-<not set>}"
+echo "=================================================="
+
+# ── Backwards compatibility: accept legacy KAGENTI_EXTENSIONS_REF ──
+if [[ -n "${KAGENTI_EXTENSIONS_REF:-}" && -z "${KAGENTI_DEP_BUILDS:-}" ]]; then
+    echo "Converting legacy KAGENTI_EXTENSIONS_REF=${KAGENTI_EXTENSIONS_REF} to KAGENTI_DEP_BUILDS"
+    export KAGENTI_DEP_BUILDS="[{\"repo\":\"kagenti/kagenti-extensions\",\"ref\":\"${KAGENTI_EXTENSIONS_REF}\"}]"
+fi
+
 # Detect main repo root for worktree compatibility (secrets stay in main repo)
 if [[ "$REPO_ROOT" == *"/.worktrees/"* ]]; then
     MAIN_REPO_ROOT="${REPO_ROOT%%/.worktrees/*}"
