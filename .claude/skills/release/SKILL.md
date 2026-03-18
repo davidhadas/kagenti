@@ -184,6 +184,9 @@ grep -rn ':latest' charts/kagenti/templates/
 
 For each repo in dependency order, create and push the signed tag.
 
+**CRITICAL:** After tagging each dependency repo, run the verification in 3.2
+and get explicit user approval BEFORE proceeding to the next repo.
+
 ### 3.1 Tag a dependency repo
 
 ```bash
@@ -206,7 +209,50 @@ git push origin <version>
 gh run watch
 ```
 
-### 3.2 Tag kagenti/kagenti (last)
+### 3.2 Verify each repo before proceeding (MANDATORY)
+
+After tagging a dependency repo and its CI completes, run these checks
+**before moving to the next repo**:
+
+```bash
+REPO="kagenti/<repo-name>"
+TAG="<version just tagged>"
+
+# 1. Show the tag commit and verify it's what we expect
+echo "=== Tag commit ==="
+gh api /repos/$REPO/git/refs/tags/$TAG --jq '.object.sha'
+
+# 2. List PRs merged since the PREVIOUS tag to confirm expected changes are included
+PREV_TAG="<previous tag>"
+echo "=== PRs included ($PREV_TAG → $TAG) ==="
+gh api /repos/$REPO/compare/$PREV_TAG...$TAG --jq '.commits[] | "\(.sha[:12]) \(.commit.message | split("\n")[0])"'
+
+# 3. Verify container images were built for this tag
+echo "=== Container images ==="
+for img in <list images for this repo>; do
+  echo -n "$img:$TAG ... "
+  docker manifest inspect ghcr.io/kagenti/$REPO_PATH/$img:$TAG >/dev/null 2>&1 \
+    && echo "OK" || echo "MISSING"
+done
+```
+
+Present the results and **ask the user to confirm** before proceeding:
+
+```
+✅ kagenti/<repo-name> $TAG verified:
+  - Tag points to: <commit sha> (<commit message>)
+  - Includes <N> commits since $PREV_TAG
+  - Key PRs: #<pr1> <title>, #<pr2> <title>
+  - Container images: all present
+
+Proceed to next repo? (yes / no / show full diff)
+```
+
+**Do NOT proceed to the next repo or update Chart.yaml/values.yaml until the
+user confirms.** If any image is missing or an expected PR is not included,
+stop and investigate.
+
+### 3.3 Tag kagenti/kagenti (last)
 
 After all dependency repos are tagged and their CI has completed:
 
