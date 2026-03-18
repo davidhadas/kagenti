@@ -4,42 +4,11 @@ This guide covers installation on both local Kind clusters and OpenShift environ
 
 ## Table of Contents
 
-- [Choosing a Version](#choosing-a-version)
 - [Prerequisites](#prerequisites)
 - [Kind Installation (Local Development)](#kind-installation-local-development)
 - [OpenShift Installation](#openshift-installation)
 - [Accessing the UI](#accessing-the-ui)
 - [Verifying the Installation](#verifying-the-installation)
-
----
-
-## Choosing a Version
-
-Kagenti uses [Semantic Versioning](https://semver.org/) with pre-release stages:
-
-| Tag pattern | Stability | Recommended for |
-|-------------|-----------|-----------------|
-| `vX.Y.Z` | **Stable (GA)** | Production and general use |
-| `vX.Y.0-rc.N` | **Release Candidate** | Final validation before GA |
-| `vX.Y.0-alpha.N` | **Alpha** | Early testing and development |
-
-**For most users, install the latest stable (GA) release.** You can find it at:
-- **GitHub:** <https://github.com/kagenti/kagenti/releases/latest>
-- **CLI:** `git tag --list 'v*' --sort=-v:refname | grep -v -E '(alpha|rc)' | head -1`
-
-To install a specific version, check out the corresponding tag after cloning:
-
-```bash
-git clone https://github.com/kagenti/kagenti.git
-cd kagenti
-git checkout v0.5.0   # replace with your desired version
-```
-
-> **Note:** The Kagenti Helm chart (`charts/kagenti/Chart.yaml`) pins the exact
-> versions of sub-charts from other Kagenti repositories (e.g.,
-> `kagenti-webhook-chart`, `kagenti-operator-chart`). You do not need to
-> manually coordinate versions across repos — checking out a Kagenti release tag
-> gives you a consistent, tested set of component versions.
 
 ---
 
@@ -81,9 +50,6 @@ git checkout v0.5.0   # replace with your desired version
 # Clone the repository
 git clone https://github.com/kagenti/kagenti.git
 cd kagenti
-
-# Check out a stable release (see "Choosing a Version" above)
-git checkout v0.5.0
 ```
 
 #### Ansible-based Installer (Recommended)
@@ -119,6 +85,20 @@ deployments/ansible/run-install.sh --env dev
 > ```bash
 > deployments/ansible/run-install.sh --env dev --preload
 > ```
+
+#### Podman Users
+
+If you use **Podman** (or have `docker` aliased to `podman`, which is common on macOS), set `container_engine` to `podman` so the installer pulls images sequentially and avoids SSH connection failures through the Podman VM:
+
+```bash
+deployments/ansible/run-install.sh --env dev --preload --extra-vars '{"container_engine": "podman"}'
+```
+
+Alternatively, edit your environment values file (`deployments/envs/dev_values.yaml`) and change:
+
+```yaml
+container_engine: podman
+```
 
 The Ansible-based installer will create a Kind cluster (when appropriate) and deploy platform components.
 
@@ -207,12 +187,8 @@ export DOMAIN=apps.$(kubectl get dns cluster -o jsonpath='{ .spec.baseDomain }')
 ### Option A: Install from OCI Charts (Recommended)
 
 ```bash
-# Get latest stable version (excludes alpha and rc pre-releases)
-LATEST_TAG=$(git ls-remote --tags --sort="v:refname" https://github.com/kagenti/kagenti.git \
-  | sed 's|.*refs/tags/v||; s/\^{}//' \
-  | grep -v -E '(alpha|rc)' \
-  | tail -n1)
-echo "Installing Kagenti v${LATEST_TAG}"
+# Get latest version
+LATEST_TAG=$(git ls-remote --tags --sort="v:refname" https://github.com/kagenti/kagenti.git | tail -n1 | sed 's|.*refs/tags/v||; s/\^{}//')
 
 # Prepare secrets
 # Download .secrets_template.yaml from https://github.com/kagenti/kagenti/blob/main/charts/kagenti/.secrets_template.yaml
@@ -242,10 +218,9 @@ helm upgrade --install --create-namespace -n kagenti-system \
 ### Option B: Install from Repository
 
 ```bash
-# Clone repository and check out a stable release
+# Clone repository
 git clone https://github.com/kagenti/kagenti.git
 cd kagenti
-git checkout v0.5.0   # replace with desired version (see "Choosing a Version")
 
 # Prepare secrets
 cp charts/kagenti/.secrets_template.yaml charts/kagenti/.secrets.yaml
@@ -264,11 +239,8 @@ helm install kagenti-deps ./charts/kagenti-deps/ \
 helm install mcp-gateway oci://ghcr.io/kagenti/charts/mcp-gateway \
   --create-namespace --namespace mcp-system --version 0.4.0
 
-# Get latest stable version (excludes alpha and rc pre-releases)
-LATEST_TAG=$(git ls-remote --tags --sort="v:refname" https://github.com/kagenti/kagenti.git \
-  | sed 's|.*refs/tags/||; s/\^{}//' \
-  | grep -v -E '(alpha|rc)' \
-  | tail -n1)
+# Get latest UI tag
+LATEST_TAG=$(git ls-remote --tags --sort="v:refname" https://github.com/kagenti/kagenti.git | tail -n1 | sed 's|.*refs/tags/||; s/\^{}//')
 
 # Install Kagenti (with OpenShift CA workaround)
 helm upgrade --install kagenti ./charts/kagenti/ \
@@ -322,19 +294,6 @@ For MCP Inspector, also accept the proxy certificate:
 ```bash
 echo "https://$(kubectl get route mcp-proxy -n kagenti-system -o jsonpath='{.status.ingress[0].host}')"
 ```
-
-### MCP Inspector Configuration
-
-When opening the MCP inspector on a new installation through the **MCP Gateway** tab, the default settings do not include the inspector proxy address, causing connection failures.
-
-1. Navigate to **Configuration**.
-2. Set the **Connection Type** to `via proxy`.
-3. Set **Inspector Proxy Address** based on your environment:
-   - **Kind**: `http://mcp-proxy.localtest.me:8080`
-   - **OpenShift**: The URL output by the proxy certificate command above.
-4. Click **Test connection** to verify it is working.
-
-*Note: These settings are persisted in your browser and only need to be configured once per browser installation.*
 
 ### Default Credentials
 
