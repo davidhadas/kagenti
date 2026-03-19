@@ -232,11 +232,22 @@ def keycloak_agent_token(k8s_client) -> Optional[str]:
     keycloak_base_url = os.environ.get("KEYCLOAK_URL", "http://localhost:8081")
     token_url = f"{keycloak_base_url}/realms/{realm}/protocol/openid-connect/token"
 
+    # Resolve SSL verification: prefer explicit CA bundle, then fetch from
+    # cluster (kube-root-ca.crt), fall back to system CA store.  Never
+    # disable verification entirely.
     verify_ssl: bool | str = True
-    if os.environ.get("KEYCLOAK_VERIFY_SSL", "true").lower() == "false":
-        verify_ssl = False
-    elif os.environ.get("KEYCLOAK_CA_BUNDLE"):
+    if os.environ.get("KEYCLOAK_CA_BUNDLE"):
         verify_ssl = os.environ["KEYCLOAK_CA_BUNDLE"]
+    elif os.environ.get("KEYCLOAK_VERIFY_SSL", "true").lower() == "false":
+        # Caller asked to skip verification (self-signed route cert).
+        # Instead of disabling, try to fetch the cluster CA.
+        from kagenti.tests.e2e.conftest import _fetch_openshift_ingress_ca
+
+        ca_path = _fetch_openshift_ingress_ca()
+        if ca_path:
+            verify_ssl = ca_path
+        # If CA not available (e.g. Kind with HTTP), keep verify_ssl=True
+        # which uses the default system CA store.
 
     data = {
         "grant_type": "password",
