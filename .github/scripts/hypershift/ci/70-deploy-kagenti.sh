@@ -113,19 +113,10 @@ done
 #   pr/234                — PR head ref (works with forks)
 #   a5607f9               — commit SHA (7-40 hex chars)
 #
-# ── HARDCODED OVERRIDES ──
-# These override packaged chart dependencies that haven't released fixes yet.
-# Remove each entry after bumping the chart dependency to a version that
-# includes the fix.
-#
-# kagenti-extensions: proxy-init capabilities fix (extensions#242, not yet released)
-#   Chart dep: v0.4.0-alpha.5 (uses privileged:true, proxy-init:latest incompatible)
-#   Fix on main: uses NET_ADMIN/NET_RAW capabilities + DNAT (no privileged)
-#   Remove after: bumping kagenti-webhook-chart to >= v0.4.0-alpha.9
+# ── NO HARDCODED OVERRIDES ──
+# Chart deps are up-to-date (kagenti-webhook-chart v0.4.0-alpha.9 via PR #1051).
+# Use /run-e2e --build org/repo=ref to override ad-hoc.
 # ──────────────────────────────────────────────────────────────────────────────
-if [[ -z "${KAGENTI_DEP_BUILDS:-}" || "${KAGENTI_DEP_BUILDS:-}" == "[]" ]]; then
-    export KAGENTI_DEP_BUILDS='[{"repo":"kagenti/kagenti-extensions","ref":"main"}]'
-fi
 
 # Use hypershift-full-test.sh with whitelist mode (--include-X flags)
 # Note: CLUSTER_SUFFIX is set by the workflow (e.g., pr594), don't override it

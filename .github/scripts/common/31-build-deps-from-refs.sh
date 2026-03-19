@@ -15,11 +15,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib/env-detect.sh"
 source "$SCRIPT_DIR/../lib/logging.sh"
 
-# Default: build webhook from extensions main (proxy-init fix not yet released)
-# TODO: Remove this default after bumping kagenti-webhook-chart to >= v0.4.0-alpha.9
-if [ -z "${KAGENTI_DEP_BUILDS:-}" ] || [ "${KAGENTI_DEP_BUILDS:-}" = "[]" ]; then
-    export KAGENTI_DEP_BUILDS='[{"repo":"kagenti/kagenti-extensions","ref":"main"}]'
-fi
+# No hardcoded defaults — chart deps are up-to-date (webhook v0.4.0-alpha.9).
+# Use /run-e2e --build org/repo=ref to override ad-hoc.
 
 DEP_BUILDS="${KAGENTI_DEP_BUILDS}"
 if [ -z "$DEP_BUILDS" ] || [ "$DEP_BUILDS" = "[]" ]; then
