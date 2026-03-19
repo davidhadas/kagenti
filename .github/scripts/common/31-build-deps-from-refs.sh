@@ -18,7 +18,7 @@ source "$SCRIPT_DIR/../lib/logging.sh"
 # No hardcoded defaults — chart deps are up-to-date (webhook v0.4.0-alpha.9).
 # Use /run-e2e --build org/repo=ref to override ad-hoc.
 
-DEP_BUILDS="${KAGENTI_DEP_BUILDS}"
+DEP_BUILDS="${KAGENTI_DEP_BUILDS:-}"
 if [ -z "$DEP_BUILDS" ] || [ "$DEP_BUILDS" = "[]" ]; then
     log_info "No dependency builds requested (KAGENTI_DEP_BUILDS empty)"
     exit 0
