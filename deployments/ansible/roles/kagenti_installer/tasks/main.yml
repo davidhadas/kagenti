@@ -1079,6 +1079,36 @@
           Check: kubectl get openshiftbuild cluster -o yaml
       when: openshiftbuild_shipwright_state.stdout != "Enabled"
 
+    # TODO: Remove once kagenti-operator TektonConfigReconciler handles this reliably.
+    # PR #1046 moved TektonConfig SCC patching to the operator, but on HyperShift
+    # the operator reconciler doesn't patch fast enough — TektonConfig stays Unknown
+    # and Shipwright never deploys. Restore minimal SCC patch as a workaround.
+    # See: https://github.com/kagenti/kagenti/pull/1024
+    - name: Ensure TektonConfig SCC defaults are set (HyperShift workaround)
+      kubernetes.core.k8s:
+        api_version: operator.tekton.dev/v1alpha1
+        kind: TektonConfig
+        name: config
+        definition:
+          spec:
+            platforms:
+              openshift:
+                scc:
+                  default: "pipelines-scc"
+            pipeline:
+              set-security-context: true
+        merge_type: merge
+      retries: 5
+      delay: 10
+      register: tektonconfig_scc_patch
+      until: tektonconfig_scc_patch is not failed
+      failed_when: false
+
+    - name: Wait for Tekton operator to reconcile after SCC patch
+      pause:
+        seconds: 10
+      when: tektonconfig_scc_patch is changed
+
     # The Ready condition might be True before Shipwright is fully deployed.
     # Wait explicitly for Shipwright deployments to be ready.
     # See: https://docs.openshift.com/builds/1.0/installing/installing-openshift-builds.html
