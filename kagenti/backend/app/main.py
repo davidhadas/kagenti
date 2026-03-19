@@ -38,6 +38,7 @@ from app.routers import (
     config,
     auth,
     chat,
+    shipwright,
 )
 
 # Conditionally import feature-flagged modules
@@ -164,6 +165,7 @@ app.include_router(agents.router, prefix="/api/v1")
 app.include_router(tools.router, prefix="/api/v1")
 app.include_router(config.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
+app.include_router(shipwright.router, prefix="/api/v1")
 
 # Feature-flagged routers — sandbox
 if _sandbox_modules_loaded:

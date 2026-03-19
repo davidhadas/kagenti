@@ -97,6 +97,7 @@ from app.services.shipwright import (
     get_output_image_from_buildrun,
     resolve_clone_secret,
 )
+from app.services.shipwright_builds import collect_kagenti_shipwright_builds
 
 
 class SecretKeyRef(BaseModel):
@@ -1465,6 +1466,63 @@ async def list_build_strategies(
             status_code=e.status,
             detail=f"Failed to list build strategies: {e.reason}",
         )
+
+
+class AgentShipwrightBuildSummary(BaseModel):
+    """One Shipwright Build CR for an agent or tool (git/source pipeline)."""
+
+    name: str
+    namespace: str
+    resourceType: str = ""  # "agent" or "tool" from kagenti.io/type (set when listing mixed types)
+    registered: bool = False
+    strategy: str = ""
+    gitUrl: str = ""
+    gitRevision: str = ""
+    contextDir: str = ""
+    outputImage: str = ""
+    creationTimestamp: Optional[str] = None
+
+
+class AgentShipwrightBuildListResponse(BaseModel):
+    items: List[AgentShipwrightBuildSummary]
+
+
+@router.get(
+    "/shipwright-builds",
+    response_model=AgentShipwrightBuildListResponse,
+    dependencies=[Depends(require_roles(ROLE_VIEWER))],
+)
+async def list_agent_shipwright_builds(
+    namespace: str = Query(
+        default="",
+        description="Kubernetes namespace (required unless all_namespaces=true)",
+    ),
+    all_namespaces: bool = Query(
+        default=False,
+        alias="allNamespaces",
+        description="If true, list builds in all kagenti-enabled namespaces",
+    ),
+    kube: KubernetesService = Depends(get_kubernetes_service),
+) -> AgentShipwrightBuildListResponse:
+    """List Shipwright Build resources for agents only (kagenti.io/type=agent)."""
+    namespaces_to_scan: List[str] = []
+    if all_namespaces:
+        namespaces_to_scan = kube.list_enabled_namespaces()
+    else:
+        if not namespace or not namespace.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="namespace query parameter is required (or use allNamespaces=true)",
+            )
+        namespaces_to_scan = [namespace.strip()]
+
+    try:
+        raw_items = collect_kagenti_shipwright_builds(kube, namespaces_to_scan, "agents", logger)
+    except ApiException as e:
+        raise HTTPException(status_code=e.status, detail=str(e.reason))
+
+    items = [AgentShipwrightBuildSummary(**li.model_dump()) for li in raw_items]
+    return AgentShipwrightBuildListResponse(items=items)
 
 
 @router.get(

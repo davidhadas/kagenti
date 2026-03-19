@@ -61,8 +61,10 @@ from app.models.shipwright import (
     BuildSourceConfig,
     BuildOutputConfig,
     ResourceConfigFromBuild,
+    ShipwrightBuildListResponse,
 )
 from app.services.kubernetes import KubernetesService, get_kubernetes_service
+from app.services.shipwright_builds import collect_kagenti_shipwright_builds
 from app.services.shipwright import (
     build_shipwright_build_manifest,
     build_shipwright_buildrun_manifest,
@@ -511,6 +513,43 @@ def _build_tool_shipwright_buildrun_manifest(
         resource_type=ResourceType.TOOL,
         labels=labels,
     )
+
+
+@router.get(
+    "/shipwright-builds",
+    response_model=ShipwrightBuildListResponse,
+    dependencies=[Depends(require_roles(ROLE_VIEWER))],
+)
+async def list_tool_shipwright_builds(
+    namespace: str = Query(
+        default="",
+        description="Kubernetes namespace (required unless allNamespaces=true)",
+    ),
+    all_namespaces: bool = Query(
+        default=False,
+        alias="allNamespaces",
+        description="If true, list builds in all kagenti-enabled namespaces",
+    ),
+    kube: KubernetesService = Depends(get_kubernetes_service),
+) -> ShipwrightBuildListResponse:
+    """List Shipwright Build resources for tools only (kagenti.io/type=tool)."""
+    namespaces_to_scan: List[str] = []
+    if all_namespaces:
+        namespaces_to_scan = kube.list_enabled_namespaces()
+    else:
+        if not namespace or not namespace.strip():
+            raise HTTPException(
+                status_code=400,
+                detail="namespace query parameter is required (or use allNamespaces=true)",
+            )
+        namespaces_to_scan = [namespace.strip()]
+
+    try:
+        items = collect_kagenti_shipwright_builds(kube, namespaces_to_scan, "tools", logger)
+    except ApiException as e:
+        raise HTTPException(status_code=e.status, detail=str(e.reason))
+
+    return ShipwrightBuildListResponse(items=items)
 
 
 @router.get("", response_model=ToolListResponse, dependencies=[Depends(require_roles(ROLE_VIEWER))])
