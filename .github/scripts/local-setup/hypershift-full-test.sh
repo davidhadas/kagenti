@@ -1058,6 +1058,9 @@ if [ "$RUN_TEST" = "true" ]; then
         log_step "PYTEST_ARGS: $PYTEST_ARGS"
     fi
 
+    # Print deployed image/Helm versions (collapsible in GH Actions)
+    ./.github/scripts/common/86-print-version-matrix.sh
+
     # Pre-flight checks (OTEL/MLflow pipeline readiness)
     ./.github/scripts/common/90-preflight-checks.sh
 

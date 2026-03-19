@@ -315,6 +315,9 @@ if [ "$RUN_TEST" = "true" ]; then
     log_step "Installing test dependencies..."
     ./.github/scripts/common/80-install-test-deps.sh
 
+    log_step "Printing version matrix..."
+    ./.github/scripts/common/86-print-version-matrix.sh
+
     log_step "Starting port-forward..."
     ./.github/scripts/common/85-start-port-forward.sh
 

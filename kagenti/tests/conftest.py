@@ -6,7 +6,7 @@ Registers custom markers and provides shared fixtures.
 
 import base64
 import os
-from typing import Dict
+from typing import Dict, Optional
 
 import pytest
 import requests
@@ -186,3 +186,54 @@ def keycloak_token(keycloak_admin_credentials) -> Dict[str, str]:
             f"Keycloak URL: {keycloak_base_url}\n"
             f"Hint: Set KEYCLOAK_URL env var to your Keycloak endpoint"
         )
+
+
+@pytest.fixture(scope="session")
+def keycloak_agent_token(k8s_client) -> Optional[str]:
+    """
+    Acquire a Bearer token from the kagenti realm for authenticating
+    to agents via AuthBridge.
+
+    Reads test user credentials from the ``kagenti-test-user`` secret
+    (created by the agent-oauth-secret-job during platform install),
+    then uses Direct Access Grant (password grant) against the kagenti
+    realm to obtain a token.
+
+    Returns:
+        Access token string, or None if the test-user secret is absent.
+    """
+    try:
+        secret = k8s_client.read_namespaced_secret(
+            name="kagenti-test-user", namespace="keycloak"
+        )
+    except ApiException:
+        return None
+
+    username = base64.b64decode(secret.data["username"]).decode("utf-8")
+    password = base64.b64decode(secret.data["password"]).decode("utf-8")
+    realm = base64.b64decode(secret.data["realm"]).decode("utf-8")
+
+    keycloak_base_url = os.environ.get("KEYCLOAK_URL", "http://localhost:8081")
+    token_url = f"{keycloak_base_url}/realms/{realm}/protocol/openid-connect/token"
+
+    verify_ssl: bool | str = True
+    if os.environ.get("KEYCLOAK_VERIFY_SSL", "true").lower() == "false":
+        verify_ssl = False
+    elif os.environ.get("KEYCLOAK_CA_BUNDLE"):
+        verify_ssl = os.environ["KEYCLOAK_CA_BUNDLE"]
+
+    data = {
+        "grant_type": "password",
+        "client_id": "admin-cli",
+        "username": username,
+        "password": password,
+    }
+
+    try:
+        response = requests.post(token_url, data=data, timeout=10, verify=verify_ssl)
+        if response.status_code == 200:
+            return response.json()["access_token"]
+    except requests.exceptions.RequestException:
+        pass
+
+    return None
