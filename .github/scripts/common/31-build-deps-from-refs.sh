@@ -100,21 +100,58 @@ if [ "$IS_OPENSHIFT" = "true" ]; then
     WH_NS="kagenti-webhook-system"
     CM_NAME=$(kubectl get configmap -n "$WH_NS" -l app.kubernetes.io/component=platform-defaults -o name 2>/dev/null | head -1)
     if [ -n "$CM_NAME" ]; then
-        log_info "Patching webhook ConfigMap with internal registry images..."
+        # Override individual sidecar images via env vars (default: only proxy-init from local build)
+        # Set KAGENTI_PROXY_INIT_IMAGE, KAGENTI_ENVOY_PROXY_IMAGE, etc. to override
+        # TODO: Build all sidecar images from source (envoy-with-processor, client-registration,
+        # spiffe-helper) and default their overrides to the local builds. Currently only
+        # proxy-init is built; other images use GHCR versions from the chart.
+        PROXY_INIT_IMAGE="${KAGENTI_PROXY_INIT_IMAGE:-${INTERNAL_REGISTRY}/${WH_NS}/proxy-init:latest}"
+        ENVOY_PROXY_IMAGE="${KAGENTI_ENVOY_PROXY_IMAGE:-}"
+        CLIENT_REG_IMAGE="${KAGENTI_CLIENT_REG_IMAGE:-}"
+        SPIFFE_HELPER_IMAGE="${KAGENTI_SPIFFE_HELPER_IMAGE:-}"
+
+        log_info "Patching webhook ConfigMap with sidecar image overrides..."
+        log_info "  proxyInit: ${PROXY_INIT_IMAGE}"
+        [ -n "$ENVOY_PROXY_IMAGE" ] && log_info "  envoyProxy: ${ENVOY_PROXY_IMAGE}"
+        [ -n "$CLIENT_REG_IMAGE" ] && log_info "  clientRegistration: ${CLIENT_REG_IMAGE}"
+        [ -n "$SPIFFE_HELPER_IMAGE" ] && log_info "  spiffeHelper: ${SPIFFE_HELPER_IMAGE}"
+
         kubectl get "$CM_NAME" -n "$WH_NS" -o json | python3 -c "
-import json, sys, yaml
+import json, sys, yaml, os
 cm = json.load(sys.stdin)
 config = yaml.safe_load(cm['data'].get('config.yaml', '{}')) or {}
 images = config.setdefault('images', {})
-reg = '${INTERNAL_REGISTRY}/${WH_NS}'
-images['proxyInit'] = f'{reg}/proxy-init:latest'
-images['envoyProxy'] = f'{reg}/kagenti-webhook:latest'
+overrides = {
+    'proxyInit': '${PROXY_INIT_IMAGE}',
+    'envoyProxy': '${ENVOY_PROXY_IMAGE}',
+    'clientRegistration': '${CLIENT_REG_IMAGE}',
+    'spiffeHelper': '${SPIFFE_HELPER_IMAGE}',
+}
+for key, val in overrides.items():
+    if val:  # only override if set
+        images[key] = val
 cm['data']['config.yaml'] = yaml.dump(config, default_flow_style=False)
 print(json.dumps(cm))
 " | kubectl apply -f - 2>/dev/null && log_success "ConfigMap patched" || log_info "ConfigMap patch skipped (not found or not applicable)"
         # Restart webhook to pick up new config
         kubectl rollout restart deployment -n "$WH_NS" 2>/dev/null || true
         kubectl rollout status deployment -n "$WH_NS" --timeout=120s 2>/dev/null || true
+
+        # Grant agent namespaces pull access to webhook-system images.
+        # The webhook injects sidecar images (proxy-init, envoy) from the webhook
+        # namespace. Without cross-namespace pull access, pods get ImagePullBackOff.
+        log_info "Granting agent namespaces pull access to ${WH_NS} images..."
+        for NS in $(kubectl get namespaces -l kagenti-enabled=true -o jsonpath='{.items[*].metadata.name}' 2>/dev/null); do
+            # Allow the default SA in each agent namespace to pull from webhook-system
+            oc policy add-role-to-user system:image-puller "system:serviceaccount:${NS}:default" \
+                -n "$WH_NS" 2>/dev/null || true
+            # Also the specific agent SA if it exists
+            for SA in $(kubectl get sa -n "$NS" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | tr ' ' '\n' | grep -v "^builder$\|^deployer$\|^default$\|^pipeline$"); do
+                oc policy add-role-to-user system:image-puller "system:serviceaccount:${NS}:${SA}" \
+                    -n "$WH_NS" 2>/dev/null || true
+            done
+            log_info "  ${NS}: pull access granted"
+        done
     else
         log_info "No webhook ConfigMap found — webhook will use compiled defaults"
     fi
