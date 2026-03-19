@@ -365,26 +365,12 @@ if [[ -n "$AUTOSCALE_MIN" ]] && [[ -n "$AUTOSCALE_MAX" ]]; then
     CLUSTER_CONFIG="$CLUSTER_CONFIG"', "autoscaling": {"min": '"$AUTOSCALE_MIN"', "max": '"$AUTOSCALE_MAX"'}'
 fi
 
-# Retry cluster creation up to 3 times on transient failures
-# (e.g., HyperShift webhook TLS handshake timeout on mgmt cluster)
-MAX_CREATE_ATTEMPTS="${MAX_CREATE_ATTEMPTS:-3}"
-for attempt in $(seq 1 "$MAX_CREATE_ATTEMPTS"); do
-    log_info "Cluster creation attempt $attempt/$MAX_CREATE_ATTEMPTS"
-    if ansible-playbook site.yml \
-        -e '{"create": true, "destroy": false, "create_iam": false}' \
-        -e '{"iam": {"hcp_role_name": "'"$HCP_ROLE_NAME"'"}}' \
-        -e "domain=$BASE_DOMAIN" \
-        -e "additional_tags=kagenti.io/managed-by=${MANAGED_BY_TAG}" \
-        -e '{"clusters": [{'"$CLUSTER_CONFIG"'}]}'; then
-        break
-    fi
-    if [ "$attempt" -eq "$MAX_CREATE_ATTEMPTS" ]; then
-        log_error "Cluster creation failed after $MAX_CREATE_ATTEMPTS attempts"
-        exit 1
-    fi
-    log_warn "Cluster creation attempt $attempt failed — retrying in 30s..."
-    sleep 30
-done
+ansible-playbook site.yml \
+    -e '{"create": true, "destroy": false, "create_iam": false}' \
+    -e '{"iam": {"hcp_role_name": "'"$HCP_ROLE_NAME"'"}}' \
+    -e "domain=$BASE_DOMAIN" \
+    -e "additional_tags=kagenti.io/managed-by=${MANAGED_BY_TAG}" \
+    -e '{"clusters": [{'"$CLUSTER_CONFIG"'}]}'
 
 # ============================================================================
 # 7. Summary and Next Steps
