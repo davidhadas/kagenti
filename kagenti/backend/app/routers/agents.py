@@ -63,6 +63,11 @@ from app.core.constants import (
     # SPIRE identity constants
     KAGENTI_SPIRE_LABEL,
     KAGENTI_SPIRE_ENABLED_VALUE,
+    # AuthBridge ConfigMap defaults
+    DEFAULT_KEYCLOAK_INTERNAL_URL,
+    DEFAULT_KEYCLOAK_REALM,
+    DEFAULT_SPIFFE_HELPER_CONF,
+    DEFAULT_ENVOY_YAML,
 )
 from app.core.config import settings
 from app.models.responses import (
@@ -1811,6 +1816,58 @@ async def get_shipwright_build_info(
         raise HTTPException(status_code=e.status, detail=str(e.reason))
 
 
+def _ensure_authbridge_configmaps(
+    kube: KubernetesService,
+    namespace: str,
+    spire_enabled: bool = False,
+) -> None:
+    """Ensure the 4 ConfigMaps required by AuthBridge sidecars exist.
+
+    Creates each ConfigMap only if it does not already exist, so user
+    customizations (e.g. pointing at a different Keycloak server) are
+    preserved on subsequent agent deploys.
+
+    The four ConfigMaps match what the Helm chart creates in
+    charts/kagenti/templates/agent-namespaces.yaml:
+      - authbridge-config: Keycloak URLs for go-processor / client-registration
+      - envoy-config: Envoy proxy listeners and ext-proc integration
+      - spiffe-helper-config: SPIFFE workload API socket paths and SVID output
+    """
+    keycloak_url = settings.keycloak_url or DEFAULT_KEYCLOAK_INTERNAL_URL
+    realm = settings.effective_keycloak_realm or DEFAULT_KEYCLOAK_REALM
+    issuer = f"{keycloak_url}/realms/{realm}"
+
+    # 1. authbridge-config
+    kube.ensure_configmap(
+        namespace=namespace,
+        name="authbridge-config",
+        data={
+            "KEYCLOAK_URL": keycloak_url,
+            "KEYCLOAK_REALM": realm,
+            "ISSUER": issuer,
+            "SPIRE_ENABLED": "true" if spire_enabled else "false",
+        },
+    )
+
+    # 2. envoy-config
+    kube.ensure_configmap(
+        namespace=namespace,
+        name="envoy-config",
+        data={"envoy.yaml": DEFAULT_ENVOY_YAML},
+    )
+
+    # 3. spiffe-helper-config
+    kube.ensure_configmap(
+        namespace=namespace,
+        name="spiffe-helper-config",
+        data={"helper.conf": DEFAULT_SPIFFE_HELPER_CONF},
+    )
+
+    logger.info(
+        f"Ensured AuthBridge ConfigMaps in namespace '{namespace}'"
+    )
+
+
 def _build_agent_shipwright_build_manifest(
     request: CreateAgentRequest, clone_secret_name: Optional[str] = None
 ) -> dict:
@@ -2373,6 +2430,14 @@ async def create_agent(
             # SPIFFE identity uses the workload name, not the ReplicaSet hash.
             kube.ensure_service_account(namespace=request.namespace, name=request.name)
 
+            # Ensure AuthBridge ConfigMaps exist in the target namespace
+            if request.authBridgeEnabled:
+                _ensure_authbridge_configmaps(
+                    kube=kube,
+                    namespace=request.namespace,
+                    spire_enabled=request.spireEnabled,
+                )
+
             # Create workload based on workloadType
             if request.workloadType == WORKLOAD_TYPE_DEPLOYMENT:
                 workload_manifest = _build_deployment_manifest(
@@ -2760,6 +2825,14 @@ async def finalize_shipwright_build(
         # Ensure a dedicated ServiceAccount exists so the webhook's
         # SPIFFE identity uses the workload name, not the ReplicaSet hash.
         kube.ensure_service_account(namespace=namespace, name=name)
+
+        # Ensure AuthBridge ConfigMaps exist in the target namespace
+        if final_auth_bridge:
+            _ensure_authbridge_configmaps(
+                kube=kube,
+                namespace=namespace,
+                spire_enabled=final_spire_enabled,
+            )
 
         # Create workload based on workloadType
         if final_workload_type == WORKLOAD_TYPE_DEPLOYMENT:

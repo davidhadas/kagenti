@@ -229,6 +229,37 @@ class KubernetesService:
                 raise
 
     # -------------------------------------------------------------------------
+    # ConfigMap Operations
+    # -------------------------------------------------------------------------
+
+    def ensure_configmap(
+        self, namespace: str, name: str, data: dict, labels: Optional[dict] = None
+    ) -> None:
+        """Create a ConfigMap if it does not already exist.
+
+        This is idempotent — if the ConfigMap already exists it is left unchanged
+        so that user customizations are preserved.
+        """
+        try:
+            self.core_api.read_namespaced_config_map(name=name, namespace=namespace)
+            logger.debug(f"ConfigMap '{name}' already exists in {namespace}")
+        except ApiException as e:
+            if e.status == 404:
+                cm = kubernetes.client.V1ConfigMap(
+                    metadata=kubernetes.client.V1ObjectMeta(
+                        name=name,
+                        namespace=namespace,
+                        labels=labels or {"kagenti.io/managed-by": "kagenti-api"},
+                    ),
+                    data=data,
+                )
+                self.core_api.create_namespaced_config_map(namespace=namespace, body=cm)
+                logger.info(f"Created ConfigMap '{name}' in {namespace}")
+            else:
+                logger.error(f"Error checking ConfigMap '{name}' in {namespace}: {e}")
+                raise
+
+    # -------------------------------------------------------------------------
     # Deployment Operations
     # -------------------------------------------------------------------------
 

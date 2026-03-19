@@ -134,3 +134,166 @@ DEFAULT_ENV_VARS = [
 
 # Environment variable name for the agent endpoint (the agent card URL for the agent)
 AGENT_ENDPOINT = "AGENT_ENDPOINT"
+
+# Default Keycloak in-cluster URL (used by AuthBridge ConfigMaps)
+DEFAULT_KEYCLOAK_INTERNAL_URL = "http://keycloak-service.keycloak.svc:8080"
+DEFAULT_KEYCLOAK_REALM = "kagenti"
+
+# Default spiffe-helper configuration for AuthBridge sidecars
+DEFAULT_SPIFFE_HELPER_CONF = (
+    'agent_address = "/spiffe-workload-api/spire-agent.sock"\n'
+    'cmd = ""\n'
+    'cmd_args = ""\n'
+    'svid_file_name = "/opt/svid.pem"\n'
+    'svid_key_file_name = "/opt/svid_key.pem"\n'
+    'svid_bundle_file_name = "/opt/svid_bundle.pem"\n'
+    'jwt_svids = [{jwt_audience="kagenti", jwt_svid_file_name="/opt/jwt_svid.token"}]\n'
+    "jwt_svid_file_mode = 0644\n"
+    "include_federated_domains = true\n"
+)
+
+# Default envoy-config for AuthBridge sidecars.
+# Matches the Helm chart template in charts/kagenti/templates/agent-namespaces.yaml.
+DEFAULT_ENVOY_YAML = """\
+admin:
+  address:
+    socket_address:
+      protocol: TCP
+      address: 127.0.0.1
+      port_value: 9901
+
+static_resources:
+  listeners:
+  - name: outbound_listener
+    address:
+      socket_address:
+        protocol: TCP
+        address: 0.0.0.0
+        port_value: 15123
+    listener_filters:
+    - name: envoy.filters.listener.original_dst
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.filters.listener.original_dst.v3.OriginalDst
+    - name: envoy.filters.listener.tls_inspector
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.filters.listener.tls_inspector.v3.TlsInspector
+    filter_chains:
+    - filter_chain_match:
+        transport_protocol: tls
+      filters:
+      - name: envoy.filters.network.tcp_proxy
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.tcp_proxy.v3.TcpProxy
+          stat_prefix: outbound_tls_passthrough
+          cluster: original_destination
+    - filter_chain_match:
+        transport_protocol: raw_buffer
+      filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: outbound_http
+          codec_type: AUTO
+          route_config:
+            name: outbound_routes
+            virtual_hosts:
+            - name: catch_all
+              domains: ["*"]
+              routes:
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: original_destination
+                  timeout: 300s
+          http_filters:
+          - name: envoy.filters.http.ext_proc
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
+              grpc_service:
+                envoy_grpc:
+                  cluster_name: ext_proc_cluster
+                timeout: 300s
+              processing_mode:
+                request_header_mode: SEND
+                response_header_mode: SKIP
+                request_body_mode: NONE
+                response_body_mode: NONE
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  - name: inbound_listener
+    address:
+      socket_address:
+        protocol: TCP
+        address: 0.0.0.0
+        port_value: 15124
+    listener_filters:
+    - name: envoy.filters.listener.original_dst
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.filters.listener.original_dst.v3.OriginalDst
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: inbound_http
+          codec_type: AUTO
+          route_config:
+            name: inbound_routes
+            virtual_hosts:
+            - name: local_app
+              domains: ["*"]
+              routes:
+              - match:
+                  prefix: "/"
+                route:
+                  cluster: original_destination
+                  timeout: 300s
+          http_filters:
+          - name: envoy.filters.http.lua
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua
+              inline_code: |
+                function envoy_on_request(request_handle)
+                  request_handle:headers():add("x-authbridge-direction", "inbound")
+                end
+          - name: envoy.filters.http.ext_proc
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
+              grpc_service:
+                envoy_grpc:
+                  cluster_name: ext_proc_cluster
+                timeout: 300s
+              processing_mode:
+                request_header_mode: SEND
+                response_header_mode: SKIP
+                request_body_mode: NONE
+                response_body_mode: NONE
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+  - name: original_destination
+    connect_timeout: 30s
+    type: ORIGINAL_DST
+    lb_policy: CLUSTER_PROVIDED
+    original_dst_lb_config:
+      use_http_header: false
+
+  - name: ext_proc_cluster
+    connect_timeout: 5s
+    type: STATIC
+    lb_policy: ROUND_ROBIN
+    http2_protocol_options: {}
+    load_assignment:
+      cluster_name: ext_proc_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: 127.0.0.1
+                port_value: 9090
+"""
