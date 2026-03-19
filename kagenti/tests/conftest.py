@@ -199,14 +199,30 @@ def keycloak_agent_token(k8s_client) -> Optional[str]:
     then uses Direct Access Grant (password grant) against the kagenti
     realm to obtain a token.
 
+    Waits up to 60 s for the secret to appear (the Helm Job may still
+    be running when tests start).
+
     Returns:
         Access token string, or None if the test-user secret is absent.
     """
-    try:
-        secret = k8s_client.read_namespaced_secret(
-            name="kagenti-test-user", namespace="keycloak"
+    import time
+
+    secret = None
+    for attempt in range(12):
+        try:
+            secret = k8s_client.read_namespaced_secret(
+                name="kagenti-test-user", namespace="keycloak"
+            )
+            break
+        except ApiException:
+            if attempt < 11:
+                time.sleep(5)
+
+    if secret is None:
+        print(
+            "\n[keycloak_agent_token] kagenti-test-user secret not found "
+            "in keycloak namespace after 60s — agent auth will be skipped"
         )
-    except ApiException:
         return None
 
     username = base64.b64decode(secret.data["username"]).decode("utf-8")
@@ -232,8 +248,17 @@ def keycloak_agent_token(k8s_client) -> Optional[str]:
     try:
         response = requests.post(token_url, data=data, timeout=10, verify=verify_ssl)
         if response.status_code == 200:
-            return response.json()["access_token"]
-    except requests.exceptions.RequestException:
-        pass
+            token = response.json()["access_token"]
+            print(
+                f"\n[keycloak_agent_token] Acquired token for realm={realm} "
+                f"user={username} (token length={len(token)})"
+            )
+            return token
+        print(
+            f"\n[keycloak_agent_token] Token request failed: "
+            f"HTTP {response.status_code} — {response.text[:200]}"
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"\n[keycloak_agent_token] Token request error: {e}")
 
     return None
