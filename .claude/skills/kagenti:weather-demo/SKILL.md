@@ -1,12 +1,13 @@
 ---
 name: kagenti:weather-demo
-description: Deploy the weather agent and MCP tool demo via CLI (no UI required). Builds images with Shipwright, deploys to team1, and verifies end-to-end.
+description: Deploy the weather agent and MCP tool demo via CLI (no UI required). Builds images with Shipwright in parallel, deploys to team1. Optimized for speed (~1 min).
 ---
 
 # Weather Agent Demo (CLI)
 
 Deploy the Weather Service agent and Weather Tool without the Kagenti UI.
 Uses existing CI scripts and Kubernetes manifests for a fully CLI-driven workflow.
+Optimized for speed: parallel builds, parallel deploys, no verification steps.
 
 ## When to Use
 
@@ -18,234 +19,116 @@ Uses existing CI scripts and Kubernetes manifests for a fully CLI-driven workflo
 
 - Kagenti platform deployed (via `deployments/ansible/run-install.sh --env dev` or equivalent)
 - `kubectl` configured and pointing at the target cluster
-- Ollama running locally with a model (e.g. `qwen2.5:3b`), OR an OpenAI API key
+- Ollama running locally with `llama3.2:3b-instruct-fp16` model, OR an OpenAI API key
 
 ## Context-Safe Execution (MANDATORY)
 
-Deploy/build commands produce large output. Always redirect to files:
+Deploy/build commands produce large output. Use `run_in_background: true` on the Bash
+tool to keep output out of context. Do NOT use shell redirects (`> file 2>&1`) as they
+break permission matching.
+
+Before running any commands, record the start time:
 
 ```bash
-export LOG_DIR=/tmp/kagenti/weather-demo
-mkdir -p $LOG_DIR
+date +%s
 ```
+
+> Remember this value as the start timestamp. Do NOT redirect to a file.
 
 ## Workflow
 
 ```mermaid
 flowchart TD
     START(["/kagenti:weather-demo"]) --> NS["Step 1: Setup team1 namespace"]:::k8s
-    NS --> TOOL_BUILD["Step 2: Build weather-tool image"]:::build
-    TOOL_BUILD --> TOOL_DEPLOY["Step 3: Deploy weather-tool"]:::k8s
-    TOOL_DEPLOY --> AGENT_DEPLOY["Step 4-5: Build + deploy weather-service"]:::build
-    AGENT_DEPLOY --> VERIFY{Step 6: Verify pods}:::k8s
-    VERIFY -->|All Running| PATCH["Step 6b: Fix Ollama connectivity"]:::debug
-    VERIFY -->|Not Ready| DEBUG["Check logs"]:::debug
-    DEBUG --> FIX["Fix and retry"]:::debug
-    FIX --> VERIFY
-    PATCH --> TEST["Step 7: Test end-to-end"]:::test
-    TEST -->|Connection/model error| PATCH
-    TEST -->|Success| DONE([Demo Running])
+    NS --> DEPLOY["Step 2: Build agent + deploy both in parallel"]:::build
+    DEPLOY --> PATCH["Step 3: Fix Ollama connectivity"]:::debug
+    PATCH --> DONE([Demo Running])
 
     classDef k8s fill:#00BCD4,stroke:#333,color:white
     classDef build fill:#795548,stroke:#333,color:white
-    classDef test fill:#4CAF50,stroke:#333,color:white
     classDef debug fill:#FF9800,stroke:#333,color:white
 ```
 
-> Follow this diagram as the workflow.
+> Follow this diagram as the workflow. Do NOT add verification or testing steps beyond Step 3.
 
 ## Step 1: Setup team1 Namespace
 
-Run the namespace setup script:
+Run the namespace setup script (no-op if team1 already exists, ~2s).
+Use `run_in_background: true` to keep output out of context:
 
 ```bash
-./.github/scripts/kagenti-operator/70-setup-team1-namespace.sh > $LOG_DIR/01-namespace.log 2>&1; echo "EXIT:$?"
+./.github/scripts/kagenti-operator/70-setup-team1-namespace.sh
 ```
 
-If team1 already exists from a prior platform install, this is a no-op.
+> Wait for this to complete (check with TaskOutput) before proceeding to Step 2.
 
-## Step 2: Build Weather Tool Image
+## Step 2: Build Agent + Deploy Both in Parallel
 
-Build the weather-tool container image using Shipwright (in-cluster build from GitHub source):
+The **weather-tool image** is already available in the in-cluster registry (it was built
+previously and images persist across cleanup). Only the weather-service agent needs rebuilding.
+
+Launch both in parallel using **two parallel Bash tool calls**:
+
+**Bash call 1** — Build + deploy weather-service (script handles both):
+```bash
+./.github/scripts/kagenti-operator/74-deploy-weather-agent.sh
+```
+
+**Bash call 2** — Deploy weather-tool (image already in registry, no build needed):
+```bash
+./.github/scripts/kagenti-operator/72-deploy-weather-tool.sh
+```
+
+> IMPORTANT: These two commands MUST be run as parallel Bash tool calls with
+> `run_in_background: true` and `timeout: 600000` (two separate Bash invocations
+> in the same response). Then wait for both to complete using TaskOutput.
+
+## Step 3: Fix Ollama Connectivity (REQUIRED on Kind)
+
+The deployment manifest defaults to `LLM_API_BASE=http://dockerhost:11434/v1` which
+does not resolve inside Kind. This step is always required.
+
+**3a. Check which Ollama hostname works** from the host:
 
 ```bash
-./.github/scripts/kagenti-operator/71-build-weather-tool.sh > $LOG_DIR/02-build-tool.log 2>&1; echo "EXIT:$?"
+curl -s http://localhost:11434/v1/models
 ```
 
-This creates a Shipwright Build + BuildRun that pulls from `https://github.com/kagenti/agent-examples` and pushes to the in-cluster registry.
+> Do NOT pipe to jq — pipes break permission matching. Parse the JSON output directly.
 
-On failure, analyze logs:
-
-```
-Agent(subagent_type='Explore'):
-  "Grep $LOG_DIR/02-build-tool.log for ERROR|FAIL|error. Return first error with 3 lines of context."
-```
-
-## Step 3: Deploy Weather Tool
-
-Deploy the weather-tool as a Deployment + Service:
+**3b. Patch the agent** with the working hostname and the demo model `llama3.2:3b-instruct-fp16`.
+Use a strategic merge patch on the `agent` container's env vars:
 
 ```bash
-./.github/scripts/kagenti-operator/72-deploy-weather-tool.sh > $LOG_DIR/03-deploy-tool.log 2>&1; echo "EXIT:$?"
+kubectl patch deployment weather-service -n team1 --type=strategic -p '{"spec":{"template":{"spec":{"containers":[{"name":"agent","env":[{"name":"LLM_API_BASE","value":"http://host.docker.internal:11434/v1"},{"name":"LLM_MODEL","value":"llama3.2:3b-instruct-fp16"}]}]}}}}'
 ```
 
-Verify the tool pod is running:
+> On Docker Desktop (macOS/Windows), use `host.docker.internal`.
+> On Podman, use `host.containers.internal`.
+> Do NOT wait for rollout — skip `kubectl rollout status` to save time.
+
+Then report elapsed time:
 
 ```bash
-kubectl get pods -n team1 -l app.kubernetes.io/name=weather-tool
+date +%s
 ```
 
-Expected: `weather-tool-xxxx   1/1   Running`
+> Compute elapsed seconds by subtracting this value from the start timestamp recorded
+> earlier. Report the difference in the completion message.
 
-## Step 4: Build Weather Service Agent Image
+## Done
 
-Build the weather-service agent image using Shipwright:
-
-```bash
-# The deploy script (Step 5) handles both the Shipwright build and deployment.
-# The build is triggered first, then the deployment is applied after the image is ready.
-```
-
-## Step 5: Deploy Weather Service Agent
-
-This script builds the agent image via Shipwright AND deploys it:
-
-```bash
-./.github/scripts/kagenti-operator/74-deploy-weather-agent.sh > $LOG_DIR/05-deploy-agent.log 2>&1; echo "EXIT:$?"
-```
-
-On failure, analyze:
-
-```
-Agent(subagent_type='Explore'):
-  "Grep $LOG_DIR/05-deploy-agent.log for ERROR|FAIL|error|timeout. Return first error with context."
-```
-
-## Step 6: Verify Pods and Fix LLM Connectivity
-
-Check all pods are running:
-
-```bash
-kubectl get pods -n team1
-```
-
-Expected:
-
-```
-NAME                               READY   STATUS    RESTARTS   AGE
-weather-service-xxxxx              4/4     Running   0          2m
-weather-tool-xxxxx                 1/1     Running   0          5m
-```
-
-> **Note:** weather-service shows 4/4 (agent + 3 AuthBridge sidecars: spiffe-helper,
-> kagenti-client-registration, envoy-proxy).
-
-Check agent logs:
-
-```bash
-kubectl logs deployment/weather-service -n team1 -c agent --tail=10
-```
-
-Expected: `Uvicorn running on http://0.0.0.0:8000`
-
-### Fix Ollama Connectivity (Almost Always Needed)
-
-The deployment manifests default to `LLM_API_BASE=http://dockerhost:11434/v1` and
-`LLM_MODEL=qwen2.5:3b`, which usually need patching for local setups.
-
-**Auto-detect the correct Ollama hostname** from inside the agent pod:
-
-```bash
-kubectl exec deployment/weather-service -n team1 -c agent -- python3 -c "
-import urllib.request
-for host in ['dockerhost', 'host.docker.internal', 'host.containers.internal']:
-    try:
-        urllib.request.urlopen(f'http://{host}:11434/v1/models', timeout=3)
-        print(f'{host}: OK')
-    except Exception as e:
-        print(f'{host}: FAIL')
-"
-```
-
-**Check which models are available** in Ollama:
-
-```bash
-curl -s http://localhost:11434/v1/models | jq '.data[].id'
-```
-
-**Patch the agent** with the correct hostname and an available model:
-
-```bash
-kubectl set env deployment/weather-service -n team1 -c agent \
-  LLM_API_BASE="http://host.docker.internal:11434/v1" \
-  LLM_MODEL="qwen3:4b"
-kubectl rollout status deployment/weather-service -n team1 --timeout=120s
-```
-
-> Replace `host.docker.internal` with whichever hostname returned OK above.
-> Replace `qwen3:4b` with a model from your `ollama list` output.
-
-## Step 7: Test End-to-End
-
-### 7a. Verify Agent Card
-
-```bash
-kubectl port-forward -n team1 svc/weather-service 18080:8080 &
-PF_PID=$!
-sleep 2
-curl -s http://localhost:18080/.well-known/agent.json | jq .name
-# Expected: "weather_service"
-kill $PF_PID 2>/dev/null
-```
-
-### 7b. Send a Test Message (A2A JSON-RPC)
-
-```bash
-kubectl port-forward -n team1 svc/weather-service 18080:8080 &
-PF_PID=$!
-sleep 2
-
-curl -s --max-time 120 -X POST http://localhost:18080/ \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "id": "test-1",
-    "method": "message/send",
-    "params": {
-      "message": {
-        "role": "user",
-        "messageId": "msg-001",
-        "parts": [{"type": "text", "text": "What is the weather in New York?"}]
-      }
-    }
-  }' | jq
-
-kill $PF_PID 2>/dev/null
-```
-
-The agent should respond with weather information from the Open-Meteo API.
-
-### 7c. Chat via Kagenti UI (Optional)
-
-If the Kagenti UI is running:
-
-1. Open http://kagenti-ui.localtest.me:8080
-2. Go to Agent Catalog, select `team1` namespace
-3. Select `weather-service` and click Chat
-4. Ask "What is the weather in New York?"
+Report the elapsed time. Do NOT run any additional verification, pod checks, log checks,
+or end-to-end curl tests.
 
 ## LLM Configuration
-
-The agent defaults to Ollama (`http://dockerhost:11434/v1`). To change the LLM provider after deployment:
 
 ### Switch to OpenAI
 
 ```bash
-# Create the secret first
 kubectl create secret generic openai-secret -n team1 \
   --from-literal=apikey="<YOUR_OPENAI_API_KEY>"
 
-# Patch the agent
 kubectl set env deployment/weather-service -n team1 -c agent \
   LLM_API_BASE="https://api.openai.com/v1" \
   LLM_MODEL="gpt-4o-mini-2024-07-18"
@@ -260,13 +143,6 @@ kubectl patch deployment weather-service -n team1 --type=json -p='[
     "valueFrom":{"secretKeyRef":{"name":"openai-secret","key":"apikey"}}
   }}
 ]'
-```
-
-### Change Ollama Model
-
-```bash
-kubectl set env deployment/weather-service -n team1 -c agent \
-  LLM_MODEL="llama3.2:3b-instruct-fp16"
 ```
 
 ## Cleanup
@@ -288,11 +164,6 @@ kubectl delete deployment weather-service weather-tool -n team1 --ignore-not-fou
 kubectl delete svc weather-service weather-tool-mcp -n team1 --ignore-not-found
 ```
 
-> **Why this order matters:** The reconciliation chain is
-> `Shipwright Build` -> operator creates `AgentCard` -> operator creates `Deployment + Service`.
-> If you only delete the Deployment, the operator will recreate it from the AgentCard.
-> If you only delete the AgentCard, the operator will recreate it from the Shipwright Build.
-
 Or delete the entire namespace:
 
 ```bash
@@ -304,19 +175,16 @@ kubectl delete namespace team1
 ### Shipwright Build Fails
 
 ```bash
-# Check build status
 kubectl get builds.shipwright.io -n team1
 kubectl get buildruns -n team1
 
-# Check build pod logs
 BUILD_POD=$(kubectl get pods -n team1 -l build.shipwright.io/name=weather-tool --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
 kubectl logs -n team1 "$BUILD_POD" --all-containers=true
 ```
 
 ### Agent Can't Reach Ollama
 
-See [Step 6b: Fix Ollama Connectivity](#fix-ollama-connectivity-almost-always-needed)
-for the auto-detection and patching procedure. Common hostname mappings:
+See [Fix Ollama Connectivity](#fix-ollama-connectivity-if-needed-later) above.
 
 | Container runtime | Hostname |
 |-------------------|----------|
@@ -324,20 +192,7 @@ for the auto-detection and patching procedure. Common hostname mappings:
 | Podman (macOS) | `host.containers.internal` |
 | Kind default | `dockerhost` (usually doesn't resolve) |
 
-Verify Ollama is running on the host: `curl -s http://localhost:11434/v1/models`
-
-### Model Not Found
-
-The deployment defaults to `LLM_MODEL=qwen2.5:3b`. Check available models with
-`ollama list` and patch:
-
-```bash
-kubectl set env deployment/weather-service -n team1 -c agent LLM_MODEL="<available-model>"
-```
-
 ### Agent Can't Reach Weather Tool
-
-Check the `MCP_URL` env var points to the correct service:
 
 ```bash
 kubectl get svc -n team1 | grep weather-tool

@@ -5,7 +5,7 @@
       "Read(file:/tmp/kagenti/**)",
       "Edit(file:/tmp/kagenti/**)",
       "Write(file:/tmp/kagenti/**)",
-      "Bash(mkdir -p /tmp/kagenti:*)",
+      "Bash(mkdir -p /tmp/kagenti*)",
 
       "Edit(file:.claude/**)",
       "Write(file:.claude/**)",
@@ -123,8 +123,8 @@
       "Bash(.github/scripts/local-setup/hypershift-full-test.sh:*)",
       "Bash(.github/scripts/local-setup/kind-full-test.sh:*)",
 
-      "Bash(./.github/scripts/kagenti-operator/*:*)",
-      "Bash(.github/scripts/kagenti-operator/*:*)",
+      "Bash(./.github/scripts/kagenti-operator/*)",
+      "Bash(.github/scripts/kagenti-operator/*)",
       "Bash(export LOG_DIR=*:*)",
       "Bash(kill *:*)",
       "Bash(sleep *:*)",
