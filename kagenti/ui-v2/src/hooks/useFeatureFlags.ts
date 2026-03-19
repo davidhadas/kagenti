@@ -34,7 +34,7 @@ export function useFeatureFlags(): FeatureFlags {
         cachedFlags = validated;
         setFlags(validated);
       })
-      .catch(() => {});
+      .catch((e) => { if (e?.name !== 'AbortError') console.debug('Feature flags fetch failed:', e); });
     return () => controller.abort();
   }, []);
 

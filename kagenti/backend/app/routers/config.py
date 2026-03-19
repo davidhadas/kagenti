@@ -22,9 +22,11 @@ class FeatureFlagsResponse(BaseModel):
 router = APIRouter(prefix="/config", tags=["config"])
 
 
+# No auth required: the UI needs feature flags before login to decide which
+# nav items and routes to render. Flags are boolean on/off — no sensitive data.
 @router.get("/features", response_model=FeatureFlagsResponse)
 async def get_feature_flags() -> FeatureFlagsResponse:
-    """Return enabled feature flags for UI gating. Public endpoint — flags are not sensitive."""
+    """Return enabled feature flags for UI gating. Public — no auth required."""
     return FeatureFlagsResponse(
         sandbox=settings.kagenti_feature_flag_sandbox,
         integrations=settings.kagenti_feature_flag_integrations,
