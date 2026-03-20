@@ -29,6 +29,7 @@ class KubernetesService:
         self._core_api: Optional[kubernetes.client.CoreV1Api] = None
         self._apps_api: Optional[kubernetes.client.AppsV1Api] = None
         self._batch_api: Optional[kubernetes.client.BatchV1Api] = None
+        self._rbac_api: Optional[kubernetes.client.RbacAuthorizationV1Api] = None
 
     def _load_config(self) -> kubernetes.client.ApiClient:
         """Load Kubernetes configuration (in-cluster or kubeconfig)."""
@@ -73,6 +74,13 @@ class KubernetesService:
         if self._batch_api is None:
             self._batch_api = kubernetes.client.BatchV1Api(self.api_client)
         return self._batch_api
+
+    @property
+    def rbac_api(self) -> kubernetes.client.RbacAuthorizationV1Api:
+        """Get RbacAuthorizationV1Api client for Roles and RoleBindings."""
+        if self._rbac_api is None:
+            self._rbac_api = kubernetes.client.RbacAuthorizationV1Api(self.api_client)
+        return self._rbac_api
 
     def is_running_in_cluster(self) -> bool:
         """Check if running inside a Kubernetes cluster."""
@@ -286,6 +294,48 @@ class KubernetesService:
                 logger.info("Created new ConfigMap")
             else:
                 logger.error("Error upserting ConfigMap")
+                raise
+
+    # -------------------------------------------------------------------------
+    # RoleBinding Operations
+    # -------------------------------------------------------------------------
+
+    def ensure_rolebinding(
+        self,
+        namespace: str,
+        name: str,
+        cluster_role_name: str,
+        subjects: list,
+        labels: Optional[dict] = None,
+    ) -> None:
+        """Create a RoleBinding if it does not already exist."""
+        # Sanitize for logging (CWE-117 / CodeQL Log Injection).
+        # Kubernetes names are already constrained to [a-z0-9-.] but CodeQL
+        # cannot verify that statically.
+        safe_name = name.replace("\n", "").replace("\r", "")
+        safe_ns = namespace.replace("\n", "").replace("\r", "")
+        try:
+            self.rbac_api.read_namespaced_role_binding(name=name, namespace=namespace)
+            logger.debug("RoleBinding '%s' already exists in %s", safe_name, safe_ns)
+        except ApiException as e:
+            if e.status == 404:
+                rb = kubernetes.client.V1RoleBinding(
+                    metadata=kubernetes.client.V1ObjectMeta(
+                        name=name,
+                        namespace=namespace,
+                        labels=labels or {"kagenti.io/managed-by": "kagenti-api"},
+                    ),
+                    role_ref=kubernetes.client.V1RoleRef(
+                        api_group="rbac.authorization.k8s.io",
+                        kind="ClusterRole",
+                        name=cluster_role_name,
+                    ),
+                    subjects=subjects,
+                )
+                self.rbac_api.create_namespaced_role_binding(namespace=namespace, body=rb)
+                logger.info("Created RoleBinding '%s' in %s", safe_name, safe_ns)
+            else:
+                logger.error("Error checking RoleBinding '%s' in %s: %s", safe_name, safe_ns, e)
                 raise
 
     # -------------------------------------------------------------------------
