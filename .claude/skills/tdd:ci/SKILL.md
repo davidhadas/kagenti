@@ -33,7 +33,8 @@ Iterative development workflow using CI as the test environment. Commit changes,
 **Every command that produces more than ~5 lines of output MUST redirect to a file.**
 
 ```bash
-# Session-scoped log directory — use worktree name to avoid collisions
+# Session-scoped log directory — use worktree/repo name to avoid collisions
+# For parallel worktree sessions, pre-set LOG_DIR to a unique path
 export LOG_DIR="${LOG_DIR:-${WORKSPACE_DIR:-/tmp}/kagenti-tdd}"
 mkdir -p "$LOG_DIR"
 ```
@@ -490,7 +491,7 @@ After **3+ failed CI iterations**, consider switching to `tdd:hypershift` for re
 
 ```bash
 # Check if cluster exists for current worktree
-WORKTREE=$(basename "${WORKSPACE_DIR:-$(pwd)}")
+WORKTREE=$(basename "${WORKSPACE_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}")
 ls ~/clusters/hcp/kagenti-hypershift-custom-*/auth/kubeconfig 2>/dev/null
 ```
 

@@ -22,8 +22,8 @@ Covers the full cycle: edit → commit → push → build → rollout → Playwr
 export CLUSTER=sbox42
 export MANAGED_BY_TAG=kagenti-team
 export KUBECONFIG=~/clusters/hcp/${MANAGED_BY_TAG}-${CLUSTER}/auth/kubeconfig
-export LOG_DIR=/tmp/kagenti/tdd/ui-${CLUSTER}
-mkdir -p $LOG_DIR
+export LOG_DIR="${LOG_DIR:-/tmp/kagenti/tdd/ui-${CLUSTER}}"
+mkdir -p "$LOG_DIR"
 
 # Keycloak password (stored in K8s secret, not hardcoded)
 export KEYCLOAK_PASSWORD=$(kubectl -n keycloak get secret kagenti-test-users \
@@ -34,7 +34,7 @@ export KAGENTI_UI_URL="https://$(kubectl get route kagenti-ui -n kagenti-system 
   -o jsonpath='{.spec.host}')"
 
 # Working directory
-cd .worktrees/sandbox-agent/kagenti/ui-v2
+cd "${WORKTREE_DIR:-.worktrees/sandbox-agent}"/kagenti/ui-v2
 ```
 
 ## Iteration Levels (fastest first)

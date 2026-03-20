@@ -96,7 +96,8 @@ await page.evaluate((s) => {
   window.history.pushState({}, '', `/sandbox?session=${s}`);
   window.dispatchEvent(new PopStateEvent('popstate'));
 }, sid);
-await page.waitForTimeout(5000);
+// pushState triggers sync React re-render — no DOM indicator to await
+    await page.waitForTimeout(5000);
 ```
 
 ## History Loading (toMessage conversion)
