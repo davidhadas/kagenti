@@ -1821,13 +1821,13 @@ def _ensure_authbridge_configmaps(
     namespace: str,
     spire_enabled: bool = False,
 ) -> None:
-    """Ensure the 4 ConfigMaps required by AuthBridge sidecars exist.
+    """Ensure the 3 ConfigMaps required by AuthBridge sidecars exist.
 
     Creates each ConfigMap only if it does not already exist, so user
     customizations (e.g. pointing at a different Keycloak server) are
     preserved on subsequent agent deploys.
 
-    The four ConfigMaps match what the Helm chart creates in
+    The ConfigMaps match what the Helm chart creates in
     charts/kagenti/templates/agent-namespaces.yaml:
       - authbridge-config: Keycloak URLs for go-processor / client-registration
       - envoy-config: Envoy proxy listeners and ext-proc integration
@@ -1835,7 +1835,9 @@ def _ensure_authbridge_configmaps(
     """
     keycloak_url = settings.keycloak_url or DEFAULT_KEYCLOAK_INTERNAL_URL
     realm = settings.effective_keycloak_realm or DEFAULT_KEYCLOAK_REALM
-    issuer = f"{keycloak_url}/realms/{realm}"
+    # ISSUER must use the public/external URL because it must match the
+    # "iss" claim in JWT tokens issued by Keycloak (split-horizon DNS).
+    issuer = f"{settings.effective_keycloak_url}/realms/{realm}"
 
     # 1. authbridge-config
     kube.ensure_configmap(
@@ -1863,9 +1865,7 @@ def _ensure_authbridge_configmaps(
         data={"helper.conf": DEFAULT_SPIFFE_HELPER_CONF},
     )
 
-    logger.info(
-        f"Ensured AuthBridge ConfigMaps in namespace '{namespace}'"
-    )
+    logger.info(f"Ensured AuthBridge ConfigMaps in namespace '{namespace}'")
 
 
 def _build_agent_shipwright_build_manifest(
