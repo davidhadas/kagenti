@@ -12,8 +12,8 @@ if [ "$IS_OPENSHIFT" = "true" ]; then
     WEATHER_TOOL_IMAGE="image-registry.openshift-image-registry.svc:5000/team1/weather-tool:v0.0.1"
     log_info "Using OpenShift internal registry: $WEATHER_TOOL_IMAGE"
 else
-    WEATHER_TOOL_IMAGE="registry.cr-system.svc.cluster.local:5000/weather-tool:v0.0.1"
-    log_info "Using Kind registry: $WEATHER_TOOL_IMAGE"
+    WEATHER_TOOL_IMAGE="ghcr.io/kagenti/agent-examples/weather_tool:latest"
+    log_info "Using ghcr.io image: $WEATHER_TOOL_IMAGE"
 fi
 
 # Create ServiceAccount (required by webhook for correct SPIFFE ID derivation)

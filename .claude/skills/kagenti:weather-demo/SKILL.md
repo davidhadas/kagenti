@@ -64,8 +64,8 @@ Use `run_in_background: true` to keep output out of context:
 
 ## Step 2: Build Agent + Deploy Both in Parallel
 
-The **weather-tool image** is already available in the in-cluster registry (it was built
-previously and images persist across cleanup). Only the weather-service agent needs rebuilding.
+The **weather-tool** uses a pre-built image from `ghcr.io/kagenti/agent-examples/weather_tool:latest`
+(no in-cluster build needed). Only the weather-service agent needs building via Shipwright.
 
 Launch both in parallel using **two parallel Bash tool calls**:
 
@@ -74,7 +74,7 @@ Launch both in parallel using **two parallel Bash tool calls**:
 ./.github/scripts/kagenti-operator/74-deploy-weather-agent.sh
 ```
 
-**Bash call 2** — Deploy weather-tool (image already in registry, no build needed):
+**Bash call 2** — Deploy weather-tool (pulls from ghcr.io, no build needed):
 ```bash
 ./.github/scripts/kagenti-operator/72-deploy-weather-tool.sh
 ```
@@ -184,7 +184,7 @@ kubectl logs -n team1 "$BUILD_POD" --all-containers=true
 
 ### Agent Can't Reach Ollama
 
-See [Fix Ollama Connectivity](#fix-ollama-connectivity-if-needed-later) above.
+See [Step 3: Fix Ollama Connectivity](#step-3-fix-ollama-connectivity-required-on-kind) above.
 
 | Container runtime | Hostname |
 |-------------------|----------|
