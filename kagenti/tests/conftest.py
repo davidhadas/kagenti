@@ -188,25 +188,44 @@ def keycloak_token(keycloak_admin_credentials) -> Dict[str, str]:
         )
 
 
+def _keycloak_ssl_verify() -> "bool | str":
+    """Return the ``verify`` parameter for requests to the Keycloak endpoint.
+
+    Prefers an explicit CA bundle, then fetches the cluster root CA from
+    kube-root-ca.crt.  Falls back to the default system CA store.
+    Never returns ``False``.
+    """
+    if os.environ.get("KEYCLOAK_CA_BUNDLE"):
+        return os.environ["KEYCLOAK_CA_BUNDLE"]
+    if os.environ.get("KEYCLOAK_VERIFY_SSL", "true").lower() == "false":
+        from kagenti.tests.e2e.conftest import _fetch_openshift_ingress_ca
+
+        ca_path = _fetch_openshift_ingress_ca()
+        if ca_path:
+            return ca_path
+    return True
+
+
 @pytest.fixture(scope="session")
-def keycloak_agent_token(k8s_client) -> Optional[str]:
+def keycloak_agent_token(k8s_client, keycloak_admin_credentials) -> Optional[str]:
     """
     Acquire a Bearer token from the kagenti realm for authenticating
     to agents via AuthBridge.
 
-    Reads test user credentials from the ``kagenti-test-user`` secret
-    (created by the agent-oauth-secret-job during platform install),
-    then uses Direct Access Grant (password grant) against the kagenti
-    realm to obtain a token.
-
-    Waits up to 60 s for the secret to appear (the Helm Job may still
-    be running when tests start).
+    Strategy:
+      1. Read ``kagenti-test-user`` secret (wait up to 60 s for the Helm Job)
+      2. Get an admin token for the *master* realm
+      3. Reset the test user's password via the Admin REST API (handles
+         the case where the Job re-ran and the secret has a newer password
+         than Keycloak)
+      4. Acquire a token from the kagenti realm via Direct Access Grant
 
     Returns:
-        Access token string, or None if the test-user secret is absent.
+        Access token string, or None if any step fails.
     """
     import time
 
+    # --- Step 1: wait for the test-user secret ---
     secret = None
     for attempt in range(12):
         try:
@@ -230,34 +249,78 @@ def keycloak_agent_token(k8s_client) -> Optional[str]:
     realm = base64.b64decode(secret.data["realm"]).decode("utf-8")
 
     keycloak_base_url = os.environ.get("KEYCLOAK_URL", "http://localhost:8081")
-    token_url = f"{keycloak_base_url}/realms/{realm}/protocol/openid-connect/token"
+    verify_ssl = _keycloak_ssl_verify()
 
-    # Resolve SSL verification: prefer explicit CA bundle, then fetch from
-    # cluster (kube-root-ca.crt), fall back to system CA store.  Never
-    # disable verification entirely.
-    verify_ssl: bool | str = True
-    if os.environ.get("KEYCLOAK_CA_BUNDLE"):
-        verify_ssl = os.environ["KEYCLOAK_CA_BUNDLE"]
-    elif os.environ.get("KEYCLOAK_VERIFY_SSL", "true").lower() == "false":
-        # Caller asked to skip verification (self-signed route cert).
-        # Instead of disabling, try to fetch the cluster CA.
-        from kagenti.tests.e2e.conftest import _fetch_openshift_ingress_ca
-
-        ca_path = _fetch_openshift_ingress_ca()
-        if ca_path:
-            verify_ssl = ca_path
-        # If CA not available (e.g. Kind with HTTP), keep verify_ssl=True
-        # which uses the default system CA store.
-
-    data = {
-        "grant_type": "password",
-        "client_id": "admin-cli",
-        "username": username,
-        "password": password,
-    }
-
+    # --- Step 2: get admin token (master realm) ---
+    admin_token_url = f"{keycloak_base_url}/realms/master/protocol/openid-connect/token"
     try:
-        response = requests.post(token_url, data=data, timeout=10, verify=verify_ssl)
+        resp = requests.post(
+            admin_token_url,
+            data={
+                "grant_type": "password",
+                "client_id": "admin-cli",
+                "username": keycloak_admin_credentials["username"],
+                "password": keycloak_admin_credentials["password"],
+            },
+            timeout=10,
+            verify=verify_ssl,
+        )
+        if resp.status_code != 200:
+            print(
+                f"\n[keycloak_agent_token] Admin token failed: HTTP {resp.status_code}"
+            )
+            return None
+        admin_token = resp.json()["access_token"]
+    except requests.exceptions.RequestException as e:
+        print(f"\n[keycloak_agent_token] Admin token error: {e}")
+        return None
+
+    # --- Step 3: reset the test user's password via Admin API ---
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    users_url = (
+        f"{keycloak_base_url}/admin/realms/{realm}/users?username={username}&exact=true"
+    )
+    try:
+        resp = requests.get(
+            users_url, headers=admin_headers, timeout=10, verify=verify_ssl
+        )
+        if resp.status_code != 200 or not resp.json():
+            print(
+                f"\n[keycloak_agent_token] User '{username}' not found in "
+                f"realm '{realm}'"
+            )
+            return None
+        user_id = resp.json()[0]["id"]
+
+        # Reset password to match the secret
+        reset_url = (
+            f"{keycloak_base_url}/admin/realms/{realm}/users/{user_id}/reset-password"
+        )
+        requests.put(
+            reset_url,
+            json={"type": "password", "value": password, "temporary": False},
+            headers=admin_headers,
+            timeout=10,
+            verify=verify_ssl,
+        )
+    except requests.exceptions.RequestException as e:
+        print(f"\n[keycloak_agent_token] Password reset error: {e}")
+        return None
+
+    # --- Step 4: get token from the kagenti realm ---
+    token_url = f"{keycloak_base_url}/realms/{realm}/protocol/openid-connect/token"
+    try:
+        response = requests.post(
+            token_url,
+            data={
+                "grant_type": "password",
+                "client_id": "admin-cli",
+                "username": username,
+                "password": password,
+            },
+            timeout=10,
+            verify=verify_ssl,
+        )
         if response.status_code == 200:
             token = response.json()["access_token"]
             print(
