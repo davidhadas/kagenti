@@ -114,14 +114,27 @@ else
     log_success "Password reset for '$TEST_USER'"
 fi
 
+# Enable Direct Access Grants on admin-cli in the target realm
+# (newly created realms may not have this enabled)
+ADMIN_CLI_JSON=$(curl -sk -H "$AUTH" \
+    "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=admin-cli" 2>/dev/null || echo "[]")
+ADMIN_CLI_ID=$(echo "$ADMIN_CLI_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['id'] if d else '')" 2>/dev/null || echo "")
+if [ -n "$ADMIN_CLI_ID" ]; then
+    curl -sk -X PUT -H "$AUTH" -H "Content-Type: application/json" \
+        "$KEYCLOAK_URL/admin/realms/$REALM/clients/$ADMIN_CLI_ID" \
+        -d "{\"clientId\": \"admin-cli\", \"directAccessGrantsEnabled\": true}" >/dev/null 2>&1
+    log_info "Enabled Direct Access Grants on admin-cli in realm '$REALM'"
+fi
+
 # Verify: get a token for the test user
-TEST_TOKEN=$($CURL -X POST \
+TOKEN_RESP=$(curl -sk -X POST \
     "$KEYCLOAK_URL/realms/$REALM/protocol/openid-connect/token" \
-    -d "grant_type=password&client_id=admin-cli&username=$TEST_USER&password=$TEST_PASS" \
-    | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])" 2>/dev/null || echo "")
+    -d "grant_type=password&client_id=admin-cli&username=$TEST_USER&password=$TEST_PASS" 2>&1)
+TEST_TOKEN=$(echo "$TOKEN_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null || echo "")
 
 if [ -z "$TEST_TOKEN" ]; then
     log_error "Could not acquire token for test user"
+    log_error "Response: $TOKEN_RESP"
     exit 1
 fi
 log_success "Test user token verified (length=${#TEST_TOKEN})"
