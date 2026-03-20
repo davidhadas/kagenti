@@ -93,7 +93,9 @@ const MermaidBlock: React.FC<{ chart: string }> = ({ chart }) => {
       const id = `mermaid-block-${++mermaidCounter}`;
       const { svg } = await mermaid.render(id, chart);
       if (containerRef.current) {
-        containerRef.current.innerHTML = svg;
+        // Mermaid sanitizes SVG output, but strip scripts as defense-in-depth
+        const sanitized = svg.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+        containerRef.current.innerHTML = sanitized;
       }
     } catch {
       if (containerRef.current) {
