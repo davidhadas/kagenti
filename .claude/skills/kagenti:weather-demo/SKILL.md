@@ -1,13 +1,13 @@
 ---
 name: kagenti:weather-demo
-description: Deploy the weather agent and MCP tool demo via CLI (no UI required). Builds images with Shipwright in parallel, deploys to team1. Optimized for speed (~1 min).
+description: Deploy the weather agent and MCP tool demo via CLI (no UI required). Uses pre-built ghcr.io images, deploys to team1. Optimized for speed (~30s).
 ---
 
 # Weather Agent Demo (CLI)
 
 Deploy the Weather Service agent and Weather Tool without the Kagenti UI.
 Uses existing CI scripts and Kubernetes manifests for a fully CLI-driven workflow.
-Optimized for speed: parallel builds, parallel deploys, no verification steps.
+Optimized for speed: pre-built images from ghcr.io, parallel deploys, no verification steps.
 
 ## When to Use
 
@@ -40,7 +40,7 @@ date +%s
 ```mermaid
 flowchart TD
     START(["/kagenti:weather-demo"]) --> NS["Step 1: Setup team1 namespace"]:::k8s
-    NS --> DEPLOY["Step 2: Build agent + deploy both in parallel"]:::build
+    NS --> DEPLOY["Step 2: Deploy both in parallel"]:::build
     DEPLOY --> PATCH["Step 3: Fix Ollama connectivity"]:::debug
     PATCH --> DONE([Demo Running])
 
@@ -62,7 +62,7 @@ Use `run_in_background: true` to keep output out of context:
 
 > Wait for this to complete (check with TaskOutput) before proceeding to Step 2.
 
-## Step 2: Build Agent + Deploy Both in Parallel
+## Step 2: Deploy Both in Parallel
 
 Both images are pre-built on `ghcr.io/kagenti/agent-examples/` — no Shipwright build
 needed on Kind. Launch both deploys in parallel using **two parallel Bash tool calls**:
