@@ -145,19 +145,10 @@ kubectl patch deployment weather-service -n team1 --type=json -p='[
 
 ## Cleanup
 
-Delete in this order — the operator watches Shipwright Builds and will recreate
-AgentCards and Deployments if they still exist:
+Since both images are pulled from ghcr.io (no Shipwright builds), cleanup is just
+deleting the deployments and services:
 
 ```bash
-# 1. Delete Shipwright Builds FIRST (operator reconciles from these)
-kubectl delete builds.shipwright.io weather-service weather-tool -n team1 --ignore-not-found
-kubectl delete buildruns -n team1 -l build.shipwright.io/name=weather-service --ignore-not-found
-kubectl delete buildruns -n team1 -l build.shipwright.io/name=weather-tool --ignore-not-found
-
-# 2. Delete AgentCard CRs (operator creates deployments from these)
-kubectl delete agentcards -n team1 --all --ignore-not-found
-
-# 3. Delete deployments and services
 kubectl delete deployment weather-service weather-tool -n team1 --ignore-not-found
 kubectl delete svc weather-service weather-tool-mcp -n team1 --ignore-not-found
 ```
@@ -169,16 +160,6 @@ kubectl delete namespace team1
 ```
 
 ## Troubleshooting
-
-### Shipwright Build Fails
-
-```bash
-kubectl get builds.shipwright.io -n team1
-kubectl get buildruns -n team1
-
-BUILD_POD=$(kubectl get pods -n team1 -l build.shipwright.io/name=weather-tool --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
-kubectl logs -n team1 "$BUILD_POD" --all-containers=true
-```
 
 ### Agent Can't Reach Ollama
 
