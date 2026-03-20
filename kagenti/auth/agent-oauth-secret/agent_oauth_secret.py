@@ -103,16 +103,16 @@ def parse_bool(value: Optional[str]) -> bool:
 def get_keycloak_env_config() -> Tuple[str, str, Optional[str], str]:
     """Read common Keycloak environment configuration values.
 
-    Returns a tuple: (base_url, demo_realm_name, ssl_cert_file, spiffe_prefix)
+    Returns a tuple: (base_url, realm_name, ssl_cert_file, spiffe_prefix)
     """
     base_url = get_optional_env(
         "KEYCLOAK_BASE_URL", f"http://keycloak.{DEFAULT_DOMAIN_NAME}:8080"
     )
-    demo_realm_name = get_optional_env("KEYCLOAK_DEMO_REALM", "demo")
+    realm_name = get_optional_env("KEYCLOAK_REALM", "kagenti")
     ssl_cert_file = get_optional_env("SSL_CERT_FILE")
     spiffe_prefix = get_optional_env("SPIFFE_PREFIX", DEFAULT_SPIFFE_PREFIX)
 
-    return base_url, demo_realm_name, ssl_cert_file, spiffe_prefix
+    return base_url, realm_name, ssl_cert_file, spiffe_prefix
 
 
 def get_keycloak_admin_credentials(
@@ -327,7 +327,7 @@ def setup_keycloak(v1_api: Optional[client.CoreV1Api] = None) -> str:
     - `KEYCLOAK_BASE_URL` (default: "http://keycloak.localtest.me:8080")
     - `KEYCLOAK_ADMIN_USERNAME` (default: "admin") - can be read from secret if not provided
     - `KEYCLOAK_ADMIN_PASSWORD` (default: "admin") - can be read from secret if not provided
-    - `KEYCLOAK_DEMO_REALM` (default: "demo")
+    - `KEYCLOAK_REALM` (default: "kagenti")
     - `KAGENTI_KEYCLOAK_CLIENT_NAME` (default: "kagenti-keycloak-client")
     - `SSL_CERT_FILE` (optional) - path to custom SSL certificate for Keycloak connection
     - `KEYCLOAK_NAMESPACE` (default: "keycloak") - namespace where Keycloak admin secret exists
@@ -339,7 +339,7 @@ def setup_keycloak(v1_api: Optional[client.CoreV1Api] = None) -> str:
     Args:
         v1_api: Optional Kubernetes CoreV1Api client for reading secrets
     """
-    base_url, demo_realm_name, ssl_cert_file, spiffe_prefix = get_keycloak_env_config()
+    base_url, realm_name, ssl_cert_file, spiffe_prefix = get_keycloak_env_config()
 
     # Compute admin credentials consistently using helper
     admin_username, admin_password = get_keycloak_admin_credentials(v1_api)
@@ -347,7 +347,7 @@ def setup_keycloak(v1_api: Optional[client.CoreV1Api] = None) -> str:
     # Configure SSL verification
     verify_ssl = configure_ssl_verification(ssl_cert_file)
 
-    setup = KeycloakSetup(base_url, admin_username, admin_password, demo_realm_name)
+    setup = KeycloakSetup(base_url, admin_username, admin_password, realm_name)
     # Pass verify parameter to KeycloakAdmin (will be used in connect method)
     setup.verify_ssl = verify_ssl if verify_ssl is not None else True
     if not setup.connect():
@@ -382,7 +382,7 @@ def setup_keycloak(v1_api: Optional[client.CoreV1Api] = None) -> str:
                 string_data={
                     "username": test_user_name,
                     "password": test_user_password,
-                    "realm": get_optional_env("KEYCLOAK_DEMO_REALM", "demo"),
+                    "realm": get_optional_env("KEYCLOAK_REALM", "kagenti"),
                 },
                 type="Opaque",
             )
@@ -441,7 +441,7 @@ def create_secrets(**kwargs):
         typer.secho(f"✗ Could not connect to Kubernetes: {e}", fg="red", err=True)
         raise typer.Exit(1)
 
-    # Setup Keycloak demo realm, user, and agent client (pass v1_api for secret reading)
+    # Setup Keycloak realm, user, and agent client (pass v1_api for secret reading)
     kagenti_keycloak_client_secret = setup_keycloak(v1_api)
 
     # Distribute client secret to agent namespaces
