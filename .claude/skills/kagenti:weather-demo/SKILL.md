@@ -64,17 +64,15 @@ Use `run_in_background: true` to keep output out of context:
 
 ## Step 2: Build Agent + Deploy Both in Parallel
 
-The **weather-tool** uses a pre-built image from `ghcr.io/kagenti/agent-examples/weather_tool:latest`
-(no in-cluster build needed). Only the weather-service agent needs building via Shipwright.
+Both images are pre-built on `ghcr.io/kagenti/agent-examples/` — no Shipwright build
+needed on Kind. Launch both deploys in parallel using **two parallel Bash tool calls**:
 
-Launch both in parallel using **two parallel Bash tool calls**:
-
-**Bash call 1** — Build + deploy weather-service (script handles both):
+**Bash call 1** — Deploy weather-service agent:
 ```bash
 ./.github/scripts/kagenti-operator/74-deploy-weather-agent.sh
 ```
 
-**Bash call 2** — Deploy weather-tool (pulls from ghcr.io, no build needed):
+**Bash call 2** — Deploy weather-tool:
 ```bash
 ./.github/scripts/kagenti-operator/72-deploy-weather-tool.sh
 ```
