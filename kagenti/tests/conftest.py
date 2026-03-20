@@ -321,6 +321,9 @@ def keycloak_agent_token(k8s_client, keycloak_admin_credentials) -> Optional[str
                 json={
                     "username": username,
                     "enabled": True,
+                    "emailVerified": True,
+                    "email": f"{username}@kagenti.dev",
+                    "requiredActions": [],
                     "credentials": [
                         {
                             "type": "password",
