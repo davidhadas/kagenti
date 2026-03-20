@@ -104,6 +104,17 @@ if [ "$USER_COUNT" = "0" ]; then
             \"credentials\": [{\"type\": \"password\", \"value\": \"$TEST_PASS\", \"temporary\": false}]
         }"
     log_success "Test user '$TEST_USER' created"
+
+    # Clear any realm-imposed required actions on the new user
+    NEW_USER_JSON=$(curl -sk -H "$AUTH" \
+        "$KEYCLOAK_URL/admin/realms/$REALM/users?username=$TEST_USER&exact=true" 2>/dev/null)
+    NEW_USER_ID=$(echo "$NEW_USER_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['id'] if d else '')" 2>/dev/null || echo "")
+    if [ -n "$NEW_USER_ID" ]; then
+        curl -sk -X PUT -H "$AUTH" -H "Content-Type: application/json" \
+            "$KEYCLOAK_URL/admin/realms/$REALM/users/$NEW_USER_ID" \
+            -d "{\"requiredActions\": [], \"emailVerified\": true}" >/dev/null 2>&1
+        log_info "Cleared required actions for '$TEST_USER'"
+    fi
 else
     # Reset password to a known value
     USER_ID=$(echo "$USER_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['id'])")
