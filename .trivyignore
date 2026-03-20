@@ -26,3 +26,12 @@ AVD-KSV-0048
 
 # AVD-KSV-0049: ClusterRole managing configmaps (required for Kagenti config)
 AVD-KSV-0049
+
+# Sandbox deployment manifests use trusted registries:
+# - image-registry.openshift-image-registry.svc:5000: OpenShift internal build registry
+# - registry.redhat.io: Red Hat certified images
+# - ghcr.io/berriai: LiteLLM upstream
+AVD-KSV-0125
+
+# Internal agent base image uses :latest (built on-cluster, no external tag)
+AVD-DS-0001
