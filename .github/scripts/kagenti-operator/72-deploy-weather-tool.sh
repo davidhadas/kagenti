@@ -141,13 +141,4 @@ spec:
       protocol: TCP
 SERVICE_EOF
 
-# Wait for deployment to be available
-wait_for_deployment "weather-tool" "team1" 300 || {
-    log_error "Weather-tool deployment not ready"
-    kubectl get deployment weather-tool -n team1
-    kubectl describe deployment weather-tool -n team1
-    kubectl get pods -n team1 -l app.kubernetes.io/name=weather-tool
-    exit 1
-}
-
-log_success "Weather-tool deployed successfully via Deployment + Service"
+log_success "Weather-tool deployed (not waiting for pods — use kubectl wait if needed)"

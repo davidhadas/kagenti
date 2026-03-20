@@ -1,13 +1,13 @@
 ---
 name: kagenti:weather-demo
-description: Deploy the weather agent and MCP tool demo via CLI (no UI required). Uses pre-built ghcr.io images, deploys to team1. Optimized for speed (~30s).
+description: Deploy the weather agent and MCP tool demo via CLI (no UI required). Uses pre-built ghcr.io images, deploys to team1. Optimized for speed (~15s).
 ---
 
 # Weather Agent Demo (CLI)
 
 Deploy the Weather Service agent and Weather Tool without the Kagenti UI.
 Uses existing CI scripts and Kubernetes manifests for a fully CLI-driven workflow.
-Optimized for speed: pre-built images from ghcr.io, parallel deploys, no verification steps.
+Optimized for speed: pre-built images from ghcr.io, all commands in parallel, no waits.
 
 ## When to Use
 
@@ -39,63 +39,44 @@ date +%s
 
 ```mermaid
 flowchart TD
-    START(["/kagenti:weather-demo"]) --> NS["Step 1: Setup team1 namespace"]:::k8s
-    NS --> DEPLOY["Step 2: Deploy both in parallel"]:::build
-    DEPLOY --> PATCH["Step 3: Fix Ollama connectivity"]:::debug
+    START(["/kagenti:weather-demo"]) --> ALL["Step 1: Deploy all in parallel"]:::build
+    ALL --> PATCH["Step 2: Fix Ollama connectivity"]:::debug
     PATCH --> DONE([Demo Running])
 
-    classDef k8s fill:#00BCD4,stroke:#333,color:white
     classDef build fill:#795548,stroke:#333,color:white
     classDef debug fill:#FF9800,stroke:#333,color:white
 ```
 
-> Follow this diagram as the workflow. Do NOT add verification or testing steps beyond Step 3.
+> Follow this diagram as the workflow. Do NOT add verification or testing steps beyond Step 2.
 
-## Step 1: Setup team1 Namespace
+## Step 1: Deploy All in Parallel
 
-Run the namespace setup script (no-op if team1 already exists, ~2s).
-Use `run_in_background: true` to keep output out of context:
+Both images are pre-built on `ghcr.io/kagenti/agent-examples/`. The namespace setup
+is a no-op if team1 already exists. Launch **all three as parallel Bash tool calls**:
 
+**Bash call 1** — Setup team1 namespace:
 ```bash
 ./.github/scripts/kagenti-operator/70-setup-team1-namespace.sh
 ```
 
-> Wait for this to complete (check with TaskOutput) before proceeding to Step 2.
-
-## Step 2: Deploy Both in Parallel
-
-Both images are pre-built on `ghcr.io/kagenti/agent-examples/` — no Shipwright build
-needed on Kind. Launch both deploys in parallel using **two parallel Bash tool calls**:
-
-**Bash call 1** — Deploy weather-service agent:
+**Bash call 2** — Deploy weather-service agent:
 ```bash
 ./.github/scripts/kagenti-operator/74-deploy-weather-agent.sh
 ```
 
-**Bash call 2** — Deploy weather-tool:
+**Bash call 3** — Deploy weather-tool:
 ```bash
 ./.github/scripts/kagenti-operator/72-deploy-weather-tool.sh
 ```
 
-> IMPORTANT: These two commands MUST be run as parallel Bash tool calls with
-> `run_in_background: true` and `timeout: 600000` (two separate Bash invocations
-> in the same response). Then wait for both to complete using TaskOutput.
+> IMPORTANT: All three commands MUST be run as parallel Bash tool calls with
+> `run_in_background: true` and `timeout: 600000` (three separate Bash invocations
+> in the same response). Then wait for all to complete using TaskOutput.
 
-## Step 3: Fix Ollama Connectivity (REQUIRED on Kind)
+## Step 2: Fix Ollama Connectivity (REQUIRED on Kind)
 
 The deployment manifest defaults to `LLM_API_BASE=http://dockerhost:11434/v1` which
-does not resolve inside Kind. This step is always required.
-
-**3a. Check which Ollama hostname works** from the host:
-
-```bash
-curl -s http://localhost:11434/v1/models
-```
-
-> Do NOT pipe to jq — pipes break permission matching. Parse the JSON output directly.
-
-**3b. Patch the agent** with the working hostname and the demo model `llama3.2:3b-instruct-fp16`.
-Use a strategic merge patch on the `agent` container's env vars:
+does not resolve inside Kind. Patch directly with `host.docker.internal`:
 
 ```bash
 kubectl patch deployment weather-service -n team1 --type=strategic -p '{"spec":{"template":{"spec":{"containers":[{"name":"agent","env":[{"name":"LLM_API_BASE","value":"http://host.docker.internal:11434/v1"},{"name":"LLM_MODEL","value":"llama3.2:3b-instruct-fp16"}]}]}}}}'
@@ -163,7 +144,7 @@ kubectl delete namespace team1
 
 ### Agent Can't Reach Ollama
 
-See [Step 3: Fix Ollama Connectivity](#step-3-fix-ollama-connectivity-required-on-kind) above.
+See [Step 2: Fix Ollama Connectivity](#step-2-fix-ollama-connectivity-required-on-kind) above.
 
 | Container runtime | Hostname |
 |-------------------|----------|

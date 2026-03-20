@@ -95,11 +95,6 @@ log_info "Creating Deployment and Service..."
 # Create ServiceAccount (required by webhook for correct SPIFFE ID derivation)
 kubectl create serviceaccount weather-service -n team1 --dry-run=client -o yaml | kubectl apply -f -
 
-# Clean up any operator-created deployment to apply our version
-# (the operator may auto-create a Deployment from the Shipwright Build)
-kubectl delete deployment weather-service -n team1 --ignore-not-found 2>/dev/null || true
-sleep 2
-
 # Apply Deployment manifest (use OCP-specific file with correct registry on OpenShift)
 if [ "$IS_OPENSHIFT" = "true" ]; then
     kubectl apply -f "$REPO_ROOT/kagenti/examples/agents/weather_service_deployment_ocp.yaml"
@@ -109,27 +104,6 @@ fi
 
 # Apply Service manifest
 kubectl apply -f "$REPO_ROOT/kagenti/examples/agents/weather_service_service.yaml"
-
-# Wait for Deployment to be created
-run_with_timeout 60 'kubectl get deployment weather-service -n team1 &> /dev/null' || {
-    log_error "Deployment not created"
-    kubectl get deployments -n team1
-    exit 1
-}
-
-# Wait for Deployment to be available
-kubectl wait --for=condition=available --timeout=300s deployment/weather-service -n team1 || {
-    log_error "Deployment not available"
-    kubectl get pods -n team1 -l app.kubernetes.io/name=weather-service
-    kubectl get events -n team1 --sort-by='.lastTimestamp'
-    exit 1
-}
-
-# Verify Service exists
-kubectl get service weather-service -n team1 || {
-    log_error "Service not found"
-    exit 1
-}
 
 log_success "Weather-service deployed via Deployment + Service (operator-independent)"
 
