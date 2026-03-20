@@ -5,6 +5,7 @@ This guide covers installation on both local Kind clusters and OpenShift environ
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
+  - [macOS Quick Start (New Machine)](#macos-quick-start-new-machine)
 - [Kind Installation (Local Development)](#kind-installation-local-development)
 - [OpenShift Installation](#openshift-installation)
 - [Accessing the UI](#accessing-the-ui)
@@ -23,6 +24,36 @@ This guide covers installation on both local Kind clusters and OpenShift environ
 | kubectl | ≥1.32.1 | Kubernetes CLI |
 | [Helm](https://helm.sh/docs/intro/install/) | ≥3.18.0, <4 | Package manager for Kubernetes |
 | git | ≥2.48.0 | Cloning repositories |
+
+### macOS Quick Start (New Machine)
+
+If you're setting up a brand-new Mac, install all prerequisites at once with [Homebrew](https://brew.sh):
+
+```bash
+# Install Homebrew
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install required tools
+brew install git kind kubectl helm@3 ansible uv
+brew reinstall python
+
+# Container runtime — pick one:
+brew install podman    # recommended for macOS
+# or: brew install --cask docker   # Docker Desktop
+```
+
+Then set up a Python virtual environment for the installer:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+> **Tip:** After configuring your secrets (see [Quick Start](#quick-start) below), you can
+> run the full installation in one command:
+> ```bash
+> deployments/ansible/run-install.sh --env dev --preload --extra-vars '{"container_engine": "podman"}'
+> ```
 
 ### Kind-Specific Requirements
 
