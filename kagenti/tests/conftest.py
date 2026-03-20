@@ -207,25 +207,20 @@ def _keycloak_ssl_verify() -> "bool | str":
 
 
 @pytest.fixture(scope="session")
-def keycloak_agent_token(k8s_client, keycloak_admin_credentials) -> Optional[str]:
+def keycloak_agent_token(k8s_client) -> Optional[str]:
     """
     Acquire a Bearer token from the kagenti realm for authenticating
     to agents via AuthBridge.
 
-    Strategy:
-      1. Read ``kagenti-test-user`` secret (wait up to 60 s for the Helm Job)
-      2. Get an admin token for the *master* realm
-      3. Reset the test user's password via the Admin REST API (handles
-         the case where the Job re-ran and the secret has a newer password
-         than Keycloak)
-      4. Acquire a token from the kagenti realm via Direct Access Grant
+    Reads credentials from the ``kagenti-test-user`` secret (created/
+    updated by ``87-setup-test-credentials.sh`` or the agent-oauth-secret
+    Helm Job) and acquires a token via Direct Access Grant.
 
     Returns:
-        Access token string, or None if any step fails.
+        Access token string, or None if the secret is absent.
     """
     import time
 
-    # --- Step 1: wait for the test-user secret ---
     secret = None
     for attempt in range(12):
         try:
@@ -249,123 +244,9 @@ def keycloak_agent_token(k8s_client, keycloak_admin_credentials) -> Optional[str
     realm = base64.b64decode(secret.data["realm"]).decode("utf-8")
 
     keycloak_base_url = os.environ.get("KEYCLOAK_URL", "http://localhost:8081")
+    token_url = f"{keycloak_base_url}/realms/{realm}/protocol/openid-connect/token"
     verify_ssl = _keycloak_ssl_verify()
 
-    # --- Step 2: get admin token (master realm) ---
-    admin_token_url = f"{keycloak_base_url}/realms/master/protocol/openid-connect/token"
-    try:
-        resp = requests.post(
-            admin_token_url,
-            data={
-                "grant_type": "password",
-                "client_id": "admin-cli",
-                "username": keycloak_admin_credentials["username"],
-                "password": keycloak_admin_credentials["password"],
-            },
-            timeout=10,
-            verify=verify_ssl,
-        )
-        if resp.status_code != 200:
-            print(
-                f"\n[keycloak_agent_token] Admin token failed: HTTP {resp.status_code}"
-            )
-            return None
-        admin_token = resp.json()["access_token"]
-    except requests.exceptions.RequestException as e:
-        print(f"\n[keycloak_agent_token] Admin token error: {e}")
-        return None
-
-    # --- Step 3: ensure realm + user exist, reset password ---
-    admin_headers = {
-        "Authorization": f"Bearer {admin_token}",
-        "Content-Type": "application/json",
-    }
-
-    # Ensure the realm exists (the oauth-secret-job may have failed)
-    realm_url = f"{keycloak_base_url}/admin/realms/{realm}"
-    try:
-        resp = requests.get(
-            realm_url, headers=admin_headers, timeout=10, verify=verify_ssl
-        )
-        if resp.status_code == 404:
-            print(f"\n[keycloak_agent_token] Realm '{realm}' not found, creating...")
-            requests.post(
-                f"{keycloak_base_url}/admin/realms",
-                json={"realm": realm, "enabled": True},
-                headers=admin_headers,
-                timeout=10,
-                verify=verify_ssl,
-            )
-    except requests.exceptions.RequestException as e:
-        print(f"\n[keycloak_agent_token] Realm check error: {e}")
-        return None
-
-    # Find or create the user
-    users_url = (
-        f"{keycloak_base_url}/admin/realms/{realm}/users?username={username}&exact=true"
-    )
-    try:
-        resp = requests.get(
-            users_url, headers=admin_headers, timeout=10, verify=verify_ssl
-        )
-        users = resp.json() if resp.status_code == 200 else []
-
-        if not users:
-            # Create the user (the oauth-secret-job didn't create it)
-            print(
-                f"\n[keycloak_agent_token] User '{username}' not found in "
-                f"realm '{realm}', creating..."
-            )
-            create_resp = requests.post(
-                f"{keycloak_base_url}/admin/realms/{realm}/users",
-                json={
-                    "username": username,
-                    "enabled": True,
-                    "emailVerified": True,
-                    "email": f"{username}@kagenti.dev",
-                    "requiredActions": [],
-                    "credentials": [
-                        {
-                            "type": "password",
-                            "value": password,
-                            "temporary": False,
-                        }
-                    ],
-                },
-                headers=admin_headers,
-                timeout=10,
-                verify=verify_ssl,
-            )
-            if create_resp.status_code not in (201, 409):
-                print(
-                    f"\n[keycloak_agent_token] User creation failed: "
-                    f"HTTP {create_resp.status_code} — {create_resp.text[:200]}"
-                )
-                return None
-        else:
-            user_id = users[0]["id"]
-            # Reset password to match the secret
-            reset_url = (
-                f"{keycloak_base_url}/admin/realms/{realm}/users"
-                f"/{user_id}/reset-password"
-            )
-            requests.put(
-                reset_url,
-                json={
-                    "type": "password",
-                    "value": password,
-                    "temporary": False,
-                },
-                headers=admin_headers,
-                timeout=10,
-                verify=verify_ssl,
-            )
-    except requests.exceptions.RequestException as e:
-        print(f"\n[keycloak_agent_token] User setup error: {e}")
-        return None
-
-    # --- Step 4: get token from the kagenti realm ---
-    token_url = f"{keycloak_base_url}/realms/{realm}/protocol/openid-connect/token"
     try:
         response = requests.post(
             token_url,

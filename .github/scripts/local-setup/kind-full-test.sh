@@ -321,6 +321,9 @@ if [ "$RUN_TEST" = "true" ]; then
     log_step "Starting port-forward..."
     ./.github/scripts/common/85-start-port-forward.sh
 
+    log_step "Setting up test credentials..."
+    ./.github/scripts/common/87-setup-test-credentials.sh
+
     # Set config file based on environment
     export KAGENTI_CONFIG_FILE="${KAGENTI_CONFIG_FILE:-deployments/envs/${KAGENTI_ENV}_values.yaml}"
     log_step "KAGENTI_CONFIG_FILE: $KAGENTI_CONFIG_FILE"

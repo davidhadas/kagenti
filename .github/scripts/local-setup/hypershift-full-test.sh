@@ -1064,6 +1064,9 @@ if [ "$RUN_TEST" = "true" ]; then
     # Pre-flight checks (OTEL/MLflow pipeline readiness)
     ./.github/scripts/common/90-preflight-checks.sh
 
+    # Ensure test user and service account exist in Keycloak
+    ./.github/scripts/common/87-setup-test-credentials.sh
+
     # Backend E2E tests (pytest)
     ./.github/scripts/kagenti-operator/90-run-e2e-tests.sh
 else
