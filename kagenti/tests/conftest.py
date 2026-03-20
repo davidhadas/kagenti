@@ -275,8 +275,32 @@ def keycloak_agent_token(k8s_client, keycloak_admin_credentials) -> Optional[str
         print(f"\n[keycloak_agent_token] Admin token error: {e}")
         return None
 
-    # --- Step 3: reset the test user's password via Admin API ---
-    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    # --- Step 3: ensure realm + user exist, reset password ---
+    admin_headers = {
+        "Authorization": f"Bearer {admin_token}",
+        "Content-Type": "application/json",
+    }
+
+    # Ensure the realm exists (the oauth-secret-job may have failed)
+    realm_url = f"{keycloak_base_url}/admin/realms/{realm}"
+    try:
+        resp = requests.get(
+            realm_url, headers=admin_headers, timeout=10, verify=verify_ssl
+        )
+        if resp.status_code == 404:
+            print(f"\n[keycloak_agent_token] Realm '{realm}' not found, creating...")
+            requests.post(
+                f"{keycloak_base_url}/admin/realms",
+                json={"realm": realm, "enabled": True},
+                headers=admin_headers,
+                timeout=10,
+                verify=verify_ssl,
+            )
+    except requests.exceptions.RequestException as e:
+        print(f"\n[keycloak_agent_token] Realm check error: {e}")
+        return None
+
+    # Find or create the user
     users_url = (
         f"{keycloak_base_url}/admin/realms/{realm}/users?username={username}&exact=true"
     )
@@ -284,27 +308,57 @@ def keycloak_agent_token(k8s_client, keycloak_admin_credentials) -> Optional[str
         resp = requests.get(
             users_url, headers=admin_headers, timeout=10, verify=verify_ssl
         )
-        if resp.status_code != 200 or not resp.json():
+        users = resp.json() if resp.status_code == 200 else []
+
+        if not users:
+            # Create the user (the oauth-secret-job didn't create it)
             print(
                 f"\n[keycloak_agent_token] User '{username}' not found in "
-                f"realm '{realm}'"
+                f"realm '{realm}', creating..."
             )
-            return None
-        user_id = resp.json()[0]["id"]
-
-        # Reset password to match the secret
-        reset_url = (
-            f"{keycloak_base_url}/admin/realms/{realm}/users/{user_id}/reset-password"
-        )
-        requests.put(
-            reset_url,
-            json={"type": "password", "value": password, "temporary": False},
-            headers=admin_headers,
-            timeout=10,
-            verify=verify_ssl,
-        )
+            create_resp = requests.post(
+                f"{keycloak_base_url}/admin/realms/{realm}/users",
+                json={
+                    "username": username,
+                    "enabled": True,
+                    "credentials": [
+                        {
+                            "type": "password",
+                            "value": password,
+                            "temporary": False,
+                        }
+                    ],
+                },
+                headers=admin_headers,
+                timeout=10,
+                verify=verify_ssl,
+            )
+            if create_resp.status_code not in (201, 409):
+                print(
+                    f"\n[keycloak_agent_token] User creation failed: "
+                    f"HTTP {create_resp.status_code} — {create_resp.text[:200]}"
+                )
+                return None
+        else:
+            user_id = users[0]["id"]
+            # Reset password to match the secret
+            reset_url = (
+                f"{keycloak_base_url}/admin/realms/{realm}/users"
+                f"/{user_id}/reset-password"
+            )
+            requests.put(
+                reset_url,
+                json={
+                    "type": "password",
+                    "value": password,
+                    "temporary": False,
+                },
+                headers=admin_headers,
+                timeout=10,
+                verify=verify_ssl,
+            )
     except requests.exceptions.RequestException as e:
-        print(f"\n[keycloak_agent_token] Password reset error: {e}")
+        print(f"\n[keycloak_agent_token] User setup error: {e}")
         return None
 
     # --- Step 4: get token from the kagenti realm ---
