@@ -220,15 +220,35 @@ class KeycloakSetup:
         return False
 
     def create_realm(self):
+        sso_session_idle = int(get_optional_env("KEYCLOAK_SSO_SESSION_IDLE", "604800"))
+        sso_session_max = int(get_optional_env("KEYCLOAK_SSO_SESSION_MAX", "2592000"))
+        access_token_lifespan = int(
+            get_optional_env("KEYCLOAK_ACCESS_TOKEN_LIFESPAN", "1800")
+        )
+
+        realm_payload = {
+            "realm": self.realm_name,
+            "enabled": True,
+            "ssoSessionIdleTimeout": sso_session_idle,
+            "ssoSessionMaxLifespan": sso_session_max,
+            "accessTokenLifespan": access_token_lifespan,
+        }
+
         try:
-            self.keycloak_admin.create_realm(
-                payload={"realm": self.realm_name, "enabled": True}, skip_exists=False
+            self.keycloak_admin.create_realm(payload=realm_payload, skip_exists=False)
+            typer.echo(
+                f'Created realm "{self.realm_name}" with session lifetimes: '
+                f"idle={sso_session_idle}s, max={sso_session_max}s, "
+                f"access_token={access_token_lifespan}s"
             )
-            typer.echo(f'Created realm "{self.realm_name}"')
         except KeycloakPostError as e:
             # Keycloak returns 409 if the realm already exists
             if hasattr(e, "response_code") and e.response_code == 409:
-                typer.echo(f'Realm "{self.realm_name}" already exists')
+                typer.echo(
+                    f'Realm "{self.realm_name}" already exists, '
+                    f"updating session lifetimes"
+                )
+                self.keycloak_admin.update_realm(self.realm_name, realm_payload)
             else:
                 typer.echo(f'Failed to create realm "{self.realm_name}": {e}')
         except Exception as e:

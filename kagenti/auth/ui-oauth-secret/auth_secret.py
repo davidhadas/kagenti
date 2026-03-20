@@ -277,27 +277,42 @@ def main() -> None:
             logger.info(
                 f"AUTO_BOOTSTRAP_REALM is enabled; ensuring realm '{keycloak_realm}' exists"
             )
+            # Session lifetime settings for dev/long-running clusters
+            sso_session_idle = int(
+                get_optional_env("KEYCLOAK_SSO_SESSION_IDLE", "604800")
+            )
+            sso_session_max = int(
+                get_optional_env("KEYCLOAK_SSO_SESSION_MAX", "2592000")
+            )
+            access_token_lifespan = int(
+                get_optional_env("KEYCLOAK_ACCESS_TOKEN_LIFESPAN", "1800")
+            )
+
+            realm_payload = {
+                "realm": keycloak_realm,
+                "enabled": True,
+                "registrationAllowed": False,
+                "ssoSessionIdleTimeout": sso_session_idle,
+                "ssoSessionMaxLifespan": sso_session_max,
+                "accessTokenLifespan": access_token_lifespan,
+            }
+
             try:
                 existing_realms = keycloak_admin.get_realms()
                 if not any(r["realm"] == keycloak_realm for r in existing_realms):
-                    keycloak_admin.create_realm(
-                        payload={
-                            "realm": keycloak_realm,
-                            "enabled": True,
-                            "registrationAllowed": False,
-                            # Token lifespans to prevent premature expiry (issue #1009).
-                            # Keycloak defaults to 5-minute access tokens, which causes
-                            # "Signature has expired" errors when refresh timing is imperfect.
-                            "accessTokenLifespan": 3600,  # 1 hour
-                            "ssoSessionIdleTimeout": 86400,  # 24 hours
-                            "ssoSessionMaxLifespan": 604800,  # 7 days
-                        }
+                    keycloak_admin.create_realm(payload=realm_payload)
+                    logger.info(
+                        f"Created Keycloak realm '{keycloak_realm}' with session "
+                        f"lifetimes: idle={sso_session_idle}s, "
+                        f"max={sso_session_max}s, "
+                        f"access_token={access_token_lifespan}s"
                     )
-                    logger.info(f"Created Keycloak realm '{keycloak_realm}'")
                 else:
                     logger.info(
-                        f"Realm '{keycloak_realm}' already exists, skipping creation"
+                        f"Realm '{keycloak_realm}' already exists, "
+                        f"updating session lifetimes"
                     )
+                    keycloak_admin.update_realm(keycloak_realm, realm_payload)
             except Exception as e:
                 logger.error(
                     f"Failed to bootstrap realm '{keycloak_realm}': {e}. "

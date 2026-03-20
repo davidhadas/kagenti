@@ -160,6 +160,20 @@ keycloak:
   publicUrl: http://keycloak.localtest.me:8080
   realm: kagenti
   autoBootstrapRealm: true
+  # Session/token lifetimes for long-running dev clusters (e.g. Kind).
+  # Keycloak defaults (30min idle, 10h max) cause "Signature has expired"
+  # errors after a few hours. These values extend lifetimes for dev use.
+  # For production, override with shorter values.
+  sessionLifetimes:
+    # SSO Session Idle timeout in seconds (default: 7 days)
+    # Keycloak default is 1800 (30 min)
+    ssoSessionIdle: 604800
+    # SSO Session Max lifespan in seconds (default: 30 days)
+    # Keycloak default is 36000 (10 hours)
+    ssoSessionMax: 2592000
+    # Access token lifespan in seconds (default: 30 min)
+    # Keycloak default is 300 (5 min)
+    accessTokenLifespan: 1800
 
 # ------------------------------------------------------------------
 #  Kagenti Webhook Configuration
