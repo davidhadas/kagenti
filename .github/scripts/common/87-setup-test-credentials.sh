@@ -92,24 +92,41 @@ USER_JSON=$($CURL -H "$AUTH" \
 USER_COUNT=$(echo "$USER_JSON" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
 
 if [ "$USER_COUNT" = "0" ]; then
+    # Disable realm-level default required actions that would force
+    # newly created users through setup flows (UPDATE_PROFILE, etc.)
+    curl -sk -X PUT -H "$AUTH" -H "Content-Type: application/json" \
+        "$KEYCLOAK_URL/admin/realms/$REALM" \
+        -d "{\"defaultDefaultClientScopes\": [], \"requiredActions\": []}" >/dev/null 2>&1
+    # Also disable specific required actions at the realm level
+    for action in VERIFY_EMAIL UPDATE_PROFILE UPDATE_PASSWORD CONFIGURE_TOTP; do
+        curl -sk -X PUT -H "$AUTH" -H "Content-Type: application/json" \
+            "$KEYCLOAK_URL/admin/realms/$REALM/authentication/required-actions/$action" \
+            -d "{\"alias\": \"$action\", \"defaultAction\": false}" >/dev/null 2>&1
+    done
+
     log_info "Creating test user '$TEST_USER' in realm '$REALM'..."
-    $CURL -X POST -H "$AUTH" -H "Content-Type: application/json" \
+    curl -sk -X POST -H "$AUTH" -H "Content-Type: application/json" \
         "$KEYCLOAK_URL/admin/realms/$REALM/users" \
         -d "{
             \"username\": \"$TEST_USER\",
-            \"enabled\": true,
-            \"emailVerified\": true,
+            \"firstName\": \"$TEST_USER\",
+            \"lastName\": \"Test\",
             \"email\": \"$TEST_USER@kagenti.dev\",
+            \"emailVerified\": true,
+            \"enabled\": true,
             \"requiredActions\": [],
             \"credentials\": [{\"type\": \"password\", \"value\": \"$TEST_PASS\", \"temporary\": false}]
         }"
     log_success "Test user '$TEST_USER' created"
 
-    # Clear any realm-imposed required actions on the new user
+    # Belt-and-suspenders: clear any required actions that still got set
     NEW_USER_JSON=$(curl -sk -H "$AUTH" \
         "$KEYCLOAK_URL/admin/realms/$REALM/users?username=$TEST_USER&exact=true" 2>/dev/null)
     NEW_USER_ID=$(echo "$NEW_USER_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['id'] if d else '')" 2>/dev/null || echo "")
     if [ -n "$NEW_USER_ID" ]; then
+        # Log what actions Keycloak actually set (for debugging)
+        ACTUAL_ACTIONS=$(echo "$NEW_USER_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)[0].get('requiredActions', []))" 2>/dev/null || echo "[]")
+        log_info "User requiredActions after creation: $ACTUAL_ACTIONS"
         curl -sk -X PUT -H "$AUTH" -H "Content-Type: application/json" \
             "$KEYCLOAK_URL/admin/realms/$REALM/users/$NEW_USER_ID" \
             -d "{\"requiredActions\": [], \"emailVerified\": true}" >/dev/null 2>&1
