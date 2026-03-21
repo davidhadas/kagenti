@@ -39,17 +39,28 @@ REALM=$(kubectl get secret kagenti-test-user -n keycloak \
 log_info "Keycloak URL: $KEYCLOAK_URL"
 log_info "Target realm: $REALM"
 
-# curl flags: follow redirects, accept self-signed certs on OCP routes
-CURL="curl -sf -k --connect-timeout 10"
+# Helper: Keycloak Admin API call with error reporting
+kc_api() {
+    local method="$1" url="$2"
+    shift 2
+    local resp http_code
+    resp=$(curl -sk -w "\n%{http_code}" -X "$method" \
+        -H "Authorization: Bearer $ADMIN_TOKEN" \
+        -H "Content-Type: application/json" \
+        "$url" "$@" 2>&1)
+    http_code=$(echo "$resp" | tail -1)
+    echo "$resp" | sed '$d'
+    return 0
+}
 
 # ============================================================================
 # Get admin token (master realm)
 # ============================================================================
 
-ADMIN_TOKEN=$($CURL -X POST \
+ADMIN_TOKEN=$(curl -sk -X POST \
     "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" \
     -d "grant_type=password&client_id=admin-cli&username=$ADMIN_USER&password=$ADMIN_PASS" \
-    | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+    | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])" 2>/dev/null || echo "")
 
 if [ -z "$ADMIN_TOKEN" ]; then
     log_error "Failed to get Keycloak admin token"
@@ -57,20 +68,18 @@ if [ -z "$ADMIN_TOKEN" ]; then
 fi
 log_success "Got admin token"
 
-AUTH="Authorization: Bearer $ADMIN_TOKEN"
-
 # ============================================================================
 # 1. Ensure realm exists
 # ============================================================================
 
-REALM_STATUS=$($CURL -o /dev/null -w "%{http_code}" \
-    -H "$AUTH" "$KEYCLOAK_URL/admin/realms/$REALM" 2>/dev/null || echo "000")
+REALM_STATUS=$(curl -sk -o /dev/null -w "%{http_code}" \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    "$KEYCLOAK_URL/admin/realms/$REALM" 2>/dev/null || echo "000")
 
 if [ "$REALM_STATUS" = "404" ]; then
     log_info "Creating realm '$REALM'..."
-    $CURL -X POST -H "$AUTH" -H "Content-Type: application/json" \
-        "$KEYCLOAK_URL/admin/realms" \
-        -d "{\"realm\": \"$REALM\", \"enabled\": true}"
+    kc_api POST "$KEYCLOAK_URL/admin/realms" \
+        -d "{\"realm\": \"$REALM\", \"enabled\": true}" >/dev/null
     log_success "Realm '$REALM' created"
 elif [ "$REALM_STATUS" = "200" ]; then
     log_info "Realm '$REALM' exists"
@@ -80,33 +89,42 @@ else
 fi
 
 # ============================================================================
-# 2. Create test user (or reset password if exists)
+# 2. Enable Direct Access Grants on admin-cli (GET-modify-PUT)
+#    Keycloak PUT /clients/{id} requires FULL client representation.
+# ============================================================================
+
+ADMIN_CLI_JSON=$(kc_api GET "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=admin-cli")
+ADMIN_CLI_ID=$(echo "$ADMIN_CLI_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['id'] if d else '')" 2>/dev/null || echo "")
+
+if [ -n "$ADMIN_CLI_ID" ]; then
+    # GET full client, set directAccessGrantsEnabled, PUT back
+    FULL_CLIENT=$(kc_api GET "$KEYCLOAK_URL/admin/realms/$REALM/clients/$ADMIN_CLI_ID")
+    UPDATED_CLIENT=$(echo "$FULL_CLIENT" | python3 -c "
+import sys, json
+c = json.load(sys.stdin)
+c['directAccessGrantsEnabled'] = True
+print(json.dumps(c))
+" 2>/dev/null || echo "")
+    if [ -n "$UPDATED_CLIENT" ]; then
+        kc_api PUT "$KEYCLOAK_URL/admin/realms/$REALM/clients/$ADMIN_CLI_ID" \
+            -d "$UPDATED_CLIENT" >/dev/null
+        log_success "Enabled Direct Access Grants on admin-cli"
+    fi
+fi
+
+# ============================================================================
+# 3. Create test user (or reset password if exists)
 # ============================================================================
 
 TEST_USER="admin"
 TEST_PASS=$(python3 -c "import secrets; print(secrets.token_urlsafe(16))")
 
-# Check if user exists
-USER_JSON=$($CURL -H "$AUTH" \
-    "$KEYCLOAK_URL/admin/realms/$REALM/users?username=$TEST_USER&exact=true" 2>/dev/null || echo "[]")
-USER_COUNT=$(echo "$USER_JSON" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
+USER_JSON=$(kc_api GET "$KEYCLOAK_URL/admin/realms/$REALM/users?username=$TEST_USER&exact=true")
+USER_COUNT=$(echo "$USER_JSON" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
 
 if [ "$USER_COUNT" = "0" ]; then
-    # Disable realm-level default required actions that would force
-    # newly created users through setup flows (UPDATE_PROFILE, etc.)
-    curl -sk -X PUT -H "$AUTH" -H "Content-Type: application/json" \
-        "$KEYCLOAK_URL/admin/realms/$REALM" \
-        -d "{\"defaultDefaultClientScopes\": [], \"requiredActions\": []}" >/dev/null 2>&1
-    # Also disable specific required actions at the realm level
-    for action in VERIFY_EMAIL UPDATE_PROFILE UPDATE_PASSWORD CONFIGURE_TOTP; do
-        curl -sk -X PUT -H "$AUTH" -H "Content-Type: application/json" \
-            "$KEYCLOAK_URL/admin/realms/$REALM/authentication/required-actions/$action" \
-            -d "{\"alias\": \"$action\", \"defaultAction\": false}" >/dev/null 2>&1
-    done
-
     log_info "Creating test user '$TEST_USER' in realm '$REALM'..."
-    curl -sk -X POST -H "$AUTH" -H "Content-Type: application/json" \
-        "$KEYCLOAK_URL/admin/realms/$REALM/users" \
+    CREATE_RESP=$(kc_api POST "$KEYCLOAK_URL/admin/realms/$REALM/users" \
         -d "{
             \"username\": \"$TEST_USER\",
             \"firstName\": \"$TEST_USER\",
@@ -116,42 +134,40 @@ if [ "$USER_COUNT" = "0" ]; then
             \"enabled\": true,
             \"requiredActions\": [],
             \"credentials\": [{\"type\": \"password\", \"value\": \"$TEST_PASS\", \"temporary\": false}]
-        }"
+        }")
     log_success "Test user '$TEST_USER' created"
 
-    # Belt-and-suspenders: clear any required actions that still got set
-    NEW_USER_JSON=$(curl -sk -H "$AUTH" \
-        "$KEYCLOAK_URL/admin/realms/$REALM/users?username=$TEST_USER&exact=true" 2>/dev/null)
-    NEW_USER_ID=$(echo "$NEW_USER_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['id'] if d else '')" 2>/dev/null || echo "")
-    if [ -n "$NEW_USER_ID" ]; then
-        # Log what actions Keycloak actually set (for debugging)
-        ACTUAL_ACTIONS=$(echo "$NEW_USER_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)[0].get('requiredActions', []))" 2>/dev/null || echo "[]")
-        log_info "User requiredActions after creation: $ACTUAL_ACTIONS"
-        curl -sk -X PUT -H "$AUTH" -H "Content-Type: application/json" \
-            "$KEYCLOAK_URL/admin/realms/$REALM/users/$NEW_USER_ID" \
-            -d "{\"requiredActions\": [], \"emailVerified\": true}" >/dev/null 2>&1
-        log_info "Cleared required actions for '$TEST_USER'"
-    fi
-else
-    # Reset password to a known value
-    USER_ID=$(echo "$USER_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['id'])")
-    log_info "Test user '$TEST_USER' exists (id=$USER_ID), resetting password..."
-    $CURL -X PUT -H "$AUTH" -H "Content-Type: application/json" \
-        "$KEYCLOAK_URL/admin/realms/$REALM/users/$USER_ID/reset-password" \
-        -d "{\"type\": \"password\", \"value\": \"$TEST_PASS\", \"temporary\": false}"
-    log_success "Password reset for '$TEST_USER'"
+    # Re-fetch user to get ID
+    USER_JSON=$(kc_api GET "$KEYCLOAK_URL/admin/realms/$REALM/users?username=$TEST_USER&exact=true")
 fi
 
-# Enable Direct Access Grants on admin-cli in the target realm
-# (newly created realms may not have this enabled)
-ADMIN_CLI_JSON=$(curl -sk -H "$AUTH" \
-    "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=admin-cli" 2>/dev/null || echo "[]")
-ADMIN_CLI_ID=$(echo "$ADMIN_CLI_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['id'] if d else '')" 2>/dev/null || echo "")
-if [ -n "$ADMIN_CLI_ID" ]; then
-    curl -sk -X PUT -H "$AUTH" -H "Content-Type: application/json" \
-        "$KEYCLOAK_URL/admin/realms/$REALM/clients/$ADMIN_CLI_ID" \
-        -d "{\"clientId\": \"admin-cli\", \"directAccessGrantsEnabled\": true}" >/dev/null 2>&1
-    log_info "Enabled Direct Access Grants on admin-cli in realm '$REALM'"
+USER_ID=$(echo "$USER_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['id'] if d else '')" 2>/dev/null || echo "")
+
+if [ -n "$USER_ID" ]; then
+    # GET full user, clear requiredActions, PUT back (full representation)
+    FULL_USER=$(kc_api GET "$KEYCLOAK_URL/admin/realms/$REALM/users/$USER_ID")
+    UPDATED_USER=$(echo "$FULL_USER" | python3 -c "
+import sys, json
+u = json.load(sys.stdin)
+u['requiredActions'] = []
+u['emailVerified'] = True
+u['enabled'] = True
+print(json.dumps(u))
+" 2>/dev/null || echo "")
+    if [ -n "$UPDATED_USER" ]; then
+        kc_api PUT "$KEYCLOAK_URL/admin/realms/$REALM/users/$USER_ID" \
+            -d "$UPDATED_USER" >/dev/null
+    fi
+
+    # Use dedicated reset-password endpoint (not user PUT)
+    kc_api PUT "$KEYCLOAK_URL/admin/realms/$REALM/users/$USER_ID/reset-password" \
+        -d "{\"type\": \"password\", \"value\": \"$TEST_PASS\", \"temporary\": false}" >/dev/null
+
+    # Verify final state
+    FINAL_USER=$(kc_api GET "$KEYCLOAK_URL/admin/realms/$REALM/users/$USER_ID")
+    FINAL_ACTIONS=$(echo "$FINAL_USER" | python3 -c "import sys,json; print(json.load(sys.stdin).get('requiredActions', []))" 2>/dev/null || echo "?")
+    FINAL_EMAIL_V=$(echo "$FINAL_USER" | python3 -c "import sys,json; print(json.load(sys.stdin).get('emailVerified', '?'))" 2>/dev/null || echo "?")
+    log_info "User state: requiredActions=$FINAL_ACTIONS emailVerified=$FINAL_EMAIL_V"
 fi
 
 # Verify: get a token for the test user
@@ -168,20 +184,17 @@ fi
 log_success "Test user token verified (length=${#TEST_TOKEN})"
 
 # ============================================================================
-# 3. Create service account client for API tests
+# 4. Create service account client for API tests
 # ============================================================================
 
 E2E_CLIENT_ID="kagenti-e2e-tests"
 
-# Check if client exists
-CLIENT_JSON=$($CURL -H "$AUTH" \
-    "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=$E2E_CLIENT_ID" 2>/dev/null || echo "[]")
-CLIENT_COUNT=$(echo "$CLIENT_JSON" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))")
+CLIENT_JSON=$(kc_api GET "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=$E2E_CLIENT_ID")
+CLIENT_COUNT=$(echo "$CLIENT_JSON" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
 
 if [ "$CLIENT_COUNT" = "0" ]; then
     log_info "Creating service account client '$E2E_CLIENT_ID'..."
-    $CURL -X POST -H "$AUTH" -H "Content-Type: application/json" \
-        "$KEYCLOAK_URL/admin/realms/$REALM/clients" \
+    kc_api POST "$KEYCLOAK_URL/admin/realms/$REALM/clients" \
         -d "{
             \"clientId\": \"$E2E_CLIENT_ID\",
             \"enabled\": true,
@@ -189,23 +202,21 @@ if [ "$CLIENT_COUNT" = "0" ]; then
             \"serviceAccountsEnabled\": true,
             \"standardFlowEnabled\": false,
             \"directAccessGrantsEnabled\": true
-        }"
+        }" >/dev/null
     log_success "Service account client '$E2E_CLIENT_ID' created"
 fi
 
 # Get the client's internal ID and secret
-CLIENT_INTERNAL_ID=$($CURL -H "$AUTH" \
-    "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=$E2E_CLIENT_ID" \
+CLIENT_INTERNAL_ID=$(kc_api GET "$KEYCLOAK_URL/admin/realms/$REALM/clients?clientId=$E2E_CLIENT_ID" \
     | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['id'])")
 
-E2E_CLIENT_SECRET=$($CURL -H "$AUTH" \
-    "$KEYCLOAK_URL/admin/realms/$REALM/clients/$CLIENT_INTERNAL_ID/client-secret" \
+E2E_CLIENT_SECRET=$(kc_api GET "$KEYCLOAK_URL/admin/realms/$REALM/clients/$CLIENT_INTERNAL_ID/client-secret" \
     | python3 -c "import sys,json; print(json.load(sys.stdin)['value'])")
 
 log_success "Service account client ready (client_id=$E2E_CLIENT_ID)"
 
 # ============================================================================
-# 4. Update kagenti-test-user secret with verified credentials
+# 5. Update kagenti-test-user secret with verified credentials
 # ============================================================================
 
 log_info "Updating kagenti-test-user secret with verified credentials..."
@@ -217,7 +228,7 @@ kubectl create secret generic kagenti-test-user \
     --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1
 
 # ============================================================================
-# 5. Export to environment (CI and local)
+# 6. Export to environment (CI and local)
 # ============================================================================
 
 if [ "$IS_CI" = true ]; then
