@@ -39,7 +39,9 @@ if [ $# -eq 0 ]; then
     echo "Usage: $0 <worktree1> <worktree2> ..."
     echo ""
     echo "Available worktrees:"
-    ls -1 "$REPO_ROOT/.worktrees/" | grep -E "^(pr-|stream)" | sed 's/^/  /'
+    for d in "$REPO_ROOT/.worktrees"/{pr-*,stream*}; do
+        [ -d "$d" ] && echo "  $(basename "$d")"
+    done
     exit 1
 fi
 
@@ -67,7 +69,9 @@ for wt in "$@"; do
     echo ""
     echo "--- $wt ($branch, $count commits) ---"
     if (cd "$wt_path" && "$SIGN_SCRIPT" upstream/main --no-gpg --yes); then
-        # Push after signing
+        # Push to upstream (org repo) — streaming PRs are created on upstream branches,
+        # not fork branches, so reviewers can see them directly. This is an intentional
+        # exception to the normal fork-based workflow.
         echo "Pushing $branch..."
         if git -C "$wt_path" push upstream "$branch" --force-with-lease 2>&1 | tail -1; then
             signed=$((signed + 1))

@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 #
 # Sign all commits in current branch that are ahead of upstream/main.
-# This adds sign-off (-s) and GPG signature (-S) to each commit,
+# Adds sign-off (-s) and optionally GPG signature (-S) to each commit,
 # and replaces any Co-Authored-By trailers with Assisted-By.
 #
-# Usage: ./scripts/sign_all_commits_in_a_branch.sh [upstream-ref] [--no-gpg]
+# Usage: ./scripts/sign_all_commits_in_a_branch.sh [upstream-ref] [--no-gpg] [--yes]
 #
 # Default upstream-ref: upstream/main
 # --no-gpg: skip GPG signing (DCO sign-off only, no password prompt)
+# --yes/-y: skip confirmation prompt (for automation)
 #
 
 set -euo pipefail
@@ -23,11 +24,25 @@ NC='\033[0m' # No Color
 GPG_SIGN="-S"
 AUTO_YES=false
 UPSTREAM_REF="upstream/main"
+POSITIONAL_SET=false
 for arg in "$@"; do
     case "$arg" in
         --no-gpg) GPG_SIGN="--no-gpg-sign" ;;
         --yes|-y) AUTO_YES=true ;;
-        *) UPSTREAM_REF="$arg" ;;
+        -*)
+            echo -e "${RED}Error: Unknown flag '$arg'${NC}"
+            echo "Usage: $0 [upstream-ref] [--no-gpg] [--yes]"
+            exit 1
+            ;;
+        *)
+            if [ "$POSITIONAL_SET" = "true" ]; then
+                echo -e "${RED}Error: Only one positional argument (upstream-ref) allowed${NC}"
+                echo "Usage: $0 [upstream-ref] [--no-gpg] [--yes]"
+                exit 1
+            fi
+            UPSTREAM_REF="$arg"
+            POSITIONAL_SET=true
+            ;;
     esac
 done
 
@@ -97,6 +112,8 @@ fi
 COMMIT_COUNT=$(git rev-list --count "$UPSTREAM_REF"..HEAD)
 echo ""
 echo -e "${BLUE}Step 2/2: Signing $COMMIT_COUNT commits...${NC}"
+# --no-verify: safe here because we're amending existing commits (adding trailers),
+# not creating new content. Pre-commit hooks would reject the amend due to unstaged changes.
 git rebase "HEAD~${COMMIT_COUNT}" \
     --exec "git commit --amend --no-verify --no-edit -s $GPG_SIGN"
 
