@@ -186,9 +186,7 @@ class TestListToolShipwrightBuilds:
             assert r.status_code == 200
             assert r.json()["items"][0]["resourceType"] == "tool"
         assert (
-            kube.custom_api.list_namespaced_custom_object.call_args.kwargs.get(
-                "label_selector"
-            )
+            kube.custom_api.list_namespaced_custom_object.call_args.kwargs.get("label_selector")
             == "kagenti.io/type=tool"
         )
         tools_shipwright_app.dependency_overrides.clear()
@@ -213,9 +211,7 @@ class TestListAgentShipwrightBuilds:
             item = r.json()["items"][0]
             assert item["resourceType"] == "agent"
         assert (
-            kube.custom_api.list_namespaced_custom_object.call_args.kwargs.get(
-                "label_selector"
-            )
+            kube.custom_api.list_namespaced_custom_object.call_args.kwargs.get("label_selector")
             == "kagenti.io/type=agent"
         )
         agents_shipwright_app.dependency_overrides.clear()
