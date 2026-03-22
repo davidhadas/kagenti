@@ -110,13 +110,16 @@ def collect_kagenti_shipwright_builds(
     items: List[ShipwrightBuildListItem] = []
     for ns in namespaces:
         try:
-            builds = kube.list_custom_resources(
+            # Call CustomObjectsApi directly so user-derived namespace is not logged by
+            # KubernetesService.list_custom_resources (CodeQL py/log-injection).
+            response = kube.custom_api.list_namespaced_custom_object(
                 group=SHIPWRIGHT_CRD_GROUP,
                 version=SHIPWRIGHT_CRD_VERSION,
                 namespace=ns,
                 plural=SHIPWRIGHT_BUILDS_PLURAL,
                 label_selector=label_selector,
             )
+            builds = response.get("items", [])
         except ApiException as e:
             if e.status == 403:
                 # Log only a constant message: namespace / API reason are user- or cluster-derived

@@ -72,10 +72,12 @@ class TestListShipwrightBuilds:
 
     def test_lists_builds_single_namespace_all_resource_types(self, shipwright_app):
         kube = MagicMock()
-        kube.list_custom_resources.return_value = [
-            _sample_build("b1", "team1", "agent"),
-            _sample_build("t1", "team1", "tool"),
-        ]
+        kube.custom_api.list_namespaced_custom_object.return_value = {
+            "items": [
+                _sample_build("b1", "team1", "agent"),
+                _sample_build("t1", "team1", "tool"),
+            ]
+        }
 
         def override_kube():
             return kube
@@ -95,14 +97,16 @@ class TestListShipwrightBuilds:
             assert names == {"b1", "t1"}
             types = {i["resourceType"] for i in data["items"]}
             assert types == {"agent", "tool"}
-        kube.list_custom_resources.assert_called_once()
-        call_kw = kube.list_custom_resources.call_args.kwargs
+        kube.custom_api.list_namespaced_custom_object.assert_called_once()
+        call_kw = kube.custom_api.list_namespaced_custom_object.call_args.kwargs
         assert "kagenti.io/type in (agent,tool)" in call_kw.get("label_selector", "")
         shipwright_app.dependency_overrides.clear()
 
     def test_resource_type_agent_filter(self, shipwright_app):
         kube = MagicMock()
-        kube.list_custom_resources.return_value = [_sample_build("b1", "n1", "agent")]
+        kube.custom_api.list_namespaced_custom_object.return_value = {
+            "items": [_sample_build("b1", "n1", "agent")]
+        }
 
         def override_kube():
             return kube
@@ -116,13 +120,15 @@ class TestListShipwrightBuilds:
                 params={"namespace": "n1", "for": "agents"},
             )
             assert r.status_code == 200
-        call_kw = kube.list_custom_resources.call_args.kwargs
+        call_kw = kube.custom_api.list_namespaced_custom_object.call_args.kwargs
         assert call_kw.get("label_selector") == "kagenti.io/type=agent"
         shipwright_app.dependency_overrides.clear()
 
     def test_resource_type_tool_filter(self, shipwright_app):
         kube = MagicMock()
-        kube.list_custom_resources.return_value = [_sample_build("t1", "n1", "tool")]
+        kube.custom_api.list_namespaced_custom_object.return_value = {
+            "items": [_sample_build("t1", "n1", "tool")]
+        }
 
         def override_kube():
             return kube
@@ -136,16 +142,16 @@ class TestListShipwrightBuilds:
                 params={"namespace": "n1", "for": "tools"},
             )
             assert r.status_code == 200
-        call_kw = kube.list_custom_resources.call_args.kwargs
+        call_kw = kube.custom_api.list_namespaced_custom_object.call_args.kwargs
         assert call_kw.get("label_selector") == "kagenti.io/type=tool"
         shipwright_app.dependency_overrides.clear()
 
     def test_all_namespaces_scans_enabled(self, shipwright_app):
         kube = MagicMock()
         kube.list_enabled_namespaces.return_value = ["a", "b"]
-        kube.list_custom_resources.side_effect = [
-            [_sample_build("x", "a", "tool")],
-            [],
+        kube.custom_api.list_namespaced_custom_object.side_effect = [
+            {"items": [_sample_build("x", "a", "tool")]},
+            {"items": []},
         ]
 
         def override_kube():
@@ -158,14 +164,16 @@ class TestListShipwrightBuilds:
             r = tc.get("/api/v1/shipwright/builds", params={"allNamespaces": "true"})
             assert r.status_code == 200
             assert len(r.json()["items"]) == 1
-        assert kube.list_custom_resources.call_count == 2
+        assert kube.custom_api.list_namespaced_custom_object.call_count == 2
         shipwright_app.dependency_overrides.clear()
 
 
 class TestListToolShipwrightBuilds:
     def test_always_uses_tool_label_selector(self, tools_shipwright_app):
         kube = MagicMock()
-        kube.list_custom_resources.return_value = [_sample_build("tb", "ns1", "tool")]
+        kube.custom_api.list_namespaced_custom_object.return_value = {
+            "items": [_sample_build("tb", "ns1", "tool")]
+        }
 
         def override_kube():
             return kube
@@ -178,7 +186,9 @@ class TestListToolShipwrightBuilds:
             assert r.status_code == 200
             assert r.json()["items"][0]["resourceType"] == "tool"
         assert (
-            kube.list_custom_resources.call_args.kwargs.get("label_selector")
+            kube.custom_api.list_namespaced_custom_object.call_args.kwargs.get(
+                "label_selector"
+            )
             == "kagenti.io/type=tool"
         )
         tools_shipwright_app.dependency_overrides.clear()
@@ -187,7 +197,9 @@ class TestListToolShipwrightBuilds:
 class TestListAgentShipwrightBuilds:
     def test_always_uses_agent_label_selector(self, agents_shipwright_app):
         kube = MagicMock()
-        kube.list_custom_resources.return_value = [_sample_build("ab", "ns1", "agent")]
+        kube.custom_api.list_namespaced_custom_object.return_value = {
+            "items": [_sample_build("ab", "ns1", "agent")]
+        }
 
         def override_kube():
             return kube
@@ -201,7 +213,9 @@ class TestListAgentShipwrightBuilds:
             item = r.json()["items"][0]
             assert item["resourceType"] == "agent"
         assert (
-            kube.list_custom_resources.call_args.kwargs.get("label_selector")
+            kube.custom_api.list_namespaced_custom_object.call_args.kwargs.get(
+                "label_selector"
+            )
             == "kagenti.io/type=agent"
         )
         agents_shipwright_app.dependency_overrides.clear()
@@ -215,7 +229,7 @@ class TestCollectShipwrightBuildsLogging:
 
         kube = MagicMock()
         log_mock = MagicMock()
-        kube.list_custom_resources.side_effect = ApiException(
+        kube.custom_api.list_namespaced_custom_object.side_effect = ApiException(
             status=403, reason="forbidden\nfake-log-line"
         )
         collect_kagenti_shipwright_builds(kube, ["team\n1"], RESOURCE_TYPE_AGENT, log_mock)
