@@ -12,6 +12,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from kubernetes.client import ApiException
 
 from app.core.auth import ROLE_VIEWER, require_roles
+from app.core.constants import (
+    RESOURCE_TYPE_AGENT,
+    RESOURCE_TYPE_TOOL,
+    SHIPWRIGHT_BUILDS_LIST_SCOPE_ALL,
+)
 from app.models.shipwright import ShipwrightBuildListResponse
 from app.services.kubernetes import KubernetesService, get_kubernetes_service
 from app.services.shipwright_builds import collect_kagenti_shipwright_builds
@@ -19,6 +24,13 @@ from app.services.shipwright_builds import collect_kagenti_shipwright_builds
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/shipwright", tags=["shipwright"])
+
+# Query param ``for=agents|tools|all`` → values expected by collect_kagenti_shipwright_builds
+_SHIPWRIGHT_BUILDS_FOR_QUERY = {
+    "agents": RESOURCE_TYPE_AGENT,
+    "tools": RESOURCE_TYPE_TOOL,
+    "all": SHIPWRIGHT_BUILDS_LIST_SCOPE_ALL,
+}
 
 
 @router.get(
@@ -60,7 +72,9 @@ async def list_shipwright_builds(
         namespaces_to_scan = [namespace.strip()]
 
     try:
-        items = collect_kagenti_shipwright_builds(kube, namespaces_to_scan, builds_for, logger)
+        items = collect_kagenti_shipwright_builds(
+            kube, namespaces_to_scan, _SHIPWRIGHT_BUILDS_FOR_QUERY[builds_for], logger
+        )
     except ApiException as e:
         raise HTTPException(status_code=e.status, detail=str(e.reason))
 

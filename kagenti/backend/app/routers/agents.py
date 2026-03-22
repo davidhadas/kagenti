@@ -81,6 +81,7 @@ from app.models.shipwright import (
     BuildStatusCondition,
     ClusterBuildStrategyInfo,
     ClusterBuildStrategiesResponse,
+    ShipwrightBuildListResponse,
     ShipwrightBuildStatusResponse,
     ShipwrightBuildRunStatusResponse,
     ResourceConfigFromBuild,
@@ -1468,28 +1469,9 @@ async def list_build_strategies(
         )
 
 
-class AgentShipwrightBuildSummary(BaseModel):
-    """One Shipwright Build CR for an agent or tool (git/source pipeline)."""
-
-    name: str
-    namespace: str
-    resourceType: str = ""  # "agent" or "tool" from kagenti.io/type (set when listing mixed types)
-    registered: bool = False
-    strategy: str = ""
-    gitUrl: str = ""
-    gitRevision: str = ""
-    contextDir: str = ""
-    outputImage: str = ""
-    creationTimestamp: Optional[str] = None
-
-
-class AgentShipwrightBuildListResponse(BaseModel):
-    items: List[AgentShipwrightBuildSummary]
-
-
 @router.get(
     "/shipwright-builds",
-    response_model=AgentShipwrightBuildListResponse,
+    response_model=ShipwrightBuildListResponse,
     dependencies=[Depends(require_roles(ROLE_VIEWER))],
 )
 async def list_agent_shipwright_builds(
@@ -1503,7 +1485,7 @@ async def list_agent_shipwright_builds(
         description="If true, list builds in all kagenti-enabled namespaces",
     ),
     kube: KubernetesService = Depends(get_kubernetes_service),
-) -> AgentShipwrightBuildListResponse:
+) -> ShipwrightBuildListResponse:
     """List Shipwright Build resources for agents only (kagenti.io/type=agent)."""
     namespaces_to_scan: List[str] = []
     if all_namespaces:
@@ -1517,12 +1499,13 @@ async def list_agent_shipwright_builds(
         namespaces_to_scan = [namespace.strip()]
 
     try:
-        raw_items = collect_kagenti_shipwright_builds(kube, namespaces_to_scan, "agents", logger)
+        items = collect_kagenti_shipwright_builds(
+            kube, namespaces_to_scan, RESOURCE_TYPE_AGENT, logger
+        )
     except ApiException as e:
         raise HTTPException(status_code=e.status, detail=str(e.reason))
 
-    items = [AgentShipwrightBuildSummary(**li.model_dump()) for li in raw_items]
-    return AgentShipwrightBuildListResponse(items=items)
+    return ShipwrightBuildListResponse(items=items)
 
 
 @router.get(

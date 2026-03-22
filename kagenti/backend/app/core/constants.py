@@ -86,6 +86,9 @@ SHIPWRIGHT_CRD_VERSION = "v1beta1"
 SHIPWRIGHT_BUILDS_PLURAL = "builds"
 SHIPWRIGHT_BUILDRUNS_PLURAL = "buildruns"
 SHIPWRIGHT_CLUSTER_BUILD_STRATEGIES_PLURAL = "clusterbuildstrategies"
+# Argument to collect_kagenti_shipwright_builds / label_selector_for_kagenti_builds:
+# use RESOURCE_TYPE_AGENT or RESOURCE_TYPE_TOOL for a single type, or this for both.
+SHIPWRIGHT_BUILDS_LIST_SCOPE_ALL = "all"
 
 # Shipwright defaults
 SHIPWRIGHT_GIT_SECRET_NAME = "github-shipwright-secret"

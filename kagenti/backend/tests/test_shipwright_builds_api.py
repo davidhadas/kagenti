@@ -9,6 +9,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.core.constants import RESOURCE_TYPE_AGENT
 from app.routers import agents, shipwright, tools
 from app.services.kubernetes import get_kubernetes_service
 
@@ -217,7 +218,7 @@ class TestCollectShipwrightBuildsLogging:
         kube.list_custom_resources.side_effect = ApiException(
             status=403, reason="forbidden\nfake-log-line"
         )
-        collect_kagenti_shipwright_builds(kube, ["team\n1"], "agents", log_mock)
+        collect_kagenti_shipwright_builds(kube, ["team\n1"], RESOURCE_TYPE_AGENT, log_mock)
         log_mock.warning.assert_called_once()
         (msg,) = log_mock.warning.call_args[0]
         assert "\n" not in msg

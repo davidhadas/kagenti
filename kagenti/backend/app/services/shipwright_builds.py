@@ -38,12 +38,12 @@ def label_selector_for_kagenti_builds(builds_for: str) -> str:
     Build a label selector for Shipwright Build CRs managed by Kagenti.
 
     Args:
-        builds_for: ``agents``, ``tools``, or ``all`` (both agent and tool builds;
-            labels on cluster remain ``kagenti.io/type=agent|tool``).
+        builds_for: ``RESOURCE_TYPE_AGENT``, ``RESOURCE_TYPE_TOOL``, or
+            ``SHIPWRIGHT_BUILDS_LIST_SCOPE_ALL`` / any other value (both types).
     """
-    if builds_for == "agents":
+    if builds_for == RESOURCE_TYPE_AGENT:
         return f"{KAGENTI_TYPE_LABEL}={RESOURCE_TYPE_AGENT}"
-    if builds_for == "tools":
+    if builds_for == RESOURCE_TYPE_TOOL:
         return f"{KAGENTI_TYPE_LABEL}={RESOURCE_TYPE_TOOL}"
     return f"{KAGENTI_TYPE_LABEL} in ({RESOURCE_TYPE_AGENT},{RESOURCE_TYPE_TOOL})"
 
@@ -95,7 +95,8 @@ def collect_kagenti_shipwright_builds(
     Args:
         kube: Kubernetes API service.
         namespaces: Namespaces to scan (caller resolves enabled-only vs single NS).
-        builds_for: ``agents``, ``tools``, or ``all``.
+        builds_for: ``RESOURCE_TYPE_AGENT``, ``RESOURCE_TYPE_TOOL``, or
+            ``SHIPWRIGHT_BUILDS_LIST_SCOPE_ALL``.
         logger: Optional logger for permission-skip warnings.
 
     Returns:

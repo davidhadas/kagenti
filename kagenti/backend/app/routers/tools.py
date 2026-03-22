@@ -545,7 +545,9 @@ async def list_tool_shipwright_builds(
         namespaces_to_scan = [namespace.strip()]
 
     try:
-        items = collect_kagenti_shipwright_builds(kube, namespaces_to_scan, "tools", logger)
+        items = collect_kagenti_shipwright_builds(
+            kube, namespaces_to_scan, RESOURCE_TYPE_TOOL, logger
+        )
     except ApiException as e:
         raise HTTPException(status_code=e.status, detail=str(e.reason))
 
