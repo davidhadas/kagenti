@@ -34,12 +34,18 @@ If you're setting up a brand-new Mac, install all prerequisites at once with [Ho
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Install required tools
-brew install git kind kubectl helm@3 ansible uv
-brew reinstall python
+brew install git kind kubectl helm@3 ansible uv python
+
+# Verify Helm version meets the ≥3.18.0 requirement above
+helm version
 
 # Container runtime — pick one:
 brew install podman    # recommended for macOS
 # or: brew install --cask docker   # Docker Desktop
+
+# If using Podman, create and start a machine with sufficient resources:
+podman machine init --memory 18432 --cpus 4
+podman machine start
 ```
 
 Then set up a Python virtual environment for the installer:
