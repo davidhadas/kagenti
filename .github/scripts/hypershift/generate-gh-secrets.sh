@@ -1,17 +1,12 @@
 #!/usr/bin/env bash
 #
-# Generate GitHub Secrets Setup Script
+# Push HyperShift CI Secrets to GitHub
 #
-# This script creates a copy-paste block that sets all GitHub secrets
-# for HyperShift CI using credentials from .env.kagenti-hypershift-ci
+# This script reads credentials from .env.kagenti-hypershift-ci,
+# tests them locally, and pushes all secrets to GitHub Actions.
 #
 # USAGE:
 #   ./.github/scripts/hypershift/generate-gh-secrets.sh
-#
-# OUTPUT:
-#   Prints a script to stdout that can be copied and executed to:
-#   1. Test AWS credentials locally
-#   2. Push all secrets to GitHub
 #
 
 set -euo pipefail
@@ -50,39 +45,11 @@ for var in "${REQUIRED_VARS[@]}"; do
     fi
 done
 
-# Generate the script
-cat << 'SCRIPTSTART'
-#!/usr/bin/env bash
-#
-# GitHub Secrets Setup for HyperShift CI
-# Generated from .env.kagenti-hypershift-ci
-#
-
-set -euo pipefail
-
 echo "╔════════════════════════════════════════════════════════════════╗"
-echo "║     Setting GitHub Secrets for HyperShift CI                  ║"
+echo "║     Pushing GitHub Secrets for HyperShift CI                  ║"
 echo "╚════════════════════════════════════════════════════════════════╝"
 echo ""
 
-# AWS Credentials
-SCRIPTSTART
-
-# Output the actual values
-cat << EOF
-export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
-export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
-export AWS_REGION="${AWS_REGION}"
-export HCP_ROLE_NAME="${HCP_ROLE_NAME}"
-export BASE_DOMAIN="${BASE_DOMAIN}"
-export MANAGED_BY_TAG="${MANAGED_BY_TAG}"
-export HYPERSHIFT_MGMT_KUBECONFIG_BASE64="${HYPERSHIFT_MGMT_KUBECONFIG_BASE64}"
-export PULL_SECRET='${PULL_SECRET}'
-EOF
-
-cat << 'SCRIPTEND'
-
-echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Step 1: Testing AWS credentials locally..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -133,4 +100,3 @@ echo "Next steps:"
 echo "  1. Trigger a CI workflow to test the new credentials"
 echo "  2. Monitor the cluster creation in GitHub Actions"
 echo ""
-SCRIPTEND

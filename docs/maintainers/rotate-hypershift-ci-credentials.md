@@ -43,30 +43,23 @@ This creates:
 ✅ Setup Complete
 ```
 
-### 2. Generate GitHub Secrets Script
+### 2. Push Secrets to GitHub
 
-Generate a ready-to-execute script that will test and push all secrets:
+Run the script to test credentials locally and push all secrets to GitHub Actions:
 
 ```bash
-./.github/scripts/hypershift/generate-gh-secrets.sh > /tmp/setup-gh-secrets.sh
-chmod +x /tmp/setup-gh-secrets.sh
+./.github/scripts/hypershift/generate-gh-secrets.sh
 ```
 
-### 3. Execute the Generated Script
-
-This single command will:
+This will:
 - Test AWS credentials locally
 - Push all 8 secrets to GitHub Actions
 - Verify the secrets were set
 
-```bash
-/tmp/setup-gh-secrets.sh
-```
-
 **Output:**
 ```
 ╔════════════════════════════════════════════════════════════════╗
-║     Setting GitHub Secrets for HyperShift CI                  ║
+║     Pushing GitHub Secrets for HyperShift CI                  ║
 ╚════════════════════════════════════════════════════════════════╝
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -115,7 +108,7 @@ PULL_SECRET                  Updated 2026-03-24
 ╚════════════════════════════════════════════════════════════════╝
 ```
 
-### 4. Test CI Workflow
+### 3. Test CI Workflow
 
 Trigger a CI workflow to verify the new credentials work:
 
