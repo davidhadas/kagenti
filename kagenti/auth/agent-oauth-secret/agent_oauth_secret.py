@@ -427,9 +427,7 @@ def setup_keycloak(v1_api: Optional[client.CoreV1Api] = None) -> str:
 
     # Switch to the target realm for user and client operations
     if not setup.switch_to_realm():
-        typer.secho(
-            f"Failed to switch to realm '{demo_realm_name}'", fg="red", err=True
-        )
+        typer.secho(f"Failed to switch to realm '{realm_name}'", fg="red", err=True)
         raise typer.Exit(1)
 
     # Create a test user in the configured realm for UI/MLflow login.
