@@ -8,8 +8,8 @@
 # Uses parallel deletion where possible for faster cleanup.
 #
 # Usage:
-#   ./scripts/cleanup-kagenti.sh            # Interactive (prompts for confirmation)
-#   ./scripts/cleanup-kagenti.sh --yes      # Skip confirmation prompt
+#   ./scripts/ocp/cleanup-kagenti.sh            # Interactive (prompts for confirmation)
+#   ./scripts/ocp/cleanup-kagenti.sh --yes      # Skip confirmation prompt
 #
 # This script:
 #   1. Uninstalls Helm releases (parallel): kagenti, mcp-gateway, kagenti-deps
@@ -83,7 +83,7 @@ START_SECONDS=$SECONDS
 # Wait for namespace to be fully deleted (no finalizer stripping).
 _delete_ns() {
   local ns="$1"
-  if ! $KUBECTL get namespace "$ns" &>/dev/null 2>&1; then
+  if ! $KUBECTL get namespace "$ns" &>/dev/null; then
     log_info "  $ns — not found, skipping"
     return 0
   fi
@@ -96,7 +96,7 @@ _delete_ns() {
 # Force-delete: strip finalizers if stuck after 10s.
 _force_delete_ns() {
   local ns="$1"
-  if ! $KUBECTL get namespace "$ns" &>/dev/null 2>&1; then
+  if ! $KUBECTL get namespace "$ns" &>/dev/null; then
     log_info "  $ns — not found, skipping"
     return 0
   fi
@@ -109,7 +109,7 @@ _force_delete_ns() {
     jq '.spec.finalizers = []' | \
     $KUBECTL replace --raw "/api/v1/namespaces/$ns/finalize" -f - 2>/dev/null || true
   sleep 3
-  if $KUBECTL get namespace "$ns" &>/dev/null 2>&1; then
+  if $KUBECTL get namespace "$ns" &>/dev/null; then
     log_error "  $ns still exists — may need manual cleanup"
   else
     log_success "  $ns deleted (finalizers stripped)"
@@ -118,7 +118,7 @@ _force_delete_ns() {
 
 _uninstall_release() {
   local release="$1" ns="$2"
-  if helm status "$release" -n "$ns" &>/dev/null 2>&1; then
+  if helm status "$release" -n "$ns" &>/dev/null; then
     helm uninstall "$release" -n "$ns" --no-hooks 2>/dev/null && \
       log_success "  $release uninstalled" || \
       log_warn "  $release uninstall returned non-zero"
@@ -178,7 +178,7 @@ echo ""
 log_info "Step 4: Deleting shared trust resources..."
 
 for ci in istio-mesh-root-selfsigned istio-mesh-ca; do
-  if $KUBECTL get clusterissuer "$ci" &>/dev/null 2>&1; then
+  if $KUBECTL get clusterissuer "$ci" &>/dev/null; then
     $KUBECTL delete clusterissuer "$ci" 2>/dev/null && \
       log_success "  ClusterIssuer $ci deleted" || \
       log_warn "  Failed to delete ClusterIssuer $ci"
@@ -190,7 +190,7 @@ done
 for cert_ns in "istio-mesh-root-ca:cert-manager" "istio-cacerts-openshift-gateway:openshift-ingress"; do
   cert="${cert_ns%%:*}"
   ns="${cert_ns##*:}"
-  if $KUBECTL get certificate "$cert" -n "$ns" &>/dev/null 2>&1; then
+  if $KUBECTL get certificate "$cert" -n "$ns" &>/dev/null; then
     $KUBECTL delete certificate "$cert" -n "$ns" 2>/dev/null && \
       log_success "  Certificate $ns/$cert deleted" || \
       log_warn "  Failed to delete Certificate $ns/$cert"

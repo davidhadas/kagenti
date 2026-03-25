@@ -8,12 +8,12 @@
 # MLflow/Shipwright disabled (not needed).
 #
 # Usage:
-#   ./scripts/setup-kagenti.sh                              # Auto-clones kagenti main to ~/.cache/kagenti
-#   ./scripts/setup-kagenti.sh --kagenti-repo /path/to/kagenti  # Use local clone
-#   ./scripts/setup-kagenti.sh --kagenti-repo https://github.com/org/kagenti.git  # Clone from URL
-#   ./scripts/setup-kagenti.sh --realm nerc                 # Custom Keycloak realm (default: kagenti)
-#   ./scripts/setup-kagenti.sh --skip-ovn-patch             # Skip OVN gateway patch
-#   ./scripts/setup-kagenti.sh --skip-mcp-gateway           # Skip MCP Gateway install
+#   ./scripts/ocp/setup-kagenti.sh                              # Auto-clones kagenti main to ~/.cache/kagenti
+#   ./scripts/ocp/setup-kagenti.sh --kagenti-repo /path/to/kagenti  # Use local clone
+#   ./scripts/ocp/setup-kagenti.sh --kagenti-repo https://github.com/org/kagenti.git  # Clone from URL
+#   ./scripts/ocp/setup-kagenti.sh --realm nerc                 # Custom Keycloak realm (default: kagenti)
+#   ./scripts/ocp/setup-kagenti.sh --skip-ovn-patch             # Skip OVN gateway patch
+#   ./scripts/ocp/setup-kagenti.sh --skip-mcp-gateway           # Skip MCP Gateway install
 #
 # Prerequisites:
 #   - oc / kubectl with cluster-admin
@@ -25,7 +25,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Defaults
 KAGENTI_REPO="${KAGENTI_REPO:-}"
@@ -36,6 +36,7 @@ KC_NAMESPACE="${KEYCLOAK_NAMESPACE:-keycloak}"
 SKIP_OVN_PATCH=false
 SKIP_MCP_GATEWAY=false
 SKIP_UI=false
+SHOW_SECRETS=false
 MCP_GATEWAY_VERSION="0.5.1"
 DRY_RUN=false
 
@@ -60,6 +61,7 @@ while [[ $# -gt 0 ]]; do
     --skip-ovn-patch)     SKIP_OVN_PATCH=true; shift ;;
     --skip-mcp-gateway)   SKIP_MCP_GATEWAY=true; shift ;;
     --skip-ui)            SKIP_UI=true; shift ;;
+    --show-secrets)       SHOW_SECRETS=true; shift ;;
     --mcp-gateway-version) MCP_GATEWAY_VERSION="$2"; shift 2 ;;
     --dry-run)            DRY_RUN=true; shift ;;
     -h|--help)
@@ -72,6 +74,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --skip-ovn-patch          Skip OVN gateway routing patch"
       echo "  --skip-mcp-gateway        Skip MCP Gateway installation"
       echo "  --skip-ui                 Skip Kagenti UI and backend installation"
+      echo "  --show-secrets            Print Keycloak admin credentials to stdout (omitted by default for CI safety)"
       echo "  --mcp-gateway-version VER MCP Gateway chart version (default: $MCP_GATEWAY_VERSION)"
       echo "  --dry-run                 Show commands without executing"
       echo "  -h, --help                Show this help"
@@ -111,7 +114,7 @@ else
 fi
 
 # Check cluster access
-if ! $KUBECTL cluster-info &>/dev/null 2>&1; then
+if ! $KUBECTL cluster-info &>/dev/null; then
   log_error "Cannot connect to cluster. Run 'oc login' first."
   exit 1
 fi
@@ -268,7 +271,7 @@ _wait_ns_gone() {
     return 0  # Active or doesn't exist — nothing to wait for
   fi
   log_info "  Waiting for $ns to terminate..."
-  while $KUBECTL get ns "$ns" &>/dev/null 2>&1; do
+  while $KUBECTL get ns "$ns" &>/dev/null; do
     $KUBECTL get ns "$ns" -o json 2>/dev/null \
       | python3 -c "import sys,json; d=json.load(sys.stdin); d['spec']['finalizers']=[]; json.dump(d,sys.stdout)" \
       | $KUBECTL replace --raw "/api/v1/namespaces/$ns/finalize" -f - >/dev/null 2>&1 || true
@@ -298,7 +301,7 @@ _helm_kagenti_deps() {
     _wait_ns_gone "$_ns"
   done
 
-  if helm status kagenti-deps -n kagenti-system &>/dev/null 2>&1; then
+  if helm status kagenti-deps -n kagenti-system &>/dev/null; then
     # Upgrade path: skip hooks (operands already exist, and the kiali hook will fail
     # on any cluster where cluster-monitoring-config is managed by another operator)
     log_info "kagenti-deps already installed — upgrading (hooks skipped)"
@@ -355,7 +358,7 @@ for doc in docs:
   # Create otel-ingress-ca ConfigMap (normally done by pre-install hook Job,
   # skipped by --no-hooks). MLflow and OTEL collector need this to verify
   # Keycloak's TLS certificate via the OpenShift ingress CA.
-  if ! $KUBECTL get configmap otel-ingress-ca -n kagenti-system &>/dev/null 2>&1; then
+  if ! $KUBECTL get configmap otel-ingress-ca -n kagenti-system &>/dev/null; then
     log_info "Creating otel-ingress-ca ConfigMap..."
     INGRESS_CA=$($KUBECTL get configmap default-ingress-cert \
       -n openshift-config-managed -o jsonpath='{.data.ca-bundle\.crt}' 2>/dev/null || echo "")
@@ -396,7 +399,7 @@ _adopt_for_helm() {
   local kind="$1" name="$2" ns="${3:-}"
   local ns_flag=()
   if [ -n "$ns" ]; then ns_flag=(-n "$ns"); fi
-  if $KUBECTL get "$kind" "$name" "${ns_flag[@]}" &>/dev/null 2>&1; then
+  if $KUBECTL get "$kind" "$name" "${ns_flag[@]}" &>/dev/null; then
     $KUBECTL label "$kind" "$name" "${ns_flag[@]}" \
       app.kubernetes.io/managed-by=Helm --overwrite 2>/dev/null || true
     $KUBECTL annotate "$kind" "$name" "${ns_flag[@]}" \
@@ -421,7 +424,7 @@ _ensure_rhoai_shared_trust() {
   # --- Wait for cert-manager ---
   log_info "Waiting for cert-manager CRDs..."
   local tries=0
-  while ! $KUBECTL get crd certificates.cert-manager.io &>/dev/null 2>&1; do
+  while ! $KUBECTL get crd certificates.cert-manager.io &>/dev/null; do
     tries=$((tries + 1))
     if [ $tries -ge 60 ]; then
       log_warn "cert-manager CRDs not found after 5m — shared trust may need manual setup"
@@ -432,7 +435,7 @@ _ensure_rhoai_shared_trust() {
 
   log_info "Waiting for cert-manager webhook..."
   tries=0
-  while ! $KUBECTL get deployment cert-manager-webhook -n cert-manager &>/dev/null 2>&1; do
+  while ! $KUBECTL get deployment cert-manager-webhook -n cert-manager &>/dev/null; do
     tries=$((tries + 1))
     if [ $tries -ge 60 ]; then
       log_warn "cert-manager webhook not found after 5m"
@@ -590,7 +593,7 @@ ${ROOT_CERT}"
 
   # --- Restart istiods to pick up shared CA ---
   log_info "Restarting istiods..."
-  if $KUBECTL get deployment/istiod -n istio-system &>/dev/null 2>&1; then
+  if $KUBECTL get deployment/istiod -n istio-system &>/dev/null; then
     $KUBECTL rollout restart deployment/istiod -n istio-system
     $KUBECTL rollout status deployment/istiod -n istio-system --timeout=300s 2>/dev/null || true
   else
@@ -688,7 +691,7 @@ log_info "Step 5: Install MCP Gateway"
 
 if $SKIP_MCP_GATEWAY; then
   log_info "Skipped (--skip-mcp-gateway)"
-elif helm status mcp-gateway -n mcp-system &>/dev/null 2>&1; then
+elif helm status mcp-gateway -n mcp-system &>/dev/null; then
   log_info "MCP Gateway already installed — skipping"
 else
   log_info "Installing MCP Gateway v${MCP_GATEWAY_VERSION}..."
@@ -704,32 +707,32 @@ echo ""
 log_info "Step 6: Verify Helm releases"
 echo ""
 
-VERIFY_FAILED=false
-
 _verify_release() {
-  local release="$1" ns="$2"
+  local release="$1" ns="$2" rc=0
   log_info "helm history $release -n $ns:"
   if ! helm history "$release" -n "$ns" --max 3 2>/dev/null; then
     log_error "$release: no release found in $ns"
-    VERIFY_FAILED=true
-    return
-  fi
-  local status
-  status=$(helm status "$release" -n "$ns" -o json 2>/dev/null | jq -r '.info.status // empty')
-  if [ "$status" != "deployed" ]; then
-    log_error "$release: status is '$status' (expected 'deployed')"
-    VERIFY_FAILED=true
+    rc=1
   else
-    log_success "$release: deployed"
+    local status
+    status=$(helm status "$release" -n "$ns" -o json 2>/dev/null | jq -r '.info.status // empty')
+    if [ "$status" != "deployed" ]; then
+      log_error "$release: status is '$status' (expected 'deployed')"
+      rc=1
+    else
+      log_success "$release: deployed"
+    fi
   fi
   echo ""
+  return $rc
 }
 
-_verify_release kagenti-deps kagenti-system
+VERIFY_FAILED=false
+_verify_release kagenti-deps kagenti-system    || VERIFY_FAILED=true
 if ! $SKIP_MCP_GATEWAY; then
-  _verify_release mcp-gateway mcp-system
+  _verify_release mcp-gateway mcp-system       || VERIFY_FAILED=true
 fi
-_verify_release kagenti kagenti-system
+_verify_release kagenti kagenti-system         || VERIFY_FAILED=true
 
 if $VERIFY_FAILED; then
   log_error "One or more Helm releases failed verification — check output above"
@@ -755,9 +758,13 @@ if ! $SKIP_UI; then
 fi
 
 # Keycloak admin credentials (master realm — for admin console only)
-KC_SECRET=$($KUBECTL get secret keycloak-initial-admin -n "$KC_NAMESPACE" -o go-template='Username: {{.data.username | base64decode}}  Password: {{.data.password | base64decode}}' 2>/dev/null || echo "")
-if [ -n "$KC_SECRET" ]; then
-  log_success "Keycloak admin (master realm): $KC_SECRET"
+if $SHOW_SECRETS; then
+  KC_SECRET=$($KUBECTL get secret keycloak-initial-admin -n "$KC_NAMESPACE" -o go-template='Username: {{.data.username | base64decode}}  Password: {{.data.password | base64decode}}' 2>/dev/null || echo "")
+  if [ -n "$KC_SECRET" ]; then
+    log_success "Keycloak admin (master realm): $KC_SECRET"
+  fi
+else
+  log_info "Keycloak admin credentials available in secret keycloak-initial-admin (use --show-secrets to print)"
 fi
 
 ELAPSED=$(( SECONDS - START_SECONDS ))
