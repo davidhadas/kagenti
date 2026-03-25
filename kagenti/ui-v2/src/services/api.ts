@@ -22,6 +22,9 @@ export const API_CONFIG = {
 // Token getter function - set by AuthContext
 let tokenGetter: (() => Promise<string | null>) | null = null;
 
+// Force-refresh function - set by AuthContext to bypass token cache
+let tokenForceRefresher: (() => Promise<string | null>) | null = null;
+
 /**
  * Set the token getter function. Called by AuthContext on initialization.
  */
@@ -30,7 +33,16 @@ export function setTokenGetter(getter: () => Promise<string | null>): void {
 }
 
 /**
- * Generic fetch wrapper with error handling and optional authentication
+ * Set the force-refresh function. Called by AuthContext on initialization.
+ * Used to get a fresh token on 401 responses (issue #1009).
+ */
+export function setTokenForceRefresher(refresher: () => Promise<string | null>): void {
+  tokenForceRefresher = refresher;
+}
+
+/**
+ * Generic fetch wrapper with error handling, optional authentication,
+ * and automatic token refresh on 401 responses.
  */
 async function apiFetch<T>(
   endpoint: string,
@@ -61,6 +73,36 @@ async function apiFetch<T>(
     headers,
     ...options,
   });
+
+  // On 401, try once with a force-refreshed token (issue #1009)
+  if (response.status === 401 && !skipAuth && tokenForceRefresher) {
+    try {
+      const freshToken = await tokenForceRefresher();
+      if (freshToken) {
+        const retryHeaders: HeadersInit = {
+          ...headers,
+          Authorization: `Bearer ${freshToken}`,
+        };
+        const retryResponse = await fetch(url, {
+          ...options,
+          headers: retryHeaders,
+        });
+        if (!retryResponse.ok) {
+          const errorData = await retryResponse.json().catch(() => ({}));
+          throw new Error(
+            errorData.detail || `API error: ${retryResponse.status} ${retryResponse.statusText}`
+          );
+        }
+        return retryResponse.json();
+      }
+    } catch (retryError) {
+      // If retry also fails, fall through to the original error
+      if (retryError instanceof Error && retryError.message.startsWith('API error:')) {
+        throw retryError;
+      }
+      console.warn('Token refresh retry failed:', retryError);
+    }
+  }
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));

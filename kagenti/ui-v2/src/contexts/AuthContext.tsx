@@ -12,7 +12,7 @@ import React, {
 } from 'react';
 import Keycloak from 'keycloak-js';
 
-import { setTokenGetter } from '@/services/api';
+import { setTokenGetter, setTokenForceRefresher } from '@/services/api';
 
 import { keycloakRedirectUri } from './keycloakRedirectUri';
 
@@ -351,10 +351,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   }, [isEnabled]);
 
-  // Register token getter with API service
+  // Force-refresh token, bypassing cache (for 401 retry, issue #1009)
+  const forceRefreshToken = useCallback(async (): Promise<string | null> => {
+    if (!isEnabled) return null;
+
+    const keycloak = keycloakRef.current;
+    if (!keycloak || !keycloak.authenticated) return null;
+
+    try {
+      // Pass -1 to force refresh regardless of current token validity
+      await keycloak.updateToken(-1);
+      const freshToken = keycloak.token || null;
+      if (freshToken) {
+        sessionStorage.setItem('kagenti_access_token', freshToken);
+        setToken(freshToken);
+      }
+      return freshToken;
+    } catch {
+      console.error('Force token refresh failed');
+      return null;
+    }
+  }, [isEnabled]);
+
+  // Register token getter and force-refresher with API service
   useEffect(() => {
     setTokenGetter(getToken);
-  }, [getToken]);
+    setTokenForceRefresher(forceRefreshToken);
+  }, [getToken, forceRefreshToken]);
 
   const value = useMemo(
     () => ({

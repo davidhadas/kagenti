@@ -279,6 +279,12 @@ def main() -> None:
                             "realm": keycloak_realm,
                             "enabled": True,
                             "registrationAllowed": False,
+                            # Token lifespans to prevent premature expiry (issue #1009).
+                            # Keycloak defaults to 5-minute access tokens, which causes
+                            # "Signature has expired" errors when refresh timing is imperfect.
+                            "accessTokenLifespan": 3600,  # 1 hour
+                            "ssoSessionIdleTimeout": 86400,  # 24 hours
+                            "ssoSessionMaxLifespan": 604800,  # 7 days
                         }
                     )
                     logger.info(f"Created Keycloak realm '{keycloak_realm}'")
