@@ -127,7 +127,6 @@ stringData:
 #  - kagenti-webhook (injects CLIENT_AUTH_TYPE, SPIFFE_IDP_ALIAS, JWT_AUDIENCE into client-registration)
 #  - client-registration (reads KEYCLOAK_URL, KEYCLOAK_REALM, KEYCLOAK_NAMESPACE at runtime)
 #  - envoy-proxy go-processor (reads KEYCLOAK_URL, KEYCLOAK_REALM, ISSUER for token exchange)
-#  Note: Consolidation eliminates kagenti-webhook-config (per kagenti-extensions PR #233).
 # ——————————————————————————————————————————————————————————————————————————————
 apiVersion: v1
 kind: ConfigMap
