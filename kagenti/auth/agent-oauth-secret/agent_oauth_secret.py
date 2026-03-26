@@ -22,6 +22,8 @@ from kubernetes.client.rest import ApiException
 
 from keycloak import KeycloakAdmin, KeycloakPostError
 
+from kagenti.auth.shared_utils import get_session_lifetime_payload
+
 # Import common utilities
 from common import (
     get_optional_env as _get_optional_env,
@@ -220,35 +222,34 @@ class KeycloakSetup:
         return False
 
     def create_realm(self):
-        sso_session_idle = int(get_optional_env("KEYCLOAK_SSO_SESSION_IDLE", "604800"))
-        sso_session_max = int(get_optional_env("KEYCLOAK_SSO_SESSION_MAX", "2592000"))
-        access_token_lifespan = int(
-            get_optional_env("KEYCLOAK_ACCESS_TOKEN_LIFESPAN", "1800")
-        )
-
+        session_lifetimes = get_session_lifetime_payload()
         realm_payload = {
             "realm": self.realm_name,
             "enabled": True,
-            "ssoSessionIdleTimeout": sso_session_idle,
-            "ssoSessionMaxLifespan": sso_session_max,
-            "accessTokenLifespan": access_token_lifespan,
+            **session_lifetimes,
         }
 
         try:
             self.keycloak_admin.create_realm(payload=realm_payload, skip_exists=False)
             typer.echo(
                 f'Created realm "{self.realm_name}" with session lifetimes: '
-                f"idle={sso_session_idle}s, max={sso_session_max}s, "
-                f"access_token={access_token_lifespan}s"
+                f"{session_lifetimes}"
             )
         except KeycloakPostError as e:
-            # Keycloak returns 409 if the realm already exists
+            # Keycloak returns 409 if the realm already exists — update it
+            # instead. The update is idempotent so concurrent job pods are safe.
             if hasattr(e, "response_code") and e.response_code == 409:
                 typer.echo(
                     f'Realm "{self.realm_name}" already exists, '
                     f"updating session lifetimes"
                 )
-                self.keycloak_admin.update_realm(self.realm_name, realm_payload)
+                try:
+                    self.keycloak_admin.update_realm(self.realm_name, realm_payload)
+                except Exception as update_err:
+                    typer.echo(
+                        f'Warning: failed to update realm "{self.realm_name}": '
+                        f"{update_err}. Session lifetimes may not be configured."
+                    )
             else:
                 typer.echo(f'Failed to create realm "{self.realm_name}": {e}')
         except Exception as e:

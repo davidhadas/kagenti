@@ -163,7 +163,11 @@ keycloak:
   # Session/token lifetimes for long-running dev clusters (e.g. Kind).
   # Keycloak defaults (30min idle, 10h max) cause "Signature has expired"
   # errors after a few hours. These values extend lifetimes for dev use.
-  # For production, override with shorter values.
+  #
+  # ⚠️  PRODUCTION WARNING: These defaults are intentionally permissive for
+  # developer convenience. For production deployments, override with values
+  # appropriate for your security policy (e.g. 30min idle, 8h max session).
+  # Long-lived sessions increase the window for token theft/session hijacking.
   sessionLifetimes:
     # SSO Session Idle timeout in seconds (default: 7 days)
     # Keycloak default is 1800 (30 min)

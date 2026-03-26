@@ -18,6 +18,8 @@ import os
 import pytest
 import requests
 
+from kagenti.tests.conftest import _keycloak_ssl_verify
+
 
 class TestKeycloakSessionLifetimes:
     """Verify Keycloak realm session lifetime settings."""
@@ -37,13 +39,6 @@ class TestKeycloakSessionLifetimes:
         """
         keycloak_base_url = os.environ.get("KEYCLOAK_URL", "http://localhost:8081")
         realm = os.environ.get("KEYCLOAK_REALM", "kagenti")
-
-        verify_ssl: bool | str = True
-        if os.environ.get("KEYCLOAK_VERIFY_SSL", "true").lower() == "false":
-            verify_ssl = False
-        elif os.environ.get("KEYCLOAK_CA_BUNDLE"):
-            verify_ssl = os.environ["KEYCLOAK_CA_BUNDLE"]
-
         access_token = keycloak_token["access_token"]
         realm_url = f"{keycloak_base_url}/admin/realms/{realm}"
 
@@ -51,7 +46,7 @@ class TestKeycloakSessionLifetimes:
             realm_url,
             headers={"Authorization": f"Bearer {access_token}"},
             timeout=10,
-            verify=verify_ssl,
+            verify=_keycloak_ssl_verify(),
         )
         assert response.status_code == 200, (
             f"Failed to read realm settings: {response.status_code} {response.text}"
