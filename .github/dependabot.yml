@@ -95,16 +95,6 @@ updates:
       minor-and-patch:
         update-types: [minor, patch]
 
-  - package-ecosystem: docker
-    directory: /.github/dockerfiles/python12
-    schedule:
-      interval: weekly
-    labels:
-      - dependencies
-    groups:
-      minor-and-patch:
-        update-types: [minor, patch]
-
   # Docker — application images
   - package-ecosystem: docker
     directory: /kagenti/backend
