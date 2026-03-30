@@ -152,7 +152,9 @@ def wait_for_spire(max_attempts: int = 30, delay_seconds: int = 10) -> bool:
                 if "use" not in first_key:
                     logger.error(f"  ❌ JWKS keys missing 'use' field!")
                     logger.error(f"  SPIRE must be configured with set_key_use: true")
-                    logger.error(f"  Configure SPIRE OIDC provider with setKeyUse: true in Helm values")
+                    logger.error(
+                        f"  Configure SPIRE OIDC provider with setKeyUse: true in Helm values"
+                    )
                     return False
 
                 logger.info(f"  ✅ SPIRE OIDC Discovery Provider is ready")
