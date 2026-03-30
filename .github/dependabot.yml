@@ -96,16 +96,6 @@ updates:
         update-types: [minor, patch]
 
   - package-ecosystem: docker
-    directory: /.github/dockerfiles/postgres
-    schedule:
-      interval: weekly
-    labels:
-      - dependencies
-    groups:
-      minor-and-patch:
-        update-types: [minor, patch]
-
-  - package-ecosystem: docker
     directory: /.github/dockerfiles/python12
     schedule:
       interval: weekly

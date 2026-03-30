@@ -24,9 +24,6 @@ jobs:
     strategy:
       matrix:
         image_config:
-          - name: postgres
-            path: ./.github/dockerfiles/postgres
-            tag: '17.6'
           - name: python
             path: ./.github/dockerfiles/python12
             tag: '3.12-slim'
