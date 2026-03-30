@@ -170,10 +170,10 @@ keycloak:
 kagenti-webhook-chart:
   defaults:
     images:
-      envoyProxy: ghcr.io/kagenti/kagenti-extensions/envoy-with-processor:v0.4.0-alpha.9
-      proxyInit: ghcr.io/kagenti/kagenti-extensions/proxy-init:v0.4.0-alpha.9
-      spiffeHelper: ghcr.io/kagenti/kagenti-extensions/spiffe-helper:v0.11.0
-      clientRegistration: ghcr.io/kagenti/kagenti-extensions/client-registration:v0.4.0-alpha.9
+      envoyProxy: ghcr.io/kagenti/kagenti-extensions/envoy-with-processor:v0.4.0-alpha.10
+      proxyInit: ghcr.io/kagenti/kagenti-extensions/proxy-init:v0.4.0-alpha.10
+      spiffeHelper: ghcr.io/kagenti/kagenti-extensions/spiffe-helper:v0.4.0-alpha.10
+      clientRegistration: ghcr.io/kagenti/kagenti-extensions/client-registration:v0.4.0-alpha.10
 
 # ------------------------------------------------------------------
 #  Kagenti Operator Configuration
