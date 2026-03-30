@@ -6,6 +6,7 @@
 # The Dockerfile sets g=u permissions for OpenShift compatibility (random UID assignment).
 # Adding a fixed USER directive would conflict with OpenShift's security model.
 # File: kagenti/auth/mlflow-oauth-secret/Dockerfile
+# Note: This is a global suppression (Trivy doesn't support per-file suppressions for DS-* checks)
 AVD-DS-0002
 
 # HyperShift CI ClusterRole RBAC permissions
