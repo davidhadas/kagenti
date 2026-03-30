@@ -123,10 +123,15 @@ stringData:
 
 # ——————————————————————————————————————————————————————————————————————————————
 #  ConfigMap for AuthBridge in Namespace: {{ . }}
-#  Consolidated config consumed by:
+#  Consolidated config consumed by injected sidecars:
 #  - kagenti-webhook (injects CLIENT_AUTH_TYPE, SPIFFE_IDP_ALIAS, JWT_AUDIENCE into client-registration)
-#  - client-registration (reads KEYCLOAK_URL, KEYCLOAK_REALM, KEYCLOAK_NAMESPACE at runtime)
-#  - envoy-proxy go-processor (reads KEYCLOAK_URL, KEYCLOAK_REALM, ISSUER for token exchange)
+#  - client-registration sidecar (reads KEYCLOAK_URL, KEYCLOAK_REALM, CLIENT_AUTH_TYPE, SPIFFE_IDP_ALIAS, JWT_AUDIENCE)
+#  - envoy-proxy go-processor (reads ISSUER for inbound JWT validation)
+#
+#  NOTE: KEYCLOAK_NAMESPACE is NOT used by injected sidecars (credentials come from
+#  local keycloak-admin-secret, replicated to this namespace by agent-oauth-secret Job).
+#  KEYCLOAK_NAMESPACE is only used by Helm-hook Jobs (spiffe-idp-setup, agent-oauth-secret)
+#  that run at install time with cross-namespace RBAC to read from the Keycloak namespace.
 # ——————————————————————————————————————————————————————————————————————————————
 apiVersion: v1
 kind: ConfigMap
@@ -134,11 +139,14 @@ metadata:
   name: authbridge-config
   namespace: {{ . }}
 data:
-  # Keycloak connection (used by client-registration and go-processor)
+  # Keycloak connection (used by client-registration sidecar)
   KEYCLOAK_URL: "http://keycloak-service.{{ $root.Values.keycloak.namespace }}.svc:8080"
   KEYCLOAK_REALM: {{ $root.Values.keycloak.realm | quote }}
+  # KEYCLOAK_NAMESPACE: Not used by sidecars. Included for reference by Helm-hook Jobs.
+  # Sidecars get credentials from local keycloak-admin-secret (replicated by agent-oauth-secret Job).
   KEYCLOAK_NAMESPACE: "{{ $root.Values.keycloak.namespace }}"
-  # ISSUER: Optional. Auto-derived from KEYCLOAK_URL + KEYCLOAK_REALM if not set.
+  # ISSUER: Used by envoy-proxy go-processor for inbound JWT validation.
+  # Optional - auto-derived from KEYCLOAK_URL + KEYCLOAK_REALM if not set.
   # Set explicitly when the internal KEYCLOAK_URL differs from the frontend URL
   # that appears in token "iss" claims (split-horizon DNS).
   ISSUER: "{{ $root.Values.keycloak.publicUrl }}/realms/{{ $root.Values.keycloak.realm }}"

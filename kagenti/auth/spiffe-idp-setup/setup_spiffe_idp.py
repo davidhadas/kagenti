@@ -13,7 +13,7 @@ Usage:
     python setup_spiffe_idp.py
 
 Environment Variables:
-    KEYCLOAK_BASE_URL: Keycloak server URL (default: http://keycloak.keycloak.svc:8080)
+    KEYCLOAK_BASE_URL: Keycloak server URL (default: http://keycloak-service.keycloak:8080)
     KEYCLOAK_REALM: Target realm name (default: kagenti)
     KEYCLOAK_NAMESPACE: Namespace containing Keycloak (default: keycloak)
     KEYCLOAK_ADMIN_SECRET_NAME: Secret name containing admin credentials (default: keycloak-initial-admin)
@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration from environment
 KEYCLOAK_BASE_URL = os.getenv(
-    "KEYCLOAK_BASE_URL", "http://keycloak-service.keycloak.svc:8080"
+    "KEYCLOAK_BASE_URL", "http://keycloak-service.keycloak:8080"
 )
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "kagenti")
 KEYCLOAK_NAMESPACE = os.getenv("KEYCLOAK_NAMESPACE", "keycloak")
@@ -92,7 +92,7 @@ def read_keycloak_credentials() -> Tuple[str, str]:
             name=KEYCLOAK_ADMIN_SECRET_NAME, namespace=KEYCLOAK_NAMESPACE
         )
 
-        # Decode base64-encoded values
+        # Extract base64-encoded values from Secret (still encoded at this point)
         username_b64 = secret.data.get(KEYCLOAK_ADMIN_USERNAME_KEY)
         password_b64 = secret.data.get(KEYCLOAK_ADMIN_PASSWORD_KEY)
 
@@ -102,6 +102,7 @@ def read_keycloak_credentials() -> Tuple[str, str]:
                 f"{KEYCLOAK_ADMIN_USERNAME_KEY}, {KEYCLOAK_ADMIN_PASSWORD_KEY}"
             )
 
+        # Decode base64 strings to plaintext
         username = base64.b64decode(username_b64).decode("utf-8")
         password = base64.b64decode(password_b64).decode("utf-8")
 
@@ -151,7 +152,7 @@ def wait_for_spire(max_attempts: int = 30, delay_seconds: int = 10) -> bool:
                 if "use" not in first_key:
                     logger.error(f"  ❌ JWKS keys missing 'use' field!")
                     logger.error(f"  SPIRE must be configured with set_key_use: true")
-                    logger.error(f"  See: spiffe-keycloak/patch_spire_config.sh")
+                    logger.error(f"  Configure SPIRE OIDC provider with setKeyUse: true in Helm values")
                     return False
 
                 logger.info(f"  ✅ SPIRE OIDC Discovery Provider is ready")
@@ -309,7 +310,7 @@ def main() -> int:
     try:
         admin_username, admin_password = read_keycloak_credentials()
     except Exception as e:
-        logger.error(f"❌ Setup failed: Could not read Keycloak credentials")
+        logger.error(f"❌ Setup failed: Could not read Keycloak credentials: {e}")
         return 1
 
     logger.info("")
@@ -336,7 +337,7 @@ def main() -> int:
 
     logger.info("")
 
-    # Step 3: Create target realm if needed
+    # Step 4: Create target realm if needed
     logger.info("=" * 60)
     logger.info(f"Ensuring Realm: {KEYCLOAK_REALM}")
     logger.info("=" * 60)
@@ -349,7 +350,7 @@ def main() -> int:
 
     logger.info("")
 
-    # Step 4: Switch to target realm
+    # Step 5: Switch to target realm
     try:
         kc = KeycloakAdmin(
             server_url=KEYCLOAK_BASE_URL,
@@ -366,7 +367,7 @@ def main() -> int:
 
     logger.info("")
 
-    # Step 5: Create SPIFFE Identity Provider
+    # Step 6: Create SPIFFE Identity Provider
     if not ensure_spiffe_idp(
         kc, SPIFFE_IDP_ALIAS, SPIFFE_TRUST_DOMAIN, SPIFFE_BUNDLE_ENDPOINT
     ):
