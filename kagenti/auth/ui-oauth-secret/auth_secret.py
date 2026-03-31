@@ -417,11 +417,11 @@ def main() -> None:
 
             # Create demo users for testing.
             # These get no realm-admin client role.
-            for demo_username, demo_password in zip(DEFAULT_DEMO_USERS, DEFAULT_DEMO_PASSWORDS):
+            for demo_username, demo_password in zip(
+                DEFAULT_DEMO_USERS, DEFAULT_DEMO_PASSWORDS
+            ):
                 try:
-                    existing = keycloak_admin.get_users(
-                        {"username": demo_username}
-                    )
+                    existing = keycloak_admin.get_users({"username": demo_username})
                     if not existing:
                         keycloak_admin.create_user(
                             {
@@ -450,9 +450,7 @@ def main() -> None:
                             f"in realm '{keycloak_realm}', skipping"
                         )
                 except Exception as e:
-                    logger.warning(
-                        f"Failed to create demo user '{demo_username}': {e}"
-                    )
+                    logger.warning(f"Failed to create demo user '{demo_username}': {e}")
 
         elif keycloak_realm != DEFAULT_KEYCLOAK_REALM:
             logger.info(
