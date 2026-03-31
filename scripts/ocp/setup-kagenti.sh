@@ -147,6 +147,13 @@ if ! command -v helm &>/dev/null; then
 fi
 log_success "helm found: $(helm version --short)"
 
+# Check python3
+if ! command -v python3 &>/dev/null; then
+  log_error "python3 not found in PATH. Install python3 >= 3.8"
+  exit 1
+fi
+log_success "python3 found: $(python3 --version)"
+
 # Resolve kagenti repo: local path, GitHub URL, or auto-clone from main
 _clone_kagenti() {
   local url="$1" dest="$2"
@@ -249,7 +256,7 @@ _ensure_user_workload_monitoring() {
   local merged
   merged="enableUserWorkload: true"$'\n'"$existing"
   $KUBECTL patch configmap cluster-monitoring-config -n openshift-monitoring \
-    --type=merge -p "{\"data\":{\"config.yaml\":$(echo "$merged" | jq -Rs .)}}" >/dev/null
+    --type=merge -p "{\"data\":{\"config.yaml\":$(echo "$merged" | python3 -c "import sys,json; sys.stdout.write(json.dumps(sys.stdin.read()))")}}" >/dev/null
   log_success "Merged enableUserWorkload: true into cluster-monitoring-config"
 }
 _ensure_user_workload_monitoring
@@ -715,7 +722,7 @@ _verify_release() {
     rc=1
   else
     local status
-    status=$(helm status "$release" -n "$ns" -o json 2>/dev/null | jq -r '.info.status // empty')
+    status=$(helm status "$release" -n "$ns" -o json 2>/dev/null | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('info',{}).get('status',''), end='')" 2>/dev/null || echo "")
     if [ "$status" != "deployed" ]; then
       log_error "$release: status is '$status' (expected 'deployed')"
       rc=1
@@ -775,13 +782,7 @@ echo ""
 echo "============================================"
 echo "  Kagenti platform is ready!  (Time elapsed:${MINS}m ${SECS}s)"
 echo ""
-echo "  Namespace registration:"
-echo "    Namespaces self-register for webhook injection via label:"
-echo "      kubectl label namespace <ns> kagenti-enabled=true"
-echo "    setup.sh --with-a2a does this automatically."
-echo ""
-echo "  Next: deploy OpenClaw with A2A:"
-echo "    cd $REPO_ROOT"
-echo "    ./scripts/setup.sh --with-a2a"
-echo "============================================"
+echo "  Before deploying agents, add your namespace to the agentNamespaces"
+echo "  list in charts/kagenti/values.yaml so the platform provisions the"
+echo "  required resources in your namespace."
 echo ""

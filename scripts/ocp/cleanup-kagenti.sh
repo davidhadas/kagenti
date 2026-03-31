@@ -21,7 +21,6 @@
 
 set -euo pipefail
 
-KUBECTL="oc"
 AUTO_YES=false
 
 while [[ $# -gt 0 ]]; do
@@ -50,6 +49,30 @@ log_info()    { echo -e "${BLUE}→${NC} $1"; }
 log_success() { echo -e "${GREEN}✓${NC} $1"; }
 log_warn()    { echo -e "${YELLOW}⚠${NC} $1"; }
 log_error()   { echo -e "${RED}✗${NC} $1"; }
+
+# Check for kubectl/oc
+if command -v oc &>/dev/null; then
+  KUBECTL=oc
+elif command -v kubectl &>/dev/null; then
+  KUBECTL=kubectl
+else
+  log_error "Neither oc nor kubectl found in PATH"
+  exit 1
+fi
+
+# Check cluster access
+if ! $KUBECTL cluster-info &>/dev/null; then
+  log_error "Cannot connect to cluster. Run 'oc login' first."
+  exit 1
+fi
+log_success "Connected to cluster"
+
+# Check python3
+if ! command -v python3 &>/dev/null; then
+  log_error "python3 not found in PATH. Install python3 >= 3.8"
+  exit 1
+fi
+log_success "python3 found: $(python3 --version)"
 
 echo ""
 echo "============================================"
@@ -105,9 +128,9 @@ _force_delete_ns() {
     return 0
   fi
   log_warn "  $ns stuck — stripping finalizers..."
-  $KUBECTL get namespace "$ns" -o json 2>/dev/null | \
-    jq '.spec.finalizers = []' | \
-    $KUBECTL replace --raw "/api/v1/namespaces/$ns/finalize" -f - 2>/dev/null || true
+  $KUBECTL get namespace "$ns" -o json 2>/dev/null \
+    | python3 -c "import sys,json; d=json.load(sys.stdin); d['spec']['finalizers']=[]; json.dump(d,sys.stdout)" \
+    | $KUBECTL replace --raw "/api/v1/namespaces/$ns/finalize" -f - >/dev/null 2>&1 || true
   sleep 3
   if $KUBECTL get namespace "$ns" &>/dev/null; then
     log_error "  $ns still exists — may need manual cleanup"
