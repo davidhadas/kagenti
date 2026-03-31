@@ -12,5 +12,5 @@ jobs:
         continue-on-error: true # To prevent duplicate additions
         uses: actions/add-to-project@v1.0.2
         with:
-          project-url: https://github.com/orgs/kagenti/projects/<PROJECT_NUMBER>
+          project-url: https://github.com/orgs/kagenti/projects/8
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
