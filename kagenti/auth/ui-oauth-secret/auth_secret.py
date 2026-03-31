@@ -33,6 +33,8 @@ DEFAULT_ADMIN_PASSWORD_KEY = "password"
 OAUTH_REDIRECT_PATH = "/"
 OAUTH_SCOPE = "openid profile email"
 SERVICE_ACCOUNT_CA_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+DEFAULT_DEMO_USERS = ["demo1", "demo2"]
+DEFAULT_DEMO_PASSWORDS = ["password1", "password2"]
 
 
 class ConfigurationError(Exception):
@@ -412,6 +414,45 @@ def main() -> None:
                     f"in realm '{keycloak_realm}' after bootstrap — "
                     f"cannot proceed"
                 )
+
+            # Create demo users for testing.
+            # These get no realm-admin client role.
+            for demo_username, demo_password in zip(DEFAULT_DEMO_USERS, DEFAULT_DEMO_PASSWORDS):
+                try:
+                    existing = keycloak_admin.get_users(
+                        {"username": demo_username}
+                    )
+                    if not existing:
+                        keycloak_admin.create_user(
+                            {
+                                "username": demo_username,
+                                "enabled": True,
+                                "email": f"{demo_username}@localtest.me",
+                                "emailVerified": True,
+                                "firstName": demo_username.capitalize(),
+                                "lastName": "User",
+                                "credentials": [
+                                    {
+                                        "type": "password",
+                                        "value": demo_password,
+                                        "temporary": False,
+                                    }
+                                ],
+                            }
+                        )
+                        logger.info(
+                            f"Created demo user '{demo_username}' "
+                            f"in realm '{keycloak_realm}'"
+                        )
+                    else:
+                        logger.info(
+                            f"Demo user '{demo_username}' already exists "
+                            f"in realm '{keycloak_realm}', skipping"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to create demo user '{demo_username}': {e}"
+                    )
 
         elif keycloak_realm != DEFAULT_KEYCLOAK_REALM:
             logger.info(
