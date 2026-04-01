@@ -34,7 +34,10 @@ OAUTH_REDIRECT_PATH = "/"
 OAUTH_SCOPE = "openid profile email"
 SERVICE_ACCOUNT_CA_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 DEFAULT_DEMO_USERS = ["demo1", "demo2"]
-DEFAULT_DEMO_PASSWORDS = ["password1", "password2"]
+DEFAULT_DEMO_PASSWORDS = [
+    get_optional_env("KEYCLOAK_DEMO1_PASSWORD", "kagenti1"),
+    get_optional_env("KEYCLOAK_DEMO2_PASSWORD", "kagenti2"),
+]
 
 
 class ConfigurationError(Exception):
