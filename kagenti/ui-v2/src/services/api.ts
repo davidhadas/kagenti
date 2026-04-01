@@ -1334,7 +1334,7 @@ export const modelsService = {
     return apiFetch<Array<{id: string}>>('/models');
   },
   async getAgentModels(namespace: string, agentName: string): Promise<Array<{id: string}>> {
-    return apiFetch<Array<{id: string}>>(`/llm/agent-models/${namespace}/${agentName}`);
+    return apiFetch<Array<{id: string}>>(`/llm/agent-models/${encodeURIComponent(namespace)}/${encodeURIComponent(agentName)}`);
   },
 };
 

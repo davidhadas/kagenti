@@ -521,8 +521,9 @@ function applyInteractionEvent(loop: AgentLoop, _le: LoopEvent): AgentLoop {
  */
 export function applyLoopEvent(loop: AgentLoop, le: LoopEvent): AgentLoop {
   // Normalize: agent may emit plan_step or current_step
+  // Clone to avoid mutating the caller's event object
   if (le.plan_step != null && le.current_step == null) {
-    le.current_step = le.plan_step;
+    le = { ...le, current_step: le.plan_step };
   }
   // Track highest node visit index (global recursion counter).
   // Prefer event_index (chronological counter) over step (plan step).
@@ -579,7 +580,8 @@ export function buildAgentLoops(events: LoopEvent[]): Map<string, AgentLoop> {
     const prev = loops.get(loopId) || createDefaultAgentLoop(loopId);
     loops.set(loopId, applyLoopEvent(prev, evt));
   }
-  // Mark loops as done or failed based on whether they completed
+  // Post-process: mark completion status on loops we just created above.
+  // Safe to mutate — these objects were freshly built by the reduce, not shared externally.
   for (const [, loop] of loops) {
     const hasReporter = loop.steps.some((s) => s.nodeType === 'reporter');
     if (hasReporter) {
