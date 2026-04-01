@@ -20,6 +20,9 @@
 #   - helm >= 3.18.0 < 4
 #
 # Tested on: OCP 4.19+ (ROSA)
+#
+# Before running:
+#   - Add agent namespaces to the agentNamespaces list in charts/kagenti/values.yaml (defaults: team1, team2)
 # ============================================================================
 
 set -euo pipefail
@@ -291,14 +294,30 @@ _wait_ns_gone() {
 
 # Wait for the components we need before proceeding to the kagenti chart.
 # Skips MLflow (its oauth-secret is created by the kagenti chart's post-install hook).
+_wait_deployment_ready() {
+  local deploy="$1" ns="$2" label="${3:-$1}" kind="${4:-deployment}"
+  local tries=0
+  if ! $KUBECTL get "$kind"/"$deploy" -n "$ns" &>/dev/null; then
+    log_info "Waiting for $label to appear..."
+    until $KUBECTL get "$kind"/"$deploy" -n "$ns" &>/dev/null; do
+      [ $((++tries)) -ge 60 ] && { log_warn "$label $kind not found after 5m"; return 1; }
+      sleep 5
+    done
+  fi
+  log_info "Checking $label rollout..."
+  $KUBECTL rollout status "$kind"/"$deploy" -n "$ns" --timeout=300s || \
+    log_warn "$label rollout not ready within 5m"
+}
+
 _wait_kagenti_deps_ready() {
   if $DRY_RUN; then return; fi
-  log_info "Waiting for Keycloak..."
-  $KUBECTL rollout status deployment/keycloak -n "$KC_NAMESPACE" --timeout=300s 2>/dev/null || \
-    log_warn "Keycloak rollout not ready within 5m"
-  log_info "Waiting for Istio..."
-  $KUBECTL rollout status deployment/istiod -n istio-system --timeout=300s 2>/dev/null || \
-    log_warn "istiod rollout not ready within 5m"
+  # Keycloak: OLM installs the RHBK operator first, which then processes the
+  # Keycloak CR and creates the deployment — wait for each step in order.
+  _wait_deployment_ready rhbk-operator "$KC_NAMESPACE" "RHBK operator"
+  _wait_deployment_ready postgres-kc "$KC_NAMESPACE" "Keycloak PostgreSQL" statefulset
+  _wait_deployment_ready keycloak "$KC_NAMESPACE" Keycloak statefulset
+  _wait_deployment_ready cert-manager-webhook cert-manager cert-manager
+  _wait_deployment_ready istiod istio-system Istio
 }
 
 # Apply operand CRs that --no-hooks skipped.
@@ -487,7 +506,10 @@ _ensure_rhoai_shared_trust() {
     sleep 5
   done
   # Webhook endpoint has an IP but may still be bootstrapping TLS serving certs
-  sleep 10
+  tries=0
+  until $KUBECTL get secret cert-manager-webhook-ca -n cert-manager &>/dev/null; do
+    [ $((++tries)) -ge 12 ] && break; sleep 5
+  done
   log_success "cert-manager is ready"
 
   # --- Create shared trust resources (fallback if Helm lookup skipped them) ---
@@ -647,9 +669,9 @@ _ensure_rhoai_shared_trust
 echo ""
 
 # ============================================================================
-# Step 4: Install Kagenti (Keycloak + operator + webhook + UI)
+# Step 4: Install Kagenti (operator + webhook + UI)
 # ============================================================================
-log_info "Step 4: Install Kagenti (Keycloak + operator + webhook + UI)"
+log_info "Step 4: Install Kagenti (operator + webhook + UI)"
 
 # Secrets file
 SECRETS_FILE="$KAGENTI_REPO/charts/kagenti/.secrets.yaml"
@@ -830,8 +852,4 @@ SECS=$(( ELAPSED % 60 ))
 echo ""
 echo "============================================"
 echo "  Kagenti platform is ready!  (Time elapsed:${MINS}m ${SECS}s)"
-echo ""
-echo "  Before deploying agents, add your namespace to the agentNamespaces"
-echo "  list in charts/kagenti/values.yaml so the platform provisions the"
-echo "  required resources in your namespace."
 echo ""
