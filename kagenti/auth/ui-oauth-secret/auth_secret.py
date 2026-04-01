@@ -33,7 +33,7 @@ DEFAULT_ADMIN_PASSWORD_KEY = "password"
 OAUTH_REDIRECT_PATH = "/"
 OAUTH_SCOPE = "openid profile email"
 SERVICE_ACCOUNT_CA_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
-DEFAULT_DEMO_USERS = ("demo1", "demo2")
+DEFAULT_DEMO_USERS = ("bob", "alice")
 DEFAULT_DEMO_PASSWORDS = ("kagenti1", "kagenti2")
 DEFAULT_DEMO_PASSWORD_OVERRIDE_ENV_VARS = (
     "KEYCLOAK_DEMO1_PASSWORD",
