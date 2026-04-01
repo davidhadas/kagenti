@@ -82,22 +82,6 @@ class TofuVerifier:
         import subprocess
 
         cm_data = json.dumps(hashes, indent=2)
-        subprocess.run(
-            [
-                "kubectl",
-                "create",
-                "configmap",
-                self.configmap_name,
-                "-n",
-                self.namespace,
-                f"--from-literal=hashes={cm_data}",
-                "--dry-run=client",
-                "-o",
-                "yaml",
-            ],
-            capture_output=True,
-            text=True,
-        )
         # Apply (create or update)
         subprocess.run(
             ["kubectl", "apply", "-f", "-"],

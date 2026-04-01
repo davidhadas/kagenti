@@ -27,7 +27,6 @@ import json
 import subprocess
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 
 class SandboxTrigger:
@@ -44,7 +43,7 @@ class SandboxTrigger:
         self.ttl_hours = ttl_hours
 
     def _create_claim(
-        self, name: str, labels: dict, env_overrides: Optional[dict] = None
+        self, name: str, labels: dict
     ) -> str:
         """Create a SandboxClaim resource.
 
@@ -88,14 +87,13 @@ class SandboxTrigger:
         return name
 
     def create_from_cron(
-        self, skill: str, schedule: str = "", repo_url: str = ""
+        self, skill: str, schedule: str = ""
     ) -> str:
         """Create sandbox from a cron trigger.
 
         Args:
             skill: The skill to run (e.g., "rca:ci", "k8s:health")
             schedule: Cron expression (for documentation, actual cron runs externally)
-            repo_url: Repo to clone in the sandbox
         """
         suffix = uuid.uuid4().hex[:6]
         name = f"cron-{skill.replace(':', '-')}-{suffix}"
@@ -157,44 +155,6 @@ class SandboxTrigger:
                 "trigger-severity": severity,
             },
         )
-
-
-# FastAPI endpoint integration (to be added to Kagenti backend)
-FASTAPI_ROUTES = '''
-# Add to kagenti/backend/main.py:
-
-from triggers import SandboxTrigger
-
-trigger = SandboxTrigger()
-
-@app.post("/api/v1/sandbox/trigger")
-async def create_sandbox_trigger(request: dict):
-    """Create a sandbox from a trigger event."""
-    trigger_type = request.get("type", "webhook")
-
-    if trigger_type == "cron":
-        name = trigger.create_from_cron(
-            skill=request["skill"],
-            schedule=request.get("schedule", ""),
-        )
-    elif trigger_type == "webhook":
-        name = trigger.create_from_webhook(
-            event_type=request["event"],
-            repo=request["repo"],
-            branch=request.get("branch", "main"),
-            pr_number=request.get("pr_number", 0),
-        )
-    elif trigger_type == "alert":
-        name = trigger.create_from_alert(
-            alert_name=request["alert"],
-            cluster=request.get("cluster", ""),
-            severity=request.get("severity", "warning"),
-        )
-    else:
-        raise HTTPException(400, f"Unknown trigger type: {trigger_type}")
-
-    return {"sandbox_claim": name, "namespace": trigger.namespace}
-'''
 
 
 if __name__ == "__main__":
