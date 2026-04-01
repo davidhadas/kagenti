@@ -224,7 +224,6 @@ function applyReasoningEvent(loop: AgentLoop, le: LoopEvent, nv: number): AgentL
   const eventType = le.type;
 
   if (eventType === 'planner_output' || eventType === 'replanner_output') {
-    console.log(`[loopBuilder] ${eventType}: system_prompt=`, le.system_prompt?.substring(0, 50), 'prompt_messages=', le.prompt_messages?.length);
     const incomingSteps = le.steps || [];
     const isReplan = eventType === 'replanner_output' || loop.plan.length > 0;
     const iterNum = le.iteration ?? loop.iteration ?? 0;
@@ -242,8 +241,7 @@ function applyReasoningEvent(loop: AgentLoop, le: LoopEvent, nv: number): AgentL
         ? [...loop.replans, { iteration: iterNum, steps: incomingSteps, model: le.model || loop.model, content: le.content }]
         : loop.replans,
       totalSteps: incomingSteps.length > 0 ? incomingSteps.length : loop.totalSteps,
-      // Replan keeps the current step index — does NOT reset to 0
-      currentStep: isReplan ? loop.currentStep : loop.currentStep,
+      currentStep: loop.currentStep,
       iteration: iterNum,
       model: le.model || loop.model,
       steps: [
