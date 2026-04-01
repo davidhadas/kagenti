@@ -27,10 +27,6 @@ import { sandboxService } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { SessionSidebar } from '../components/SessionSidebar';
 import { SkillWhisperer } from '../components/SkillWhisperer';
-// SandboxConfig disabled — model/repo/branch not yet wired to backend
-// import { SandboxConfig, SandboxConfigValues } from '../components/SandboxConfig';
-// NamespaceSelector removed from session view — namespace shown as read-only Label
-// import { NamespaceSelector } from '../components/NamespaceSelector';
 import { DelegationCard, type DelegationState } from '../components/DelegationCard';
 import { HitlApprovalCard } from '../components/HitlApprovalCard';
 import { AgentLoopCard } from '../components/AgentLoopCard';
@@ -735,10 +731,6 @@ export const SandboxPage: React.FC = () => {
     loadMoreTasks,
   } = useSessionLoader(namespace, contextId);
 
-  // Derived loading flags for backward compatibility
-  const loadingHistory = sessionIsLoading;
-  const loadingSession = sessionIsLoading;
-
   // Synchronous guard against double-send (React StrictMode double-invokes
   // effects/callbacks, and async setState batching means two rapid calls
   // can both see isStreaming===false before either sets it to true).
@@ -901,9 +893,6 @@ export const SandboxPage: React.FC = () => {
     }
   };
 
-  // SandboxConfig disabled — model/repo/branch not yet wired to backend
-  // const [config, setConfig] = useState({ model: 'gpt-4o-mini', repo: '', branch: 'main' });
-
   // Fetch agent card to get skills for / autocomplete
   const { data: agentCard } = useQuery({
     queryKey: ['sandbox-agent-card', namespace, selectedAgent],
@@ -984,7 +973,7 @@ export const SandboxPage: React.FC = () => {
 
   /** Load an older page of history (triggered by scrolling to top). */
   const loadOlderHistory = useCallback(async () => {
-    if (!hasMoreHistory || loadingHistory || oldestIndex === null) return;
+    if (!hasMoreHistory || sessionIsLoading || oldestIndex === null) return;
     const container = scrollContainerRef.current;
     const prevScrollHeight = container?.scrollHeight ?? 0;
 
@@ -1052,7 +1041,7 @@ export const SandboxPage: React.FC = () => {
     } catch {
       // ignore
     }
-  }, [hasMoreHistory, loadingHistory, oldestIndex, namespace, contextId, sessionDispatch]);
+  }, [hasMoreHistory, sessionIsLoading, oldestIndex, namespace, contextId, sessionDispatch]);
 
   // IntersectionObserver for infinite scroll — triggers when sentinel at top is visible
   useEffect(() => {
@@ -1061,7 +1050,7 @@ export const SandboxPage: React.FC = () => {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting && hasMoreHistory && !loadingHistory) {
+        if (entries[0]?.isIntersecting && hasMoreHistory && !sessionIsLoading) {
           loadOlderHistory();
         }
       },
@@ -1069,7 +1058,7 @@ export const SandboxPage: React.FC = () => {
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMoreHistory, loadingHistory, loadOlderHistory]);
+  }, [hasMoreHistory, sessionIsLoading, loadOlderHistory]);
 
   // Auto-scroll to bottom on new messages
   const shouldAutoScroll = useRef(true);
@@ -1232,12 +1221,7 @@ export const SandboxPage: React.FC = () => {
     let accumulatedContent = '';
     let buffer = '';
     let seenLoopId = false; // Once any loop_id event seen, suppress flat messages
-    // msgCountBeforeStream removed — no longer wiping messages on loop start
     const collectedMessages: Message[] = [];
-
-    // Snapshot current message count so retroactive cleanup only
-    // removes flat messages from THIS turn, not previous turns
-    // msgCountBeforeStream = messages.length; // removed — see MESSAGES_SET removal
 
     try {
       while (true) {
@@ -1288,8 +1272,6 @@ export const SandboxPage: React.FC = () => {
               const loopId = data.loop_id;
               const le = data.loop_event || data;
               const eventType = le.type;
-              console.log(`[sse] LOOP_RECV loop=${loopId?.substring(0, 8)} type=${eventType} step=${le.step ?? ''} tools=${le.tools?.length ?? 0}`);
-
               // Apply event using shared builder
               updateLoop(loopId, (prev) => applyLoopEvent(prev, le));
 
@@ -1689,11 +1671,6 @@ export const SandboxPage: React.FC = () => {
             <SplitItem isFilled />
           </Split>
 
-          {/* SandboxConfig disabled — model/repo/branch not yet wired to backend.
-              TODO: wire config to agent via A2A message metadata or per-session config endpoint.
-          <SandboxConfig config={config} onChange={setConfig} />
-          */}
-
           {error && (
             <Alert
               variant="danger"
@@ -1770,12 +1747,12 @@ export const SandboxPage: React.FC = () => {
                 padding: '12px 16px',
               }}
             >
-            {loadingSession && (
+            {sessionIsLoading && (
               <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Spinner size="lg" />
               </div>
             )}
-            {!loadingSession && (<>
+            {!sessionIsLoading && (<>
 
               {/* Sentinel for infinite scroll — loads older messages */}
               <div ref={sentinelRef} style={{ minHeight: 1 }} />
