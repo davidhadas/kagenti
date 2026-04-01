@@ -34,9 +34,10 @@ OAUTH_REDIRECT_PATH = "/"
 OAUTH_SCOPE = "openid profile email"
 SERVICE_ACCOUNT_CA_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 DEFAULT_DEMO_USERS = ("demo1", "demo2")
-DEFAULT_DEMO_PASSWORDS = (
-    get_optional_env("KEYCLOAK_DEMO1_PASSWORD", "kagenti1"),
-    get_optional_env("KEYCLOAK_DEMO2_PASSWORD", "kagenti2"),
+DEFAULT_DEMO_PASSWORDS = ("kagenti1", "kagenti2")
+DEFAULT_DEMO_PASSWORD_OVERRIDE_ENV_VARS = (
+    "KEYCLOAK_DEMO1_PASSWORD",
+    "KEYCLOAK_DEMO1_PASSWORD",
 )
 
 
@@ -420,11 +421,11 @@ def main() -> None:
 
             # Create demo users for testing.
             # These get no realm-admin client role.
-            for demo_username, demo_password in zip(
-                DEFAULT_DEMO_USERS, DEFAULT_DEMO_PASSWORDS
-            ):
+            for i, demo_username in enumerate(DEFAULT_DEMO_USERS):
                 try:
-                    existing = keycloak_admin.get_users({"username": demo_username})
+                    existing = keycloak_admin.get_users(
+                        {"username": demo_username, "exact": True}
+                    )
                     if not existing:
                         keycloak_admin.create_user(
                             {
@@ -437,7 +438,10 @@ def main() -> None:
                                 "credentials": [
                                     {
                                         "type": "password",
-                                        "value": demo_password,
+                                        "value": get_optional_env(
+                                            DEFAULT_DEMO_PASSWORD_OVERRIDE_ENV_VARS[i],
+                                            DEFAULT_DEMO_PASSWORDS[i],
+                                        ),
                                         "temporary": False,
                                     }
                                 ],
