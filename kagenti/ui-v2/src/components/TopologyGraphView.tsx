@@ -70,8 +70,6 @@ const COLOR_STATUS_WARN = '#ff9800';
 /** Default fallback for untraversed edges. */
 const COLOR_EDGE_INACTIVE = '#444';
 
-/** Sidebar width in pixels. */
-const SIDEBAR_WIDTH = 260;
 /** Default node width for dagre layout. */
 const NODE_WIDTH = 160;
 /** Default node height for dagre layout. */
@@ -82,17 +80,6 @@ const EDGE_STROKE_MAX = 4;
 const EDGE_STROKE_STEP = 0.3;
 /** Max characters shown for user message in sidebar. */
 const MSG_TRUNCATE = 35;
-
-// Shared inline style for toolbar buttons (sidebar toggle + fullscreen).
-const TOOLBAR_BTN_STYLE: React.CSSProperties = {
-  background: COLOR_OVERLAY_BG,
-  border: `1px solid ${COLOR_BORDER}`,
-  color: COLOR_TEXT_SECONDARY,
-  borderRadius: 4,
-  padding: '4px 8px',
-  fontSize: 12,
-  cursor: 'pointer',
-};
 
 // ---------------------------------------------------------------------------
 // Default graph card topology (sandbox-legion, used as fallback)
@@ -1134,18 +1121,6 @@ export const TopologyGraphView: React.FC<TopologyGraphViewProps> = React.memo(({
 
       {/* Main graph area */}
       <div style={{ flex: 1, position: 'relative' }}>
-        {/* Toolbar: sidebar toggle + fullscreen */}
-        <div style={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          zIndex: 10,
-          display: 'flex',
-          gap: 4,
-        }}>
-          {/* Sidebar and fullscreen buttons are in the wrapper (GraphLoopView) */}
-        </div>
-
         {/* Active node indicator badge */}
         {activeNode && (
           <div
