@@ -14,6 +14,7 @@ import logging
 import os
 import re
 import time
+import urllib.parse
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
@@ -36,8 +37,21 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s"
 )
 
-LITELLM_URL = os.environ.get(
-    "LITELLM_URL", "http://litellm-proxy.kagenti-system.svc.cluster.local:4000"
+
+def _validate_backend_url(url: str) -> str:
+    """Validate that the backend URL uses an allowed scheme (SSRF mitigation)."""
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(
+            f"LITELLM_URL must use http or https scheme, got: {parsed.scheme!r}"
+        )
+    return url
+
+
+LITELLM_URL = _validate_backend_url(
+    os.environ.get(
+        "LITELLM_URL", "http://litellm-proxy.kagenti-system.svc.cluster.local:4000"
+    )
 )
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 DEFAULT_SESSION_MAX_TOKENS = int(
@@ -259,7 +273,7 @@ async def chat_completions(request: Request):
         _safe(session_id[:12]) if session_id else "none",
         _safe(meta["agent_name"]) or "unknown",
         _safe(model),
-        body.get("stream", False),
+        _safe(body.get("stream", False)),
         max_tokens,
     )
 
