@@ -50,19 +50,18 @@ const PROTOCOLS = [
 const TOOL_EXAMPLES = [
   { value: '', label: 'Select an example...' },
   // These examples correspond to the samples in https://github.com/kagenti/agent-examples/tree/main/mcp
-  { value: 'mcp/weather_tool', label: 'Weather Tool' },
+  // We use the suffix "server" rather than "Tool" because each
+  // example MCP server may offer multiple tools.
+  { value: 'mcp/appworld_apis', label: 'AppWorld MCP server' },
+  { value: 'mcp/cloud_storage_tool', label: 'Cloud Storage Tool' },
   { value: 'mcp/flight_tool', label: 'Flight Tool' },
   { value: 'mcp/github_tool', label: 'GitHub Tool' },
   { value: 'mcp/image_tool', label: 'Image Tool' },
   { value: 'mcp/movie_tool', label: 'Movie Tool' },
   { value: 'mcp/reservation_tool', label: 'Reservation Tool' },
-  { value: 'mcp/slack_tool', label: 'Slack Tool' },
-  { value: 'mcp/cloud_storage_tool', label: 'Cloud Storage Tool' },
-  // We use the suffix "server" rather than "Tool" because each
-  // example MCP server may offer multiple tools.
-  // We are not alphabetizing because the list was previously not alphabetized.
-  { value: 'mcp/appworld_apis', label: 'AppWorld MCP server' },
   { value: 'mcp/shopping_tool', label: 'Shopping MCP server' },
+  { value: 'mcp/slack_tool', label: 'Slack Tool' },
+  { value: 'mcp/weather_tool', label: 'Weather Tool' },
 ];
 
 const REGISTRY_OPTIONS = [

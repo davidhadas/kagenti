@@ -45,17 +45,17 @@ import { BuildStrategySelector } from '@/components/BuildStrategySelector';
 const AGENT_EXAMPLES = [
   { value: '', label: 'Select an example...' },
   // These examples correspond to the samples in https://github.com/kagenti/agent-examples/tree/main/a2a
+  { value: 'a2a/cheerup_agent', label: 'Cheerup Agent' },
   { value: 'a2a/a2a_contact_extractor', label: 'Contact Extractor Agent' },
   { value: 'a2a/a2a_currency_converter', label: 'Currency Converter Agent' },
-  { value: 'a2a/cheerup_agent', label: 'Cheerup Agent' },
+  { value: 'a2a/file_organizer', label: 'File Organizer Agent' },
   { value: 'a2a/generic_agent', label: 'Generic Agent' },
   { value: 'a2a/git_issue_agent', label: 'Git Issue Agent' },
-  { value: 'a2a/file_organizer', label: 'File Organizer Agent' },
   { value: 'a2a/image_service', label: 'Image Service Agent' },
   { value: 'a2a/recipe_agent', label: 'Recipe Agent' },
   { value: 'a2a/reservation_service', label: 'Reservation Service Agent' },
-  { value: 'a2a/slack_researcher', label: 'Slack Researcher Agent' },
   { value: 'a2a/simple_generalist', label: 'Simple Generalist Agent' },
+  { value: 'a2a/slack_researcher', label: 'Slack Researcher Agent' },
   { value: 'a2a/trivia_agent', label: 'Trivia Agent' },
   { value: 'a2a/weather_service', label: 'Weather Service Agent' },
 ];
