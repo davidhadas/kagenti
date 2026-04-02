@@ -65,7 +65,6 @@ interface PromptMessage { role: string; preview: string }
 
 const PromptBlock: React.FC<{ systemPrompt?: string; promptMessages?: PromptMessage[]; onOpenInspector?: (title: string, data: Partial<AgentLoopStep>) => void }> = ({ systemPrompt, promptMessages, onOpenInspector }) => {
   const [expanded, setExpanded] = useState(false);
-  console.log('[PromptBlock] systemPrompt:', !!systemPrompt, 'msgs:', promptMessages?.length);
   if (!systemPrompt && (!promptMessages || promptMessages.length === 0)) return null;
 
   const msgCount = promptMessages?.length || 0;

@@ -331,7 +331,6 @@ export const AgentChat: React.FC<AgentChatProps> = ({ namespace, name }) => {
           body: JSON.stringify({ message, session_id: sessionId }),
         }
       );
-      console.log(`[AgentChat] HITL ${action} sent for task ${taskId}`);
     } catch (error) {
       console.error(`[AgentChat] Failed to send HITL ${action}:`, error);
     }

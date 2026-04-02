@@ -1,6 +1,8 @@
 // Copyright 2025 IBM Corp.
 // Licensed under the Apache License, Version 2.0
 
+// Note: @xyflow/react and dagre dependencies are declared in the UI build PR (#993)
+
 /**
  * EventSubtypeGraphView — ReactFlow DAG where each node is an event subtype.
  *
