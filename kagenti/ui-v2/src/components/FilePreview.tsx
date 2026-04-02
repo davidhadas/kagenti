@@ -93,7 +93,8 @@ const MermaidBlock: React.FC<{ chart: string }> = ({ chart }) => {
       const id = `mermaid-block-${++mermaidCounter}`;
       const { svg } = await mermaid.render(id, chart);
       if (containerRef.current) {
-        // Mermaid v10+ sanitizes SVG via DOMPurify internally
+        // Mermaid v10+ uses DOMPurify internally for SVG sanitization.
+        // If using mermaid <v10, add explicit DOMPurify.
         containerRef.current.innerHTML = svg;
       }
     } catch {

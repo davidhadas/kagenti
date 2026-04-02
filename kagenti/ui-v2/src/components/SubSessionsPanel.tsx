@@ -152,10 +152,12 @@ export const useChildSessionCount = (namespace: string, contextId: string | null
   const [count, setCount] = useState(0);
   useEffect(() => {
     if (!contextId) { setCount(0); return; }
+    let cancelled = false;
     sandboxService
       .getChildSessions(namespace, contextId)
-      .then((result) => setCount(result.length))
-      .catch(() => setCount(0));
+      .then((result) => { if (!cancelled) setCount(result.length); })
+      .catch(() => { if (!cancelled) setCount(0); });
+    return () => { cancelled = true; };
   }, [namespace, contextId]);
   return count;
 };
