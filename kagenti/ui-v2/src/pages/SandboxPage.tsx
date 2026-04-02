@@ -1538,7 +1538,7 @@ export const SandboxPage: React.FC = () => {
             await pollSession(attempt + 1);
           }
         };
-        pollSession(0);
+        pollSession(0).catch(() => { /* prevent unhandled promise rejection */ });
       } else {
         setError(msg);
         sessionDispatch({

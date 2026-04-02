@@ -23,6 +23,7 @@ import { AdminPage } from './pages/AdminPage';
 import { IntegrationsPage } from './pages/IntegrationsPage';
 import { IntegrationDetailPage } from './pages/IntegrationDetailPage';
 import { AddIntegrationPage } from './pages/AddIntegrationPage';
+// These components are added by PRs #988 (graph) and #989 (file browser)
 import { FileBrowser } from './components/FileBrowser';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { SandboxPage } from './pages/SandboxPage';
