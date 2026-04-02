@@ -18,7 +18,10 @@ import logging
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
+
+if TYPE_CHECKING:
+    from app.services.sidecars.looper import LooperAnalyzer
 
 logger = logging.getLogger(__name__)
 
