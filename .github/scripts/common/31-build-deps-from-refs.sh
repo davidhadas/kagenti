@@ -14,8 +14,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib/env-detect.sh"
 source "$SCRIPT_DIR/../lib/logging.sh"
-# Note that we must set SCRIPT_DIR again *after* running the above scripts,
-# as they override SCRIPT_DIR.
+# Note that we set SCRIPT_DIR again *after* running the above scripts,
+# as env-detect.sh overrides SCRIPT_DIR.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # No hardcoded defaults — chart deps are up-to-date (webhook v0.4.0-alpha.9).
