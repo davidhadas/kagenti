@@ -1958,8 +1958,14 @@ def _build_env_vars(request: "CreateAgentRequest") -> List[dict]:
         List of environment variable dictionaries.
     """
     env_vars = list(DEFAULT_ENV_VARS)
+    service_port = (
+        request.servicePorts[0].port if request.servicePorts else DEFAULT_OFF_CLUSTER_PORT
+    )
     env_vars.append(
-        {"name": AGENT_ENDPOINT, "value": get_agent_url(request.name, request.namespace)}
+        {
+            "name": AGENT_ENDPOINT,
+            "value": get_agent_url(request.name, request.namespace, service_port),
+        }
     )
     if request.envVars:
         for ev in request.envVars:
