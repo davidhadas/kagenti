@@ -347,6 +347,10 @@ rules:
   - apiGroups: ["agent.kagenti.dev"]
     resources: ["agents"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # AgentRuntime CRs trigger sidecar injection by the AuthBridge webhook
+  - apiGroups: ["agent.kagenti.dev"]
+    resources: ["agentruntimes"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Shipwright build resources for building agents and tools from source
   - apiGroups: ["shipwright.io"]
     resources: ["builds", "buildruns"]

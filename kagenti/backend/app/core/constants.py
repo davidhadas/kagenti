@@ -11,6 +11,7 @@ from app.core.config import settings
 CRD_GROUP = settings.crd_group
 CRD_VERSION = settings.crd_version
 AGENTS_PLURAL = settings.agents_plural
+AGENTRUNTIMES_PLURAL = "agentruntimes"
 
 # Labels - Keys
 KAGENTI_TYPE_LABEL = settings.kagenti_type_label
