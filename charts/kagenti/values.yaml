@@ -19,8 +19,6 @@ components:
     enabled: true
   agentOperator:
     enabled: true
-  platformWebhook:
-    enabled: true
   ui:
     enabled: true
   istio:
@@ -180,32 +178,21 @@ keycloak:
     accessTokenLifespan: 1800
 
 # ------------------------------------------------------------------
-#  Kagenti Webhook Configuration
-# ------------------------------------------------------------------
-# Pin sidecar image tags to the webhook chart version to prevent
-# breakage when :latest is updated by newer kagenti-extensions builds.
-# These MUST be updated together with the chart version in Chart.yaml.
-kagenti-webhook-chart:
-  defaults:
-    images:
-      envoyProxy: ghcr.io/kagenti/kagenti-extensions/envoy-with-processor:v0.4.0-alpha.10
-      proxyInit: ghcr.io/kagenti/kagenti-extensions/proxy-init:v0.4.0-alpha.10
-      spiffeHelper: ghcr.io/kagenti/kagenti-extensions/spiffe-helper:v0.4.0-alpha.10
-      clientRegistration: ghcr.io/kagenti/kagenti-extensions/client-registration:v0.4.0-alpha.10
-
-# ------------------------------------------------------------------
-#  Kagenti Operator Configuration
+#  Kagenti Operator Configuration (includes AuthBridge webhook)
 # ------------------------------------------------------------------
 kagenti-operator-chart:
   controllerManager:
     container:
       image:
-        tag: 0.2.0-alpha.22
+        tag: 0.2.0-alpha.24
       args:
       - "--leader-elect"
       - "--metrics-bind-address=:8443"
       - "--health-probe-bind-address=:8081"
       - "--webhook-cert-path=/tmp/k8s-webhook-server/serving-certs"
+      - "--config-path=/etc/kagenti/config.yaml"
+      - "--feature-gates-path=/etc/kagenti/feature-gates/feature-gates.yaml"
+      - "--enable-client-registration=true"
       resources:
         limits:
           cpu: 150m
@@ -213,6 +200,13 @@ kagenti-operator-chart:
         requests:
           cpu: 50m
           memory: 128Mi
+  # Pin sidecar image tags injected by the AuthBridge webhook.
+  defaults:
+    images:
+      envoyProxy: ghcr.io/kagenti/kagenti-extensions/envoy-with-processor:v0.4.0-alpha.10
+      proxyInit: ghcr.io/kagenti/kagenti-extensions/proxy-init:v0.4.0-alpha.10
+      spiffeHelper: ghcr.io/kagenti/kagenti-extensions/spiffe-helper:v0.4.0-alpha.10
+      clientRegistration: ghcr.io/kagenti/kagenti-extensions/client-registration:v0.4.0-alpha.10
 
 # ------------------------------------------------------------------
 #  MCP Gateway Configuration
