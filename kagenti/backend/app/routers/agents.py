@@ -844,7 +844,7 @@ async def delete_agent(
         if e.status == 404:
             pass
         else:
-            logger.warning(f"Failed to delete AgentRuntime '{name}': {e.reason}")
+            logger.warning("Failed to delete AgentRuntime '%s': %s", name, e.reason)
 
     # Legacy cleanup: Delete the Agent CR if it exists
     try:
@@ -2115,12 +2115,12 @@ def _ensure_agentruntime(
             plural=AGENTRUNTIMES_PLURAL,
             body=manifest,
         )
-        logger.info(f"Created AgentRuntime '{name}' in namespace '{namespace}'")
+        logger.info("Created AgentRuntime '%s' in namespace '%s'", name, namespace)
     except ApiException as e:
         if e.status == 409:
-            logger.info(f"AgentRuntime '{name}' already exists in namespace '{namespace}'")
+            logger.info("AgentRuntime '%s' already exists in namespace '%s'", name, namespace)
         else:
-            logger.warning(f"Failed to create AgentRuntime '{name}': {e.reason}")
+            logger.warning("Failed to create AgentRuntime '%s': %s", name, e.reason)
 
 
 def _build_deployment_manifest(
