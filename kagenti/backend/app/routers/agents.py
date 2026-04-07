@@ -9,15 +9,6 @@ import json
 import logging
 import re
 import socket
-
-_CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
-
-
-def _sanitize_for_log(value: str) -> str:
-    """Strip control characters to prevent log injection."""
-    return _CONTROL_CHAR_RE.sub("", str(value))
-
-
 import ipaddress
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -853,11 +844,7 @@ async def delete_agent(
         if e.status == 404:
             pass
         else:
-            logger.warning(
-                "Failed to delete AgentRuntime '%s': %s",
-                _sanitize_for_log(name),
-                _sanitize_for_log(e.reason),
-            )
+            logger.warning("Failed to delete AgentRuntime")
 
     # Legacy cleanup: Delete the Agent CR if it exists
     try:
@@ -2128,24 +2115,12 @@ def _ensure_agentruntime(
             plural=AGENTRUNTIMES_PLURAL,
             body=manifest,
         )
-        logger.info(
-            "Created AgentRuntime '%s' in namespace '%s'",
-            _sanitize_for_log(name),
-            _sanitize_for_log(namespace),
-        )
+        logger.info("Created AgentRuntime")
     except ApiException as e:
         if e.status == 409:
-            logger.info(
-                "AgentRuntime '%s' already exists in namespace '%s'",
-                _sanitize_for_log(name),
-                _sanitize_for_log(namespace),
-            )
+            logger.info("AgentRuntime already exists")
         else:
-            logger.warning(
-                "Failed to create AgentRuntime '%s': %s",
-                _sanitize_for_log(name),
-                _sanitize_for_log(e.reason),
-            )
+            logger.warning("Failed to create AgentRuntime")
 
 
 def _build_deployment_manifest(
