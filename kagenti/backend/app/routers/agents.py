@@ -9,6 +9,8 @@ import json
 import logging
 import re
 import socket
+
+_CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
 import ipaddress
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -844,7 +846,11 @@ async def delete_agent(
         if e.status == 404:
             pass
         else:
-            logger.warning("Failed to delete AgentRuntime '%s': %s", name, e.reason)
+            logger.warning(
+                "Failed to delete AgentRuntime '%s': %s",
+                _CONTROL_CHAR_RE.sub("", name),
+                _CONTROL_CHAR_RE.sub("", str(e.reason)),
+            )
 
     # Legacy cleanup: Delete the Agent CR if it exists
     try:
@@ -2115,12 +2121,24 @@ def _ensure_agentruntime(
             plural=AGENTRUNTIMES_PLURAL,
             body=manifest,
         )
-        logger.info("Created AgentRuntime '%s' in namespace '%s'", name, namespace)
+        logger.info(
+            "Created AgentRuntime '%s' in namespace '%s'",
+            _CONTROL_CHAR_RE.sub("", name),
+            _CONTROL_CHAR_RE.sub("", namespace),
+        )
     except ApiException as e:
         if e.status == 409:
-            logger.info("AgentRuntime '%s' already exists in namespace '%s'", name, namespace)
+            logger.info(
+                "AgentRuntime '%s' already exists in namespace '%s'",
+                _CONTROL_CHAR_RE.sub("", name),
+                _CONTROL_CHAR_RE.sub("", namespace),
+            )
         else:
-            logger.warning("Failed to create AgentRuntime '%s': %s", name, e.reason)
+            logger.warning(
+                "Failed to create AgentRuntime '%s': %s",
+                _CONTROL_CHAR_RE.sub("", name),
+                _CONTROL_CHAR_RE.sub("", str(e.reason)),
+            )
 
 
 def _build_deployment_manifest(
