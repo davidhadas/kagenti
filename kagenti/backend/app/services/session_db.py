@@ -75,31 +75,24 @@ def _read_secret(namespace: str) -> Optional[Dict[str, str]]:
                 return None
             decoded[key] = base64.b64decode(raw).decode("utf-8")
         return decoded
-    except Exception as exc:
-        logger.debug(
-            "Secret %s not found in %s: %s", SESSION_SECRET_NAME, namespace, type(exc).__name__
-        )
+    except Exception:
         return None
 
 
 def _dsn_for_namespace(namespace: str) -> str:
     """Build a DSN from the namespace secret, falling back to convention."""
     creds = _read_secret(namespace)
-    if creds:
-        logger.info(
-            "Using DB credentials from secret for namespace=%s",
-            namespace,
-        )
-        return (
-            f"postgresql://{creds['username']}:{creds['password']}"
-            f"@{creds['host']}:{creds['port']}/{creds['database']}"
-        )
-    # Convention-based fallback
-    logger.warning(
-        "Secret %s not found in %s — using convention-based fallback",
-        SESSION_SECRET_NAME,
-        namespace,
+    if not creds:
+        return _convention_dsn(namespace)
+    return (
+        f"postgresql://{creds['username']}:{creds['password']}"
+        f"@{creds['host']}:{creds['port']}/{creds['database']}"
     )
+
+
+def _convention_dsn(namespace: str) -> str:
+    """Convention-based DSN when no secret is available."""
+    logger.warning("Using convention-based DB fallback for namespace=%s", namespace)
     return f"postgresql://kagenti:kagenti@postgres-sessions.{namespace}:5432/sessions"
 
 
