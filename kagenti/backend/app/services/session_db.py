@@ -76,7 +76,9 @@ def _read_secret(namespace: str) -> Optional[Dict[str, str]]:
             decoded[key] = base64.b64decode(raw).decode("utf-8")
         return decoded
     except Exception as exc:
-        logger.debug("Secret %s not found in %s: %s", SESSION_SECRET_NAME, namespace, exc)
+        logger.debug(
+            "Secret %s not found in %s: %s", SESSION_SECRET_NAME, namespace, type(exc).__name__
+        )
         return None
 
 
@@ -85,9 +87,8 @@ def _dsn_for_namespace(namespace: str) -> str:
     creds = _read_secret(namespace)
     if creds:
         logger.info(
-            "Using DB credentials from secret for namespace=%s (host=%s)",
+            "Using DB credentials from secret for namespace=%s",
             namespace,
-            creds["host"],
         )
         return (
             f"postgresql://{creds['username']}:{creds['password']}"
