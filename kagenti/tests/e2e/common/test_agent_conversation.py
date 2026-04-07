@@ -286,9 +286,17 @@ class TestWeatherAgentConversation:
 
             if last_result["task_failed"]:
                 error_text = last_result["full_response"][:_DIAG_ERROR_LIMIT]
-                # Retry on transient MCP connectivity failures — the weather-tool
-                # pod may still be initializing when the test starts.
-                if "Cannot connect" in error_text and attempt < _LLM_QUERY_MAX_ATTEMPTS:
+                # Retry on transient failures — the weather-tool pod may still
+                # be initializing, or the LLM/tool may return transient errors.
+                _TRANSIENT_ERRORS = (
+                    "Cannot connect",
+                    "Expecting value",
+                    "Error calling tool",
+                )
+                if (
+                    any(err in error_text for err in _TRANSIENT_ERRORS)
+                    and attempt < _LLM_QUERY_MAX_ATTEMPTS
+                ):
                     logger.warning(
                         "MCP connectivity error on attempt %d/%d, retrying in %ds...\n  %s",
                         attempt,
