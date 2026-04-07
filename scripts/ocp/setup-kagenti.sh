@@ -301,45 +301,25 @@ _wait_kagenti_deps_ready() {
     log_warn "istiod rollout not ready within 5m"
 }
 
-_helm_kagenti_deps() {
-  # Pre-flight: ensure namespaces managed by this chart are not stuck terminating
-  # from a previous failed install/uninstall cycle
-  for _ns in keycloak istio-cni istio-system istio-ztunnel; do
-    _wait_ns_gone "$_ns"
+# Apply operand CRs that --no-hooks skipped.
+# Called on both fresh install AND upgrade so reruns fix missing CRs.
+_apply_operand_crs() {
+  if $DRY_RUN; then return; fi
+
+  # Wait for the Keycloak CRD before applying — the operator subscription was
+  # just installed and needs time to register the CRD.
+  log_info "Waiting for Keycloak CRD..."
+  local tries=0
+  while ! $KUBECTL get crd keycloaks.k8s.keycloak.org &>/dev/null; do
+    tries=$((tries + 1))
+    if [ $tries -ge 60 ]; then
+      log_warn "Keycloak CRD not found after 5m — Keycloak CR will not be created"
+      return 0
+    fi
+    sleep 5
   done
+  log_success "Keycloak CRD available"
 
-  if helm status kagenti-deps -n kagenti-system &>/dev/null; then
-    # Upgrade path: skip hooks (operands already exist, and the kiali hook will fail
-    # on any cluster where cluster-monitoring-config is managed by another operator)
-    log_info "kagenti-deps already installed — upgrading (hooks skipped)"
-    run_cmd helm upgrade kagenti-deps "$KAGENTI_REPO/charts/kagenti-deps/" \
-      -n kagenti-system \
-      --set spire.trustDomain="${DOMAIN}" \
-      --set components.kiali.enabled=false \
-      --set components.rhoai.enabled=true \
-      --set components.mlflow.enabled=false \
-      --set components.shipwright.enabled=false \
-      --set mlflow.auth.enabled=false \
-      --no-hooks
-    _wait_kagenti_deps_ready
-    return $?
-  fi
-
-  # Fresh install: skip hooks (they commonly timeout or conflict with managed
-  # operators like cluster-monitoring-config). Operand CRs are applied manually after.
-  log_info "Installing kagenti-deps..."
-  run_cmd helm dependency update "$KAGENTI_REPO/charts/kagenti-deps/"
-  run_cmd helm install kagenti-deps "$KAGENTI_REPO/charts/kagenti-deps/" \
-    -n kagenti-system --create-namespace \
-    --set spire.trustDomain="${DOMAIN}" \
-    --set components.kiali.enabled=false \
-    --set components.rhoai.enabled=true \
-    --set components.mlflow.enabled=false \
-    --set components.shipwright.enabled=false \
-    --set mlflow.auth.enabled=false \
-    --no-hooks
-
-  # Apply operand CRs that --no-hooks skipped (excluding the conflicting ConfigMap).
   log_info "Applying operand CRs..."
   helm get hooks kagenti-deps -n kagenti-system 2>/dev/null | python3 -c "
 import sys
@@ -361,7 +341,8 @@ for doc in docs:
              if 'helm.sh/hook' not in l and 'helm.sh/hook-weight' not in l and 'helm.sh/hook-delete-policy' not in l]
     print('---')
     print('\n'.join(lines))
-" | $KUBECTL apply -f - 2>/dev/null || true
+" | $KUBECTL apply -f -
+
   # Create otel-ingress-ca ConfigMap (normally done by pre-install hook Job,
   # skipped by --no-hooks). MLflow and OTEL collector need this to verify
   # Keycloak's TLS certificate via the OpenShift ingress CA.
@@ -384,7 +365,50 @@ for doc in docs:
       log_warn "Could not fetch ingress CA — otel-ingress-ca ConfigMap not created"
     fi
   fi
+}
 
+_helm_kagenti_deps() {
+  # Pre-flight: ensure namespaces managed by this chart are not stuck terminating
+  # from a previous failed install/uninstall cycle
+  for _ns in keycloak istio-cni istio-system istio-ztunnel; do
+    _wait_ns_gone "$_ns"
+  done
+
+  if helm status kagenti-deps -n kagenti-system &>/dev/null; then
+    # Upgrade path: skip hooks (the kiali hook will fail on any cluster where
+    # cluster-monitoring-config is managed by another operator)
+    log_info "kagenti-deps already installed — upgrading (hooks skipped)"
+    run_cmd helm upgrade kagenti-deps "$KAGENTI_REPO/charts/kagenti-deps/" \
+      -n kagenti-system \
+      --set spire.trustDomain="${DOMAIN}" \
+      --set components.kiali.enabled=false \
+      --set components.rhoai.enabled=true \
+      --set components.mlflow.enabled=false \
+      --set components.shipwright.enabled=false \
+      --set mlflow.auth.enabled=false \
+      --no-hooks
+    # Apply operand CRs on upgrade too — catches CRs missed by a previous
+    # failed install (e.g. Keycloak CRD wasn't ready yet on first run)
+    _apply_operand_crs
+    _wait_kagenti_deps_ready
+    return $?
+  fi
+
+  # Fresh install: skip hooks (they commonly timeout or conflict with managed
+  # operators like cluster-monitoring-config). Operand CRs are applied manually after.
+  log_info "Installing kagenti-deps..."
+  run_cmd helm dependency update "$KAGENTI_REPO/charts/kagenti-deps/"
+  run_cmd helm install kagenti-deps "$KAGENTI_REPO/charts/kagenti-deps/" \
+    -n kagenti-system --create-namespace \
+    --set spire.trustDomain="${DOMAIN}" \
+    --set components.kiali.enabled=false \
+    --set components.rhoai.enabled=true \
+    --set components.mlflow.enabled=false \
+    --set components.shipwright.enabled=false \
+    --set mlflow.auth.enabled=false \
+    --no-hooks
+
+  _apply_operand_crs
   _wait_kagenti_deps_ready
 }
 _helm_kagenti_deps
@@ -687,6 +711,31 @@ run_cmd helm upgrade --install kagenti "$KAGENTI_REPO/charts/kagenti/" \
   --set mlflow.auth.enabled=false \
   --set "keycloak.publicUrl=${KEYCLOAK_PUBLIC_URL}" \
   --set "keycloak.realm=${KC_REALM}"
+
+# Wait for the UI OAuth secret job to complete so that AUTH_ENDPOINT is populated
+# in the secret. Without this, the backend falls back to the internal KEYCLOAK_URL
+# and the browser gets redirected to the in-cluster service URL.
+if ! $SKIP_UI && ! $DRY_RUN; then
+  log_info "Waiting for OAuth secret job to complete..."
+  $KUBECTL wait --for=condition=complete job/kagenti-ui-oauth-secret-job \
+    -n kagenti-system --timeout=300s 2>/dev/null || \
+    log_warn "OAuth secret job did not complete within 5m — auth redirects may use internal URL"
+
+  # Verify the secret has the correct AUTH_ENDPOINT (should be the public route URL)
+  _auth_ep=$($KUBECTL get secret kagenti-ui-oauth-secret -n kagenti-system \
+    -o jsonpath='{.data.AUTH_ENDPOINT}' 2>/dev/null | base64 -d 2>/dev/null || echo "")
+  if [ -n "$_auth_ep" ]; then
+    log_success "AUTH_ENDPOINT: $_auth_ep"
+  else
+    log_warn "AUTH_ENDPOINT not found in kagenti-ui-oauth-secret — login redirects will fail"
+  fi
+
+  # Restart backend so it picks up the OAuth secret (the secret may have been
+  # created after the backend pod started with optional: true env vars)
+  log_info "Restarting backend to pick up OAuth secret..."
+  $KUBECTL rollout restart deployment/kagenti-backend -n kagenti-system 2>/dev/null || true
+  $KUBECTL rollout status deployment/kagenti-backend -n kagenti-system --timeout=120s 2>/dev/null || true
+fi
 
 log_success "Kagenti installed"
 echo ""
