@@ -292,6 +292,9 @@ class TestWeatherAgentConversation:
                     "Cannot connect",
                     "Expecting value",
                     "Error calling tool",
+                    "timed out",
+                    "Read timed out",
+                    "ConnectionPool",
                 )
                 if (
                     any(err in error_text for err in _TRANSIENT_ERRORS)
