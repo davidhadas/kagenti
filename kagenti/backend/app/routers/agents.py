@@ -11,6 +11,13 @@ import re
 import socket
 
 _CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _sanitize_for_log(value: str) -> str:
+    """Strip control characters to prevent log injection."""
+    return _CONTROL_CHAR_RE.sub("", str(value))
+
+
 import ipaddress
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -848,8 +855,8 @@ async def delete_agent(
         else:
             logger.warning(
                 "Failed to delete AgentRuntime '%s': %s",
-                _CONTROL_CHAR_RE.sub("", name),
-                _CONTROL_CHAR_RE.sub("", str(e.reason)),
+                _sanitize_for_log(name),
+                _sanitize_for_log(e.reason),
             )
 
     # Legacy cleanup: Delete the Agent CR if it exists
@@ -2123,21 +2130,21 @@ def _ensure_agentruntime(
         )
         logger.info(
             "Created AgentRuntime '%s' in namespace '%s'",
-            _CONTROL_CHAR_RE.sub("", name),
-            _CONTROL_CHAR_RE.sub("", namespace),
+            _sanitize_for_log(name),
+            _sanitize_for_log(namespace),
         )
     except ApiException as e:
         if e.status == 409:
             logger.info(
                 "AgentRuntime '%s' already exists in namespace '%s'",
-                _CONTROL_CHAR_RE.sub("", name),
-                _CONTROL_CHAR_RE.sub("", namespace),
+                _sanitize_for_log(name),
+                _sanitize_for_log(namespace),
             )
         else:
             logger.warning(
                 "Failed to create AgentRuntime '%s': %s",
-                _CONTROL_CHAR_RE.sub("", name),
-                _CONTROL_CHAR_RE.sub("", str(e.reason)),
+                _sanitize_for_log(name),
+                _sanitize_for_log(e.reason),
             )
 
 
