@@ -238,10 +238,10 @@ async def _check_budget(
             error_message=msg,
         )
         logger.warning(
-            "Budget exceeded for session %s: %d/%d",
+            "Budget exceeded for session %s: %d/%s",
             _safe(session_id[:12]),
             used,
-            max_tokens,
+            _safe(max_tokens),
         )
         return JSONResponse(
             status_code=402,
@@ -269,12 +269,12 @@ async def chat_completions(request: Request):
     max_tokens = meta["max_session_tokens"] or DEFAULT_SESSION_MAX_TOKENS
 
     logger.info(
-        "LLM request: session=%s agent=%s model=%s stream=%s max_tokens=%d",
+        "LLM request: session=%s agent=%s model=%s stream=%s max_tokens=%s",
         _safe(session_id[:12]) if session_id else "none",
         _safe(meta["agent_name"]) or "unknown",
         _safe(model),
         _safe(body.get("stream", False)),
-        max_tokens,
+        _safe(max_tokens),
     )
 
     # Budget check
