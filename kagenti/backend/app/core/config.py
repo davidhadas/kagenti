@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     crd_group: str = "agent.kagenti.dev"
     crd_version: str = "v1alpha1"
     agents_plural: str = "agents"
+    agentruntimes_plural: str = "agentruntimes"
 
     # Shipwright build settings
     shipwright_default_strategy: str = "buildah-insecure-push"  # Default for dev
