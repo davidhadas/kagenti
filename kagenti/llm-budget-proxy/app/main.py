@@ -210,13 +210,7 @@ async def _record_call(
     # Invalidate cache so next check sees updated tokens
     _session_cache.pop(session_id, None)
     if total_tokens > 0:
-        logger.info(
-            "Recorded: session=%s agent=%s tokens=%d status=%s",
-            _safe(session_id[:12]) if session_id else "none",
-            _safe(agent_name) or "unknown",
-            total_tokens,
-            _safe(status),
-        )
+        logger.info("Recorded: tokens=%d status=%s", total_tokens, status or "ok")
 
 
 async def _check_budget(
@@ -237,12 +231,7 @@ async def _check_budget(
             status="budget_exceeded",
             error_message=msg,
         )
-        logger.warning(
-            "Budget exceeded for session %s: %d/%s",
-            _safe(session_id[:12]),
-            used,
-            _safe(max_tokens),
-        )
+        logger.warning("Budget exceeded: %d/%d tokens", used, max_tokens)
         return JSONResponse(
             status_code=402,
             content={
@@ -269,12 +258,9 @@ async def chat_completions(request: Request):
     max_tokens = meta["max_session_tokens"] or DEFAULT_SESSION_MAX_TOKENS
 
     logger.info(
-        "LLM request: session=%s agent=%s model=%s stream=%s max_tokens=%s",
-        _safe(session_id[:12]) if session_id else "none",
-        _safe(meta["agent_name"]) or "unknown",
-        _safe(model),
-        _safe(body.get("stream", False)),
-        _safe(max_tokens),
+        "LLM request: stream=%s max_tokens=%d",
+        bool(body.get("stream")),
+        max_tokens,
     )
 
     # Budget check
