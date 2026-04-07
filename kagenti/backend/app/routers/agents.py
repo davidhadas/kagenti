@@ -844,7 +844,7 @@ async def delete_agent(
         if e.status == 404:
             pass
         else:
-            logger.warning("Failed to delete AgentRuntime")
+            logger.warning("Failed to delete AgentRuntime '%s': %s", name, e.reason)
 
     # Legacy cleanup: Delete the Agent CR if it exists
     try:
@@ -2074,7 +2074,6 @@ def _build_agentruntime_manifest(
     kind_map = {
         WORKLOAD_TYPE_DEPLOYMENT: "Deployment",
         WORKLOAD_TYPE_STATEFULSET: "StatefulSet",
-        WORKLOAD_TYPE_JOB: "Job",
     }
     return {
         "apiVersion": f"{CRD_GROUP}/{CRD_VERSION}",
@@ -2115,12 +2114,12 @@ def _ensure_agentruntime(
             plural=AGENTRUNTIMES_PLURAL,
             body=manifest,
         )
-        logger.info("Created AgentRuntime")
+        logger.info("Created AgentRuntime '%s' in namespace '%s'", name, namespace)
     except ApiException as e:
         if e.status == 409:
-            logger.info("AgentRuntime already exists")
+            logger.info("AgentRuntime '%s' already exists in namespace '%s'", name, namespace)
         else:
-            logger.warning("Failed to create AgentRuntime")
+            logger.warning("Failed to create AgentRuntime '%s': %s", name, e.reason)
 
 
 def _build_deployment_manifest(
@@ -2992,7 +2991,9 @@ async def finalize_shipwright_build(
             logger.info(f"Created Service '{name}' in namespace '{namespace}'")
 
         # Create AgentRuntime CR so the webhook injects sidecars on pod rollout
-        if final_workload_type != WORKLOAD_TYPE_JOB:
+        # Only for agents — tools don't need sidecar injection
+        resource_type = build_labels.get(KAGENTI_TYPE_LABEL, RESOURCE_TYPE_AGENT)
+        if final_workload_type != WORKLOAD_TYPE_JOB and resource_type == RESOURCE_TYPE_AGENT:
             _ensure_agentruntime(
                 kube=kube,
                 name=name,

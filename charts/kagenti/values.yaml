@@ -185,6 +185,7 @@ kagenti-operator-chart:
     container:
       image:
         tag: 0.2.0-alpha.24
+      cmd: /manager
       args:
       - "--leader-elect"
       - "--metrics-bind-address=:8443"
