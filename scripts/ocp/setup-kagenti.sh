@@ -5,7 +5,10 @@
 # Installs the Kagenti stack (SPIRE, cert-manager, Keycloak, operator, webhook,
 # MCP Gateway) on an OpenShift cluster. Run this BEFORE setup.sh --with-a2a.
 # Prometheus/Kiali are disabled. UI/backend installed by default (use --skip-ui to disable).
-# MLflow/Shipwright disabled (not needed).
+# Shipwright disabled by default.
+#
+# MLflow: provisions an MLflow instance via RHOAI's DSC mlflowoperator
+# and wires the OTEL collector to export traces to it.
 #
 # Usage:
 #   ./scripts/ocp/setup-kagenti.sh                              # Auto-clones kagenti main to ~/.cache/kagenti
@@ -42,6 +45,9 @@ SKIP_UI=false
 SHOW_SECRETS=false
 MCP_GATEWAY_VERSION="0.5.1"
 DRY_RUN=false
+MLFLOW_NAMESPACE="redhat-ods-applications"
+MLFLOW_INSTANCE_NAME="mlflow"
+MLFLOW_TRACES_ENDPOINT=""
 
 # Colors
 RED='\033[0;31m'
@@ -233,6 +239,154 @@ log_success "Trust domain: $DOMAIN"
 echo ""
 
 # ============================================================================
+# Step 2.5: MLflow via RHOAI DSC
+# ============================================================================
+#
+# Verifies that RHOAI's DataScienceCluster has the mlflowoperator managed,
+# creates an MLflow CR if one does not already exist, then waits for the
+# Service and pod to be ready. Sets MLFLOW_TRACES_ENDPOINT for use by the
+# kagenti-deps Helm install that follows.
+
+_mlflow_check_dsc() {
+  log_info "Checking RHOAI DSC mlflowoperator..."
+  local state
+  state=$($KUBECTL get datasciencecluster default-dsc \
+    -o jsonpath='{.spec.components.mlflowoperator.managementState}' 2>/dev/null || echo "")
+  if [ "$state" != "Managed" ]; then
+    log_error "RHOAI DSC mlflowoperator is not Managed (got: '${state:-<not set>}')"
+    log_error "Patch your DataScienceCluster:"
+    log_error "  kubectl patch datasciencecluster default-dsc --type=merge \\"
+    log_error "    -p '{\"spec\":{\"components\":{\"mlflowoperator\":{\"managementState\":\"Managed\"}}}}'"
+    exit 1
+  fi
+  log_success "RHOAI DSC mlflowoperator is Managed"
+}
+
+_mlflow_create_cr() {
+  if $KUBECTL get mlflow "$MLFLOW_INSTANCE_NAME" -n "$MLFLOW_NAMESPACE" &>/dev/null; then
+    log_info "MLflow CR '$MLFLOW_INSTANCE_NAME' already exists in $MLFLOW_NAMESPACE — skipping creation"
+    return 0
+  fi
+  log_info "Creating MLflow CR '$MLFLOW_INSTANCE_NAME' in $MLFLOW_NAMESPACE..."
+  if $DRY_RUN; then
+    echo "  [dry-run] kubectl apply MLflow CR $MLFLOW_INSTANCE_NAME -n $MLFLOW_NAMESPACE"
+    return 0
+  fi
+  $KUBECTL apply -f - <<EOF
+apiVersion: mlflow.opendatahub.io/v1
+kind: MLflow
+metadata:
+  name: ${MLFLOW_INSTANCE_NAME}
+  namespace: ${MLFLOW_NAMESPACE}
+spec:
+  storage:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 10Gi
+  backendStoreUri: "sqlite:////mlflow/mlflow.db"
+  artifactsDestination: "file:///mlflow/artifacts"
+  serveArtifacts: true
+EOF
+  log_success "MLflow CR created"
+}
+
+_mlflow_wait_ready() {
+  if $DRY_RUN; then
+    MLFLOW_TRACES_ENDPOINT="https://${MLFLOW_INSTANCE_NAME}.${MLFLOW_NAMESPACE}.svc.cluster.local:8443/v1/traces"
+    echo "  [dry-run] would wait for MLflow Service and pod in $MLFLOW_NAMESPACE"
+    return 0
+  fi
+
+  log_info "Waiting for MLflow Service to appear in $MLFLOW_NAMESPACE..."
+  local tries=0
+  while ! $KUBECTL get service "$MLFLOW_INSTANCE_NAME" -n "$MLFLOW_NAMESPACE" &>/dev/null; do
+    tries=$((tries + 1))
+    if [ $tries -ge 60 ]; then
+      log_error "MLflow Service '$MLFLOW_INSTANCE_NAME' not found in $MLFLOW_NAMESPACE after 5m"
+      log_error "Check that the mlflowoperator reconciled the CR: kubectl get mlflow -n $MLFLOW_NAMESPACE"
+      exit 1
+    fi
+    sleep 5
+  done
+  log_success "MLflow Service found"
+
+  MLFLOW_TRACES_ENDPOINT="https://${MLFLOW_INSTANCE_NAME}.${MLFLOW_NAMESPACE}.svc.cluster.local:8443/v1/traces"
+  log_success "MLflow traces endpoint: $MLFLOW_TRACES_ENDPOINT"
+
+  log_info "Waiting for MLflow pod to be Running..."
+  tries=0
+  while ! $KUBECTL get pods -n "$MLFLOW_NAMESPACE" \
+      -l "app=${MLFLOW_INSTANCE_NAME}" \
+      -o jsonpath='{.items[0].status.phase}' 2>/dev/null | grep -q "^Running$"; do
+    tries=$((tries + 1))
+    if [ $tries -ge 60 ]; then
+      log_warn "MLflow pod not Running after 5m — proceeding anyway (OTEL will retry)"
+      return 0
+    fi
+    sleep 5
+  done
+
+  # Verify the Service has at least one ready endpoint (pod is actually serving)
+  tries=0
+  while ! $KUBECTL get endpoints "$MLFLOW_INSTANCE_NAME" -n "$MLFLOW_NAMESPACE" \
+      -o jsonpath='{.subsets[0].addresses[0].ip}' 2>/dev/null | grep -q .; do
+    tries=$((tries + 1))
+    if [ $tries -ge 12 ]; then
+      log_warn "MLflow Service has no ready endpoints after 1m — proceeding anyway"
+      return 0
+    fi
+    sleep 5
+  done
+  log_success "MLflow is ready"
+}
+
+_mlflow_grant_otel_rbac() {
+  # The RHOAI MLflow operator creates the mlflow-operator-mlflow-integration ClusterRole
+  # with pseudo-resources (mlflow.kubeflow.org/*) checked via SubjectAccessReview.
+  # The otel-collector SA needs a RoleBinding in each agent namespace (workspace)
+  # so the collector can send traces with the correct workspace context.
+  local cr_name="mlflow-operator-mlflow-integration"
+  if ! $KUBECTL get clusterrole "$cr_name" &>/dev/null; then
+    log_error "ClusterRole '$cr_name' not found — is the RHOAI MLflow operator running?"
+    log_error "The mlflowoperator should create this ClusterRole automatically."
+    return 1
+  fi
+  log_success "ClusterRole $cr_name exists"
+
+  local agent_ns
+  agent_ns=$(python3 -c "
+import yaml, sys
+with open('$KAGENTI_REPO/charts/kagenti/values.yaml') as f:
+    v = yaml.safe_load(f)
+for ns in v.get('agentNamespaces', ['team1', 'team2']):
+    print(ns)
+" 2>/dev/null || echo -e "team1\nteam2")
+
+  while IFS= read -r ns; do
+    [ -z "$ns" ] && continue
+    log_info "Creating MLflow RBAC for otel-collector in $ns..."
+    if $DRY_RUN; then
+      echo "  [dry-run] kubectl create rolebinding otel-collector-mlflow --clusterrole=$cr_name --serviceaccount=kagenti-system:otel-collector -n $ns"
+    else
+      $KUBECTL create rolebinding otel-collector-mlflow \
+        --clusterrole="$cr_name" \
+        --serviceaccount=kagenti-system:otel-collector \
+        -n "$ns" \
+        --dry-run=client -o yaml | $KUBECTL apply -f -
+    fi
+    log_success "RoleBinding otel-collector-mlflow created in $ns"
+  done <<< "$agent_ns"
+}
+
+log_info "Step 2.5: MLflow DSC preflight + provisioning"
+_mlflow_check_dsc
+_mlflow_create_cr
+_mlflow_wait_ready
+echo ""
+
+# ============================================================================
 # Step 3: Install kagenti-deps
 # ============================================================================
 log_info "Step 3: Install kagenti-deps"
@@ -360,30 +514,7 @@ for doc in docs:
              if 'helm.sh/hook' not in l and 'helm.sh/hook-weight' not in l and 'helm.sh/hook-delete-policy' not in l]
     print('---')
     print('\n'.join(lines))
-" | $KUBECTL apply -f -
-
-  # Create otel-ingress-ca ConfigMap (normally done by pre-install hook Job,
-  # skipped by --no-hooks). MLflow and OTEL collector need this to verify
-  # Keycloak's TLS certificate via the OpenShift ingress CA.
-  if ! $KUBECTL get configmap otel-ingress-ca -n kagenti-system &>/dev/null; then
-    log_info "Creating otel-ingress-ca ConfigMap..."
-    INGRESS_CA=$($KUBECTL get configmap default-ingress-cert \
-      -n openshift-config-managed -o jsonpath='{.data.ca-bundle\.crt}' 2>/dev/null || echo "")
-    ROOT_CA=$($KUBECTL get configmap kube-root-ca.crt \
-      -n openshift-config -o jsonpath='{.data.ca\.crt}' 2>/dev/null || echo "")
-    if [ -n "$INGRESS_CA" ]; then
-      CA_BUNDLE="$INGRESS_CA"
-      if [ -n "$ROOT_CA" ]; then
-        CA_BUNDLE="${CA_BUNDLE}"$'\n'"${ROOT_CA}"
-      fi
-      $KUBECTL create configmap otel-ingress-ca \
-        --from-literal=ca-bundle.crt="$CA_BUNDLE" \
-        -n kagenti-system 2>/dev/null || true
-      log_success "otel-ingress-ca ConfigMap created"
-    else
-      log_warn "Could not fetch ingress CA — otel-ingress-ca ConfigMap not created"
-    fi
-  fi
+" | $KUBECTL apply -f - 2>/dev/null || true
 }
 
 _helm_kagenti_deps() {
@@ -392,6 +523,23 @@ _helm_kagenti_deps() {
   for _ns in keycloak istio-cni istio-system istio-ztunnel; do
     _wait_ns_gone "$_ns"
   done
+
+  # Build MLflow OTEL flags: enable the pipeline and point it at the DSC-managed endpoint.
+  local _mlflow_vals_file=""
+  if [ -n "$MLFLOW_TRACES_ENDPOINT" ]; then
+    _mlflow_vals_file=$(mktemp /tmp/kagenti-mlflow-vals-XXXXXX.yaml)
+    cat > "$_mlflow_vals_file" <<EOF
+otel:
+  mlflow:
+    enabled: true
+  collector:
+    mlflowConfig:
+      exporters:
+        otlphttp/mlflow:
+          traces_endpoint: "${MLFLOW_TRACES_ENDPOINT}"
+EOF
+    log_info "MLflow OTEL values: otel.mlflow.enabled=true, endpoint=${MLFLOW_TRACES_ENDPOINT}"
+  fi
 
   if helm status kagenti-deps -n kagenti-system &>/dev/null; then
     # Upgrade path: skip hooks (the kiali hook will fail on any cluster where
@@ -405,10 +553,12 @@ _helm_kagenti_deps() {
       --set components.mlflow.enabled=false \
       --set components.shipwright.enabled=false \
       --set mlflow.auth.enabled=false \
+      ${_mlflow_vals_file:+-f "$_mlflow_vals_file"} \
       --no-hooks
     # Apply operand CRs on upgrade too — catches CRs missed by a previous
     # failed install (e.g. Keycloak CRD wasn't ready yet on first run)
     _apply_operand_crs
+    [ -n "$_mlflow_vals_file" ] && rm -f "$_mlflow_vals_file"
     _wait_kagenti_deps_ready
     return $?
   fi
@@ -425,9 +575,11 @@ _helm_kagenti_deps() {
     --set components.mlflow.enabled=false \
     --set components.shipwright.enabled=false \
     --set mlflow.auth.enabled=false \
+    ${_mlflow_vals_file:+-f "$_mlflow_vals_file"} \
     --no-hooks
 
   _apply_operand_crs
+  [ -n "$_mlflow_vals_file" ] && rm -f "$_mlflow_vals_file"
   _wait_kagenti_deps_ready
 }
 _helm_kagenti_deps
@@ -760,6 +912,9 @@ if ! $SKIP_UI && ! $DRY_RUN; then
 fi
 
 log_success "Kagenti installed"
+
+# Grant otel-collector SA MLflow RBAC in agent namespaces (created by kagenti chart above)
+_mlflow_grant_otel_rbac
 echo ""
 
 # ============================================================================
@@ -852,4 +1007,9 @@ SECS=$(( ELAPSED % 60 ))
 echo ""
 echo "============================================"
 echo "  Kagenti platform is ready!  (Time elapsed:${MINS}m ${SECS}s)"
+echo ""
+echo "  Note: Some pods (SPIRE agents, operator-managed workloads)"
+echo "  may still be starting. Allow a few minutes for all components"
+echo "  to become fully available."
+echo "============================================"
 echo ""

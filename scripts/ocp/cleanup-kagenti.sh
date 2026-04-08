@@ -83,7 +83,8 @@ echo "This will remove:"
 echo "  - Helm releases: kagenti, mcp-gateway, kagenti-deps"
 echo "  - Namespaces: kagenti-system, mcp-system, gateway-system, keycloak, istio-cni,"
 echo "    istio-system, istio-ztunnel, openshift-builds,"
-echo "    zero-trust-workload-identity-manager, cert-manager-operator, cert-manager"
+echo "    zero-trust-workload-identity-manager, cert-manager-operator, cert-manager,"
+echo "    team1, team2"
 echo "  - ClusterIssuers: istio-mesh-root-selfsigned, istio-mesh-ca"
 echo "  - Certificates: istio-mesh-root-ca, istio-cacerts-openshift-gateway"
 echo ""
@@ -192,7 +193,13 @@ PID_MS=$!
 _force_delete_ns gateway-system &
 PID_GS=$!
 
-wait $PID_OB $PID_ZT $PID_MS $PID_GS
+_force_delete_ns team1 &
+PID_T1=$!
+
+_force_delete_ns team2 &
+PID_T2=$!
+
+wait $PID_OB $PID_ZT $PID_MS $PID_GS $PID_T1 $PID_T2
 echo ""
 
 # ---------------------------------------------------------------------------
