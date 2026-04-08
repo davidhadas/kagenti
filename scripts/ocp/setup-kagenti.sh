@@ -486,8 +486,8 @@ _apply_operand_crs() {
   while ! $KUBECTL get crd keycloaks.k8s.keycloak.org &>/dev/null; do
     tries=$((tries + 1))
     if [ $tries -ge 60 ]; then
-      log_warn "Keycloak CRD not found after 5m — Keycloak CR will not be created"
-      return 0
+      log_error "Keycloak CRD not found after 5m — cannot proceed without Keycloak"
+      return 1
     fi
     sleep 5
   done
@@ -885,31 +885,6 @@ run_cmd helm upgrade --install kagenti "$KAGENTI_REPO/charts/kagenti/" \
   --set mlflow.auth.enabled=false \
   --set "keycloak.publicUrl=${KEYCLOAK_PUBLIC_URL}" \
   --set "keycloak.realm=${KC_REALM}"
-
-# Wait for the UI OAuth secret job to complete so that AUTH_ENDPOINT is populated
-# in the secret. Without this, the backend falls back to the internal KEYCLOAK_URL
-# and the browser gets redirected to the in-cluster service URL.
-if ! $SKIP_UI && ! $DRY_RUN; then
-  log_info "Waiting for OAuth secret job to complete..."
-  $KUBECTL wait --for=condition=complete job/kagenti-ui-oauth-secret-job \
-    -n kagenti-system --timeout=300s 2>/dev/null || \
-    log_warn "OAuth secret job did not complete within 5m — auth redirects may use internal URL"
-
-  # Verify the secret has the correct AUTH_ENDPOINT (should be the public route URL)
-  _auth_ep=$($KUBECTL get secret kagenti-ui-oauth-secret -n kagenti-system \
-    -o jsonpath='{.data.AUTH_ENDPOINT}' 2>/dev/null | base64 -d 2>/dev/null || echo "")
-  if [ -n "$_auth_ep" ]; then
-    log_success "AUTH_ENDPOINT: $_auth_ep"
-  else
-    log_warn "AUTH_ENDPOINT not found in kagenti-ui-oauth-secret — login redirects will fail"
-  fi
-
-  # Restart backend so it picks up the OAuth secret (the secret may have been
-  # created after the backend pod started with optional: true env vars)
-  log_info "Restarting backend to pick up OAuth secret..."
-  $KUBECTL rollout restart deployment/kagenti-backend -n kagenti-system 2>/dev/null || true
-  $KUBECTL rollout status deployment/kagenti-backend -n kagenti-system --timeout=120s 2>/dev/null || true
-fi
 
 log_success "Kagenti installed"
 
