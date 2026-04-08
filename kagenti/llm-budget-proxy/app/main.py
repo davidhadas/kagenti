@@ -257,11 +257,8 @@ async def chat_completions(request: Request):
     session_id = meta["session_id"]
     max_tokens = meta["max_session_tokens"] or DEFAULT_SESSION_MAX_TOKENS
 
-    logger.info(
-        "LLM request: stream=%s max_tokens=%d",
-        bool(body.get("stream")),
-        max_tokens,
-    )
+    is_streaming = bool(body.get("stream"))
+    logger.info("LLM request: stream=%s max_tokens=%d", is_streaming, max_tokens)
 
     # Budget check
     budget_resp = await _check_budget(session_id, max_tokens, meta, model)
