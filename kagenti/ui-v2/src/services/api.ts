@@ -232,7 +232,6 @@ export const agentService = {
     outboundPortsExclude?: string;
     inboundPortsExclude?: string;
     defaultOutboundPolicy?: string;
-    expectedAudience?: string;
     shipwrightConfig?: ShipwrightBuildConfig;
   }): Promise<{ success: boolean; name: string; namespace: string; message: string }> {
     return apiFetch('/agents', {
@@ -445,7 +444,6 @@ export const shipwrightService = {
     outboundPortsExclude?: string;
     inboundPortsExclude?: string;
     defaultOutboundPolicy?: string;
-    expectedAudience?: string;
       imagePullSecret?: string;
     }
   ): Promise<{ success: boolean; name: string; namespace: string; message: string }> {
@@ -539,7 +537,6 @@ export const toolService = {
     outboundPortsExclude?: string;
     inboundPortsExclude?: string;
     defaultOutboundPolicy?: string;
-    expectedAudience?: string;
   }): Promise<{ success: boolean; name: string; namespace: string; message: string }> {
     return apiFetch('/tools', {
       method: 'POST',
@@ -677,7 +674,6 @@ export const toolShipwrightService = {
     outboundPortsExclude?: string;
     inboundPortsExclude?: string;
     defaultOutboundPolicy?: string;
-    expectedAudience?: string;
       imagePullSecret?: string;
     }
   ): Promise<{ success: boolean; name: string; namespace: string; message: string }> {

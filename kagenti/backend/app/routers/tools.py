@@ -7,7 +7,7 @@ Tool API endpoints.
 
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from contextlib import AsyncExitStack
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -234,8 +234,7 @@ class CreateToolRequest(BaseModel):
     inboundPortsExclude: Optional[str] = None
 
     # AuthBridge config overrides
-    defaultOutboundPolicy: Optional[str] = None
-    expectedAudience: Optional[str] = None
+    defaultOutboundPolicy: Optional[Literal["passthrough", "exchange"]] = None
 
     # Outbound routing rules (authproxy-routes ConfigMap)
     outboundRoutes: Optional[List["OutboundRoute"]] = None
@@ -259,8 +258,7 @@ class FinalizeToolBuildRequest(BaseModel):
     outboundRoutes: Optional[List[OutboundRoute]] = None
     outboundPortsExclude: Optional[str] = None
     inboundPortsExclude: Optional[str] = None
-    defaultOutboundPolicy: Optional[str] = None
-    expectedAudience: Optional[str] = None
+    defaultOutboundPolicy: Optional[Literal["passthrough", "exchange"]] = None
 
 
 class ToolShipwrightBuildInfoResponse(BaseModel):
@@ -522,8 +520,6 @@ def _build_tool_shipwright_build_manifest(
         resource_config["inboundPortsExclude"] = request.inboundPortsExclude
     if request.defaultOutboundPolicy:
         resource_config["defaultOutboundPolicy"] = request.defaultOutboundPolicy
-    if request.expectedAudience:
-        resource_config["expectedAudience"] = request.expectedAudience
     # Add persistent storage config if present (for StatefulSet)
     if request.persistentStorage:
         resource_config["persistentStorage"] = request.persistentStorage.model_dump()
@@ -1448,12 +1444,10 @@ async def create_tool(
                         namespace=request.namespace,
                         routes=request.outboundRoutes,
                     )
-                if request.defaultOutboundPolicy or request.expectedAudience:
-                    extra = {}
-                    if request.defaultOutboundPolicy:
-                        extra["DEFAULT_OUTBOUND_POLICY"] = request.defaultOutboundPolicy
-                    if request.expectedAudience:
-                        extra["EXPECTED_AUDIENCE"] = request.expectedAudience
+                if final_default_outbound_policy:
+                    extra = {
+                        "DEFAULT_OUTBOUND_POLICY": final_default_outbound_policy,
+                    }
                     kube.upsert_configmap(
                         namespace=request.namespace,
                         name="authbridge-config",
@@ -1880,6 +1874,23 @@ async def finalize_tool_shipwright_build(
             else tool_config_dict.get("clientRegistrationInject")
         )
 
+        # Port exclusion and policy overrides
+        outbound_ports_exclude = (
+            request.outboundPortsExclude
+            if request.outboundPortsExclude is not None
+            else tool_config_dict.get("outboundPortsExclude")
+        )
+        inbound_ports_exclude = (
+            request.inboundPortsExclude
+            if request.inboundPortsExclude is not None
+            else tool_config_dict.get("inboundPortsExclude")
+        )
+        final_default_outbound_policy = (
+            request.defaultOutboundPolicy
+            if request.defaultOutboundPolicy is not None
+            else tool_config_dict.get("defaultOutboundPolicy")
+        )
+
         # Ensure a dedicated ServiceAccount exists so the webhook's
         # SPIFFE identity uses the workload name, not the ReplicaSet hash.
         kube.ensure_service_account(namespace=namespace, name=name)
@@ -1923,8 +1934,8 @@ async def finalize_tool_shipwright_build(
                 envoy_proxy_inject=envoy_proxy_inject,
                 spiffe_helper_inject=spiffe_helper_inject,
                 client_registration_inject=client_registration_inject,
-                outbound_ports_exclude=tool_config_dict.get("outboundPortsExclude"),
-                inbound_ports_exclude=tool_config_dict.get("inboundPortsExclude"),
+                outbound_ports_exclude=outbound_ports_exclude,
+                inbound_ports_exclude=inbound_ports_exclude,
             )
             kube.create_statefulset(namespace, workload_manifest)
             logger.info(
@@ -1948,8 +1959,8 @@ async def finalize_tool_shipwright_build(
                 envoy_proxy_inject=envoy_proxy_inject,
                 spiffe_helper_inject=spiffe_helper_inject,
                 client_registration_inject=client_registration_inject,
-                outbound_ports_exclude=tool_config_dict.get("outboundPortsExclude"),
-                inbound_ports_exclude=tool_config_dict.get("inboundPortsExclude"),
+                outbound_ports_exclude=outbound_ports_exclude,
+                inbound_ports_exclude=inbound_ports_exclude,
             )
             kube.create_deployment(namespace, workload_manifest)
             logger.info(

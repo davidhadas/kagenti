@@ -191,8 +191,7 @@ export const ImportAgentPage: React.FC = () => {
   const [outboundPortsExclude, setOutboundPortsExclude] = useState('');
   const [inboundPortsExclude, setInboundPortsExclude] = useState('');
   // AuthBridge config overrides
-  const [defaultOutboundPolicy, setDefaultOutboundPolicy] = useState('');
-  const [expectedAudience, setExpectedAudience] = useState('');
+  const [defaultOutboundPolicy, setDefaultOutboundPolicy] = useState('passthrough');
 
   // Validation state
   const [validated, setValidated] = useState<Record<string, 'success' | 'error' | 'default'>>({});
@@ -489,7 +488,6 @@ export const ImportAgentPage: React.FC = () => {
         outboundPortsExclude: authBridgeEnabled && outboundPortsExclude ? outboundPortsExclude : undefined,
         inboundPortsExclude: authBridgeEnabled && inboundPortsExclude ? inboundPortsExclude : undefined,
         defaultOutboundPolicy: authBridgeEnabled && defaultOutboundPolicy ? defaultOutboundPolicy : undefined,
-        expectedAudience: authBridgeEnabled && expectedAudience ? expectedAudience : undefined,
         // Shipwright build configuration (always enabled)
         shipwrightConfig,
       });
@@ -523,7 +521,6 @@ export const ImportAgentPage: React.FC = () => {
         outboundPortsExclude: authBridgeEnabled && outboundPortsExclude ? outboundPortsExclude : undefined,
         inboundPortsExclude: authBridgeEnabled && inboundPortsExclude ? inboundPortsExclude : undefined,
         defaultOutboundPolicy: authBridgeEnabled && defaultOutboundPolicy ? defaultOutboundPolicy : undefined,
-        expectedAudience: authBridgeEnabled && expectedAudience ? expectedAudience : undefined,
       });
     }
   };
@@ -1150,30 +1147,15 @@ export const ImportAgentPage: React.FC = () => {
                   </FormHelperText>
                 </FormGroup>
                 <FormGroup label="Default Outbound Policy" fieldId="defaultOutboundPolicy">
-                  <TextInput
+                  <FormSelect
                     id="defaultOutboundPolicy"
                     value={defaultOutboundPolicy}
                     onChange={(_e, v) => setDefaultOutboundPolicy(v)}
-                    placeholder="passthrough (default)"
-                  />
-                  <FormHelperText>
-                    <HelperText>
-                      <HelperTextItem>Set to &quot;exchange&quot; to require token exchange for all outbound traffic by default.</HelperTextItem>
-                    </HelperText>
-                  </FormHelperText>
-                </FormGroup>
-                <FormGroup label="Expected Audience" fieldId="expectedAudience">
-                  <TextInput
-                    id="expectedAudience"
-                    value={expectedAudience}
-                    onChange={(_e, v) => setExpectedAudience(v)}
-                    placeholder="Auto-derived from SPIFFE ID"
-                  />
-                  <FormHelperText>
-                    <HelperText>
-                      <HelperTextItem>Override the expected audience claim for inbound JWT validation.</HelperTextItem>
-                    </HelperText>
-                  </FormHelperText>
+                    aria-label="Default outbound policy"
+                  >
+                    <FormSelectOption key="passthrough" value="passthrough" label="passthrough — pass traffic through unchanged (default)" />
+                    <FormSelectOption key="exchange" value="exchange" label="exchange — require token exchange for all outbound traffic" />
+                  </FormSelect>
                 </FormGroup>
               </ExpandableSection>
               )}

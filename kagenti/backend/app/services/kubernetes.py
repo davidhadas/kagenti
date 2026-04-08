@@ -262,11 +262,11 @@ class KubernetesService:
     def upsert_configmap(
         self, namespace: str, name: str, data: dict, labels: Optional[dict] = None
     ) -> None:
-        """Create or update a ConfigMap (create if missing, replace data if exists)."""
+        """Create or update a ConfigMap (create if missing, merge data keys if exists)."""
         cm_labels = labels or {"kagenti.io/managed-by": "kagenti-api"}
         try:
             existing = self.core_api.read_namespaced_config_map(name=name, namespace=namespace)
-            existing.data = data
+            existing.data = {**(existing.data or {}), **data}
             existing.metadata.labels = (existing.metadata.labels or {}) | cm_labels
             self.core_api.replace_namespaced_config_map(
                 name=name, namespace=namespace, body=existing

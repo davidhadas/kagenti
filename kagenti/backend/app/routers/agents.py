@@ -11,7 +11,7 @@ import re
 import socket
 import ipaddress
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -249,8 +249,7 @@ class CreateAgentRequest(BaseModel):
     inboundPortsExclude: Optional[str] = None
 
     # AuthBridge config overrides (authbridge-config ConfigMap)
-    defaultOutboundPolicy: Optional[str] = None
-    expectedAudience: Optional[str] = None
+    defaultOutboundPolicy: Optional[Literal["passthrough", "exchange"]] = None
 
     # Outbound routing rules (authproxy-routes ConfigMap)
     outboundRoutes: Optional[List["OutboundRoute"]] = None
@@ -1986,8 +1985,6 @@ def _build_agent_shipwright_build_manifest(
         resource_config["inboundPortsExclude"] = request.inboundPortsExclude
     if request.defaultOutboundPolicy:
         resource_config["defaultOutboundPolicy"] = request.defaultOutboundPolicy
-    if request.expectedAudience:
-        resource_config["expectedAudience"] = request.expectedAudience
     # Add env vars if present
     if request.envVars:
         resource_config["envVars"] = [ev.model_dump(exclude_none=True) for ev in request.envVars]
@@ -2255,8 +2252,8 @@ def _build_deployment_manifest(
                 "metadata": {
                     "labels": {
                         **labels,
-                        # Pod-specific labels can be added here
                     },
+                    "annotations": _build_common_annotations(request),
                 },
                 "spec": {
                     "serviceAccountName": request.name,
@@ -2411,6 +2408,7 @@ def _build_statefulset_manifest(
                     "labels": {
                         **labels,
                     },
+                    "annotations": _build_common_annotations(request),
                 },
                 "spec": {
                     "serviceAccountName": request.name,
@@ -2509,6 +2507,7 @@ def _build_job_manifest(
                     "labels": {
                         **labels,
                     },
+                    "annotations": _build_common_annotations(request),
                 },
                 "spec": {
                     "serviceAccountName": request.name,
@@ -2606,12 +2605,10 @@ async def create_agent(
                         namespace=request.namespace,
                         routes=request.outboundRoutes,
                     )
-                if request.defaultOutboundPolicy or request.expectedAudience:
-                    extra_config = {}
-                    if request.defaultOutboundPolicy:
-                        extra_config["DEFAULT_OUTBOUND_POLICY"] = request.defaultOutboundPolicy
-                    if request.expectedAudience:
-                        extra_config["EXPECTED_AUDIENCE"] = request.expectedAudience
+                if request.defaultOutboundPolicy:
+                    extra_config = {
+                        "DEFAULT_OUTBOUND_POLICY": request.defaultOutboundPolicy,
+                    }
                     kube.upsert_configmap(
                         namespace=request.namespace,
                         name="authbridge-config",
@@ -2789,8 +2786,7 @@ class FinalizeShipwrightBuildRequest(BaseModel):
     outboundRoutes: Optional[List[OutboundRoute]] = None
     outboundPortsExclude: Optional[str] = None
     inboundPortsExclude: Optional[str] = None
-    defaultOutboundPolicy: Optional[str] = None
-    expectedAudience: Optional[str] = None
+    defaultOutboundPolicy: Optional[Literal["passthrough", "exchange"]] = None
 
 
 @router.post(
@@ -3017,12 +3013,6 @@ async def finalize_shipwright_build(
             if request.defaultOutboundPolicy is not None
             else stored_config.get("defaultOutboundPolicy")
         )
-        final_expected_audience = (
-            request.expectedAudience
-            if request.expectedAudience is not None
-            else stored_config.get("expectedAudience")
-        )
-
         # Outbound routing rules
         final_outbound_routes = None
         stored_routes = stored_config.get("outboundRoutes")
@@ -3071,7 +3061,6 @@ async def finalize_shipwright_build(
             outboundPortsExclude=final_outbound_ports_exclude,
             inboundPortsExclude=final_inbound_ports_exclude,
             defaultOutboundPolicy=final_default_outbound_policy,
-            expectedAudience=final_expected_audience,
         )
 
         # Ensure a dedicated ServiceAccount exists so the webhook's
