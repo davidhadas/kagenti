@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from kubernetes.client import ApiException
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.core.auth import ROLE_OPERATOR, ROLE_VIEWER, require_roles
 from app.utils.routes import get_agent_url
@@ -114,8 +114,8 @@ from app.services.shipwright_builds import collect_kagenti_shipwright_builds
 class OutboundRoute(BaseModel):
     """A single outbound token exchange route for authproxy-routes ConfigMap."""
 
-    host: str
-    target_audience: str
+    host: str = Field(..., min_length=1)
+    target_audience: str = Field(..., min_length=1)
     token_scopes: str = "openid"
 
 
@@ -1920,8 +1920,9 @@ def _ensure_authproxy_routes(
         data={"routes.yaml": _yaml.dump(routes_data, default_flow_style=False)},
     )
     logger.info(
-        f"Upserted authproxy-routes ConfigMap in namespace '{namespace}' "
-        f"with {len(routes)} route(s)"
+        "Upserted authproxy-routes ConfigMap in namespace '%s' with %d route(s)",
+        namespace,
+        len(routes),
     )
 
 

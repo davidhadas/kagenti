@@ -178,8 +178,8 @@ export const ImportAgentPage: React.FC = () => {
   const [clientRegistrationInject, setClientRegistrationInject] = useState<boolean | undefined>(true);
 
   // Outbound routing rules
-  const [outboundRoutes, setOutboundRoutes] = useState<Array<{ host: string; target_audience: string; token_scopes: string }>>([]);
-  const addRoute = () => setOutboundRoutes([...outboundRoutes, { host: '', target_audience: '', token_scopes: 'openid' }]);
+  const [outboundRoutes, setOutboundRoutes] = useState<Array<{ id: string; host: string; target_audience: string; token_scopes: string }>>([]);
+  const addRoute = () => setOutboundRoutes([...outboundRoutes, { id: crypto.randomUUID(), host: '', target_audience: '', token_scopes: 'openid' }]);
   const removeRoute = (i: number) => setOutboundRoutes(outboundRoutes.filter((_, idx) => idx !== i));
   const updateRoute = (i: number, field: string, value: string) => {
     const updated = [...outboundRoutes];
@@ -478,7 +478,7 @@ export const ImportAgentPage: React.FC = () => {
         envoyProxyInject: authBridgeEnabled ? envoyProxyInject : undefined,
         spiffeHelperInject: authBridgeEnabled ? spiffeHelperInject : undefined,
         clientRegistrationInject: authBridgeEnabled ? clientRegistrationInject : undefined,
-        outboundRoutes: authBridgeEnabled && outboundRoutes.length > 0 ? outboundRoutes : undefined,
+        outboundRoutes: authBridgeEnabled && outboundRoutes.length > 0 ? outboundRoutes.map(({ id, ...r }) => r) : undefined,
         // Shipwright build configuration (always enabled)
         shipwrightConfig,
       });
@@ -508,7 +508,7 @@ export const ImportAgentPage: React.FC = () => {
         envoyProxyInject: authBridgeEnabled ? envoyProxyInject : undefined,
         spiffeHelperInject: authBridgeEnabled ? spiffeHelperInject : undefined,
         clientRegistrationInject: authBridgeEnabled ? clientRegistrationInject : undefined,
-        outboundRoutes: authBridgeEnabled && outboundRoutes.length > 0 ? outboundRoutes : undefined,
+        outboundRoutes: authBridgeEnabled && outboundRoutes.length > 0 ? outboundRoutes.map(({ id, ...r }) => r) : undefined,
       });
     }
   };
@@ -1065,7 +1065,7 @@ export const ImportAgentPage: React.FC = () => {
                   Configure token exchange rules for outbound HTTP requests. Each route matches a service host and specifies the target audience and OAuth scopes for the exchanged token.
                 </Text>
                 {outboundRoutes.map((route, index) => (
-                  <Grid hasGutter key={index} style={{ marginBottom: '8px' }}>
+                  <Grid hasGutter key={route.id} style={{ marginBottom: '8px' }}>
                     <GridItem span={3}>
                       <TextInput
                         aria-label="Host pattern"
