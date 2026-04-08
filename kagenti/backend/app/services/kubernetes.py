@@ -271,7 +271,7 @@ class KubernetesService:
             self.core_api.replace_namespaced_config_map(
                 name=name, namespace=namespace, body=existing
             )
-            logger.info("Updated ConfigMap '%s' in %s", name, namespace)
+            logger.info("Updated existing ConfigMap")
         except ApiException as e:
             if e.status == 404:
                 cm = kubernetes.client.V1ConfigMap(
@@ -283,9 +283,9 @@ class KubernetesService:
                     data=data,
                 )
                 self.core_api.create_namespaced_config_map(namespace=namespace, body=cm)
-                logger.info("Created ConfigMap '%s' in %s", name, namespace)
+                logger.info("Created new ConfigMap")
             else:
-                logger.error("Error upserting ConfigMap '%s' in %s: %s", name, namespace, e)
+                logger.error("Error upserting ConfigMap")
                 raise
 
     # -------------------------------------------------------------------------
