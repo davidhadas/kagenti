@@ -76,6 +76,7 @@ from app.services.shipwright import (
     resolve_clone_secret,
 )
 from app.utils.routes import create_route_for_agent_or_tool, route_exists
+from app.routers.agents import _ensure_authbridge_configmaps
 
 
 class SecretKeyRef(BaseModel):
@@ -1348,6 +1349,13 @@ async def create_tool(
             # SPIFFE identity uses the workload name, not the ReplicaSet hash.
             kube.ensure_service_account(namespace=request.namespace, name=request.name)
 
+            if request.authBridgeEnabled:
+                _ensure_authbridge_configmaps(
+                    kube=kube,
+                    namespace=request.namespace,
+                    spire_enabled=request.spireEnabled,
+                )
+
             # Create workload (Deployment or StatefulSet)
             if request.workloadType == WORKLOAD_TYPE_STATEFULSET:
                 # Determine storage size
@@ -1736,6 +1744,13 @@ async def finalize_tool_shipwright_build(
         # Ensure a dedicated ServiceAccount exists so the webhook's
         # SPIFFE identity uses the workload name, not the ReplicaSet hash.
         kube.ensure_service_account(namespace=namespace, name=name)
+
+        if auth_bridge_enabled:
+            _ensure_authbridge_configmaps(
+                kube=kube,
+                namespace=namespace,
+                spire_enabled=spire_enabled,
+            )
 
         # Create workload (Deployment or StatefulSet)
         if workload_type == WORKLOAD_TYPE_STATEFULSET:

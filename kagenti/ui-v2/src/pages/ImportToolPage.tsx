@@ -935,7 +935,7 @@ export const ImportToolPage: React.FC = () => {
                   label="Enable AuthBridge sidecar injection"
                   isChecked={authBridgeEnabled}
                   onChange={(_e, checked) => setAuthBridgeEnabled(checked)}
-                  description="When enabled, the webhook injects AuthBridge sidecars (envoy-proxy, go-processor, client-registration) into the tool pod for token exchange."
+                  description="When enabled, the webhook injects AuthBridge sidecars (envoy-proxy, go-processor, spiffe-helper) into the tool pod for inbound JWT validation and outbound token exchange. Keycloak client registration is managed by the operator by default."
               />
               </FormGroup>
 
