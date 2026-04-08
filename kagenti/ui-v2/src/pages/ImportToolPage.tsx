@@ -129,7 +129,7 @@ export const ImportToolPage: React.FC = () => {
 
   // Pod configuration
   const [servicePorts, setServicePorts] = useState<ServicePort[]>([
-    { name: 'http', port: 8000, targetPort: 8000, protocol: 'TCP' },
+    { name: 'http', port: 9090, targetPort: 9090, protocol: 'TCP' },
   ]);
   const [showPodConfig, setShowPodConfig] = useState(false);
 
@@ -246,7 +246,7 @@ export const ImportToolPage: React.FC = () => {
     const branch = gitBranch || 'main';
     const path = gitPath.replace(/^\/+|\/+$/g, '');
 
-    return `https://raw.githubusercontent.com/${org}/${repo}/refs/heads/${branch}/${path}/.env.openai`;
+    return `https://raw.githubusercontent.com/${org}/${repo}/refs/heads/${branch}/${path}/.env.authbridge`;
   };
 
   // Environment variable handlers
@@ -593,7 +593,7 @@ export const ImportToolPage: React.FC = () => {
                     </FormHelperText>
                   </FormGroup>
 
-                  <FormGroup label="Branch or Tag" fieldId="gitBranch">
+                  <FormGroup label="Git Branch or Tag" fieldId="gitBranch">
                     <TextInput
                       id="gitBranch"
                       value={gitBranch}
@@ -602,7 +602,7 @@ export const ImportToolPage: React.FC = () => {
                     />
                   </FormGroup>
 
-                  <FormGroup label="Example Tools" fieldId="selectedExample">
+                  <FormGroup label="Select Tool" fieldId="selectedExample">
                     <FormSelect
                       id="selectedExample"
                       value={selectedExample}

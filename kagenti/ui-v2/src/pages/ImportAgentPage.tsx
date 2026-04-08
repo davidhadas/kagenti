@@ -170,7 +170,7 @@ export const ImportAgentPage: React.FC = () => {
   // AuthBridge sidecar injection (default enabled for agents)
   const [authBridgeEnabled, setAuthBridgeEnabled] = useState(true);
   // SPIRE identity
-  const [spireEnabled, setSpireEnabled] = useState(false);
+  const [spireEnabled, setSpireEnabled] = useState(true);
 
   // Per-sidecar injection controls
   const [envoyProxyInject, setEnvoyProxyInject] = useState<boolean | undefined>(undefined);
@@ -610,7 +610,7 @@ export const ImportAgentPage: React.FC = () => {
                     />
                   </FormGroup>
 
-                  <FormGroup label="Git Branch" fieldId="gitBranch">
+                  <FormGroup label="Git Branch or Tag" fieldId="gitBranch">
                     <TextInput
                       id="gitBranch"
                       value={gitBranch}
@@ -619,7 +619,7 @@ export const ImportAgentPage: React.FC = () => {
                     />
                   </FormGroup>
 
-                  <FormGroup label="Select Example" fieldId="example">
+                  <FormGroup label="Select Agent" fieldId="example">
                     <FormSelect
                       id="example"
                       value={selectedExample}
@@ -636,7 +636,7 @@ export const ImportAgentPage: React.FC = () => {
                     </FormHelperText>
                   </FormGroup>
 
-                  <FormGroup label="Source Path" isRequired fieldId="gitPath">
+                  <FormGroup label="Source Subfolder" isRequired fieldId="gitPath">
                     <TextInput
                       id="gitPath"
                       value={gitPath}
@@ -657,7 +657,7 @@ export const ImportAgentPage: React.FC = () => {
 
                   <Divider style={{ margin: '24px 0' }} />
 
-                  {/* Container Registry Configuration */}
+                  {/* Container Registry */}
                   <Title headingLevel="h3" size="md" style={{ marginBottom: '16px' }}>
                     Container Registry Configuration
                   </Title>
@@ -735,7 +735,7 @@ export const ImportAgentPage: React.FC = () => {
 
                   {/* Shipwright Build Configuration */}
                   <Title headingLevel="h3" size="md" style={{ marginBottom: '16px' }}>
-                    Build Configuration
+                    Build Configuration (Advanced)
                   </Title>
 
                   {/* Shipwright is always used for source builds */}
