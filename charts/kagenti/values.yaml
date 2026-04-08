@@ -183,6 +183,7 @@ keycloak:
 kagenti-operator-chart:
   controllerManager:
     container:
+      cmd: /manager
       image:
         tag: 0.2.0-alpha.24
       args:
