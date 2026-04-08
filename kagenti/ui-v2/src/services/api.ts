@@ -228,6 +228,7 @@ export const agentService = {
     envoyProxyInject?: boolean;
     spiffeHelperInject?: boolean;
     clientRegistrationInject?: boolean;
+    outboundRoutes?: Array<{ host: string; target_audience: string; token_scopes: string }>;
     shipwrightConfig?: ShipwrightBuildConfig;
   }): Promise<{ success: boolean; name: string; namespace: string; message: string }> {
     return apiFetch('/agents', {
@@ -436,6 +437,7 @@ export const shipwrightService = {
       envoyProxyInject?: boolean;
       spiffeHelperInject?: boolean;
       clientRegistrationInject?: boolean;
+      outboundRoutes?: Array<{ host: string; target_audience: string; token_scopes: string }>;
       imagePullSecret?: string;
     }
   ): Promise<{ success: boolean; name: string; namespace: string; message: string }> {
@@ -525,6 +527,7 @@ export const toolService = {
     envoyProxyInject?: boolean;
     spiffeHelperInject?: boolean;
     clientRegistrationInject?: boolean;
+    outboundRoutes?: Array<{ host: string; target_audience: string; token_scopes: string }>;
   }): Promise<{ success: boolean; name: string; namespace: string; message: string }> {
     return apiFetch('/tools', {
       method: 'POST',
@@ -658,6 +661,7 @@ export const toolShipwrightService = {
       envoyProxyInject?: boolean;
       spiffeHelperInject?: boolean;
       clientRegistrationInject?: boolean;
+      outboundRoutes?: Array<{ host: string; target_audience: string; token_scopes: string }>;
       imagePullSecret?: string;
     }
   ): Promise<{ success: boolean; name: string; namespace: string; message: string }> {

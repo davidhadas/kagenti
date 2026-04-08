@@ -111,6 +111,14 @@ from app.services.shipwright import (
 from app.services.shipwright_builds import collect_kagenti_shipwright_builds
 
 
+class OutboundRoute(BaseModel):
+    """A single outbound token exchange route for authproxy-routes ConfigMap."""
+
+    host: str
+    target_audience: str
+    token_scopes: str = "openid"
+
+
 class SecretKeyRef(BaseModel):
     """Reference to a key in a Secret."""
 
@@ -232,6 +240,9 @@ class CreateAgentRequest(BaseModel):
     envoyProxyInject: Optional[bool] = None
     spiffeHelperInject: Optional[bool] = None
     clientRegistrationInject: Optional[bool] = None
+
+    # Outbound routing rules (authproxy-routes ConfigMap)
+    outboundRoutes: Optional[List["OutboundRoute"]] = None
 
     # Shipwright build configuration
     shipwrightConfig: Optional[ShipwrightBuildConfig] = None
@@ -1894,6 +1905,26 @@ def _ensure_authbridge_configmaps(
     logger.info(f"Ensured AuthBridge ConfigMaps in namespace '{namespace}'")
 
 
+def _ensure_authproxy_routes(
+    kube: KubernetesService,
+    namespace: str,
+    routes: List["OutboundRoute"],
+) -> None:
+    """Create or update the authproxy-routes ConfigMap with outbound token exchange rules."""
+    import yaml as _yaml
+
+    routes_data = {"routes": [r.model_dump() for r in routes]}
+    kube.upsert_configmap(
+        namespace=namespace,
+        name="authproxy-routes",
+        data={"routes.yaml": _yaml.dump(routes_data, default_flow_style=False)},
+    )
+    logger.info(
+        f"Upserted authproxy-routes ConfigMap in namespace '{namespace}' "
+        f"with {len(routes)} route(s)"
+    )
+
+
 def _build_agent_shipwright_build_manifest(
     request: CreateAgentRequest, clone_secret_name: Optional[str] = None
 ) -> dict:
@@ -1935,6 +1966,8 @@ def _build_agent_shipwright_build_manifest(
         "spiffeHelperInject": request.spiffeHelperInject,
         "clientRegistrationInject": request.clientRegistrationInject,
     }
+    if request.outboundRoutes:
+        resource_config["outboundRoutes"] = [r.model_dump() for r in request.outboundRoutes]
     # Add env vars if present
     if request.envVars:
         resource_config["envVars"] = [ev.model_dump(exclude_none=True) for ev in request.envVars]
@@ -2537,6 +2570,12 @@ async def create_agent(
                     namespace=request.namespace,
                     spire_enabled=request.spireEnabled,
                 )
+                if request.outboundRoutes:
+                    _ensure_authproxy_routes(
+                        kube=kube,
+                        namespace=request.namespace,
+                        routes=request.outboundRoutes,
+                    )
 
             # Create workload based on workloadType
             if request.workloadType == WORKLOAD_TYPE_DEPLOYMENT:
@@ -2706,6 +2745,7 @@ class FinalizeShipwrightBuildRequest(BaseModel):
     envoyProxyInject: Optional[bool] = None
     spiffeHelperInject: Optional[bool] = None
     clientRegistrationInject: Optional[bool] = None
+    outboundRoutes: Optional[List[OutboundRoute]] = None
 
 
 @router.post(
@@ -2916,6 +2956,14 @@ async def finalize_shipwright_build(
         # Propagate SPIRE identity setting from stored config
         final_spire_enabled = stored_config.get("spireEnabled", False)
 
+        # Outbound routing rules
+        final_outbound_routes = None
+        stored_routes = stored_config.get("outboundRoutes")
+        if request.outboundRoutes is not None:
+            final_outbound_routes = request.outboundRoutes
+        elif stored_routes:
+            final_outbound_routes = [OutboundRoute(**r) for r in stored_routes]
+
         # Per-sidecar injection controls
         final_envoy_proxy_inject = (
             request.envoyProxyInject
@@ -2952,6 +3000,7 @@ async def finalize_shipwright_build(
             envoyProxyInject=final_envoy_proxy_inject,
             spiffeHelperInject=final_spiffe_helper_inject,
             clientRegistrationInject=final_client_registration_inject,
+            outboundRoutes=final_outbound_routes,
         )
 
         # Ensure a dedicated ServiceAccount exists so the webhook's
@@ -2965,6 +3014,12 @@ async def finalize_shipwright_build(
                 namespace=namespace,
                 spire_enabled=final_spire_enabled,
             )
+            if final_outbound_routes:
+                _ensure_authproxy_routes(
+                    kube=kube,
+                    namespace=namespace,
+                    routes=final_outbound_routes,
+                )
 
         # Create workload based on workloadType
         if final_workload_type == WORKLOAD_TYPE_DEPLOYMENT:

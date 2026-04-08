@@ -80,7 +80,11 @@ from app.services.shipwright import (
     resolve_clone_secret,
 )
 from app.utils.routes import create_route_for_agent_or_tool, route_exists
-from app.routers.agents import _ensure_authbridge_configmaps
+from app.routers.agents import (
+    _ensure_authbridge_configmaps,
+    _ensure_authproxy_routes,
+    OutboundRoute,
+)
 
 
 class SecretKeyRef(BaseModel):
@@ -223,6 +227,9 @@ class CreateToolRequest(BaseModel):
     spiffeHelperInject: Optional[bool] = None
     clientRegistrationInject: Optional[bool] = None
 
+    # Outbound routing rules (authproxy-routes ConfigMap)
+    outboundRoutes: Optional[List["OutboundRoute"]] = None
+
 
 class FinalizeToolBuildRequest(BaseModel):
     """Request to finalize a tool Shipwright build by creating the Deployment/StatefulSet."""
@@ -239,6 +246,7 @@ class FinalizeToolBuildRequest(BaseModel):
     envoyProxyInject: Optional[bool] = None
     spiffeHelperInject: Optional[bool] = None
     clientRegistrationInject: Optional[bool] = None
+    outboundRoutes: Optional[List[OutboundRoute]] = None
 
 
 class ToolShipwrightBuildInfoResponse(BaseModel):
@@ -492,6 +500,8 @@ def _build_tool_shipwright_build_manifest(
         "spiffeHelperInject": request.spiffeHelperInject,
         "clientRegistrationInject": request.clientRegistrationInject,
     }
+    if request.outboundRoutes:
+        resource_config["outboundRoutes"] = [r.model_dump() for r in request.outboundRoutes]
     # Add persistent storage config if present (for StatefulSet)
     if request.persistentStorage:
         resource_config["persistentStorage"] = request.persistentStorage.model_dump()
@@ -1394,6 +1404,12 @@ async def create_tool(
                     namespace=request.namespace,
                     spire_enabled=request.spireEnabled,
                 )
+                if request.outboundRoutes:
+                    _ensure_authproxy_routes(
+                        kube=kube,
+                        namespace=request.namespace,
+                        routes=request.outboundRoutes,
+                    )
 
             # Create workload (Deployment or StatefulSet)
             if request.workloadType == WORKLOAD_TYPE_STATEFULSET:
@@ -1786,6 +1802,14 @@ async def finalize_tool_shipwright_build(
         # Propagate SPIRE identity setting from stored config
         spire_enabled = tool_config_dict.get("spireEnabled", False)
 
+        # Outbound routing rules
+        final_outbound_routes = None
+        stored_routes = tool_config_dict.get("outboundRoutes")
+        if request.outboundRoutes is not None:
+            final_outbound_routes = request.outboundRoutes
+        elif stored_routes:
+            final_outbound_routes = [OutboundRoute(**r) for r in stored_routes]
+
         # Per-sidecar injection controls
         envoy_proxy_inject = (
             request.envoyProxyInject
@@ -1813,6 +1837,12 @@ async def finalize_tool_shipwright_build(
                 namespace=namespace,
                 spire_enabled=spire_enabled,
             )
+            if final_outbound_routes:
+                _ensure_authproxy_routes(
+                    kube=kube,
+                    namespace=namespace,
+                    routes=final_outbound_routes,
+                )
 
         # Create workload (Deployment or StatefulSet)
         if workload_type == WORKLOAD_TYPE_STATEFULSET:

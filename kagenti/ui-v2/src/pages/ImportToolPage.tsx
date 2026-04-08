@@ -155,6 +155,16 @@ export const ImportToolPage: React.FC = () => {
   const [spiffeHelperInject, setSpiffeHelperInject] = useState<boolean | undefined>(undefined);
   const [clientRegistrationInject, setClientRegistrationInject] = useState<boolean | undefined>(true);
 
+  // Outbound routing rules
+  const [outboundRoutes, setOutboundRoutes] = useState<Array<{ host: string; target_audience: string; token_scopes: string }>>([]);
+  const addRoute = () => setOutboundRoutes([...outboundRoutes, { host: '', target_audience: '', token_scopes: 'openid' }]);
+  const removeRoute = (i: number) => setOutboundRoutes(outboundRoutes.filter((_, idx) => idx !== i));
+  const updateRoute = (i: number, field: string, value: string) => {
+    const updated = [...outboundRoutes];
+    updated[i] = { ...updated[i], [field]: value };
+    setOutboundRoutes(updated);
+  };
+
   // Validation state
   const [validated, setValidated] = useState<Record<string, 'success' | 'error' | 'default'>>({});
 
@@ -446,6 +456,7 @@ export const ImportToolPage: React.FC = () => {
         envoyProxyInject: authBridgeEnabled ? envoyProxyInject : undefined,
         spiffeHelperInject: authBridgeEnabled ? spiffeHelperInject : undefined,
         clientRegistrationInject: authBridgeEnabled ? clientRegistrationInject : undefined,
+        outboundRoutes: authBridgeEnabled && outboundRoutes.length > 0 ? outboundRoutes : undefined,
       });
     } else {
       // Image deployment
@@ -471,6 +482,7 @@ export const ImportToolPage: React.FC = () => {
         envoyProxyInject: authBridgeEnabled ? envoyProxyInject : undefined,
         spiffeHelperInject: authBridgeEnabled ? spiffeHelperInject : undefined,
         clientRegistrationInject: authBridgeEnabled ? clientRegistrationInject : undefined,
+        outboundRoutes: authBridgeEnabled && outboundRoutes.length > 0 ? outboundRoutes : undefined,
       });
     }
   };
@@ -993,6 +1005,54 @@ export const ImportToolPage: React.FC = () => {
                     />
                   </FormGroup>
                 </>
+              )}
+
+
+              {authBridgeEnabled && (
+              <ExpandableSection
+                toggleText={`Outbound Routing Rules (${outboundRoutes.length} route${outboundRoutes.length !== 1 ? 's' : ''})`}
+                isExpanded={outboundRoutes.length > 0}
+              >
+                <Text component="p" style={{ marginBottom: '8px' }}>
+                  Configure token exchange rules for outbound HTTP requests. Each route matches a service host and specifies the target audience and OAuth scopes for the exchanged token.
+                </Text>
+                {outboundRoutes.map((route, index) => (
+                  <Grid hasGutter key={index} style={{ marginBottom: '8px' }}>
+                    <GridItem span={3}>
+                      <TextInput
+                        aria-label="Host pattern"
+                        value={route.host}
+                        onChange={(_e, v) => updateRoute(index, 'host', v)}
+                        placeholder="e.g. github-tool-mcp"
+                      />
+                    </GridItem>
+                    <GridItem span={3}>
+                      <TextInput
+                        aria-label="Target audience"
+                        value={route.target_audience}
+                        onChange={(_e, v) => updateRoute(index, 'target_audience', v)}
+                        placeholder="e.g. github-tool"
+                      />
+                    </GridItem>
+                    <GridItem span={4}>
+                      <TextInput
+                        aria-label="Token scopes"
+                        value={route.token_scopes}
+                        onChange={(_e, v) => updateRoute(index, 'token_scopes', v)}
+                        placeholder="openid scope1 scope2"
+                      />
+                    </GridItem>
+                    <GridItem span={2}>
+                      <Button variant="plain" onClick={() => removeRoute(index)}>
+                        Remove
+                      </Button>
+                    </GridItem>
+                  </Grid>
+                ))}
+                <Button variant="link" onClick={addRoute}>
+                  Add Route
+                </Button>
+              </ExpandableSection>
               )}
 
               {/* Pod Configuration */}

@@ -259,6 +259,36 @@ class KubernetesService:
                 logger.error(f"Error checking ConfigMap '{name}' in {namespace}: {e}")
                 raise
 
+    def upsert_configmap(
+        self, namespace: str, name: str, data: dict, labels: Optional[dict] = None
+    ) -> None:
+        """Create or update a ConfigMap (create if missing, replace data if exists)."""
+        cm_labels = labels or {"kagenti.io/managed-by": "kagenti-api"}
+        try:
+            existing = self.core_api.read_namespaced_config_map(name=name, namespace=namespace)
+            existing.data = data
+            if labels:
+                existing.metadata.labels = (existing.metadata.labels or {}) | cm_labels
+            self.core_api.replace_namespaced_config_map(
+                name=name, namespace=namespace, body=existing
+            )
+            logger.info(f"Updated ConfigMap '{name}' in {namespace}")
+        except ApiException as e:
+            if e.status == 404:
+                cm = kubernetes.client.V1ConfigMap(
+                    metadata=kubernetes.client.V1ObjectMeta(
+                        name=name,
+                        namespace=namespace,
+                        labels=cm_labels,
+                    ),
+                    data=data,
+                )
+                self.core_api.create_namespaced_config_map(namespace=namespace, body=cm)
+                logger.info(f"Created ConfigMap '{name}' in {namespace}")
+            else:
+                logger.error(f"Error upserting ConfigMap '{name}' in {namespace}: {e}")
+                raise
+
     # -------------------------------------------------------------------------
     # Deployment Operations
     # -------------------------------------------------------------------------
