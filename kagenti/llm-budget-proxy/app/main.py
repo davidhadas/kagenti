@@ -231,7 +231,7 @@ async def _check_budget(
             status="budget_exceeded",
             error_message=msg,
         )
-        logger.warning("Budget exceeded: %d/%d tokens", used, max_tokens)
+        logger.warning("Budget exceeded")
         return JSONResponse(
             status_code=402,
             content={
@@ -257,8 +257,7 @@ async def chat_completions(request: Request):
     session_id = meta["session_id"]
     max_tokens = meta["max_session_tokens"] or DEFAULT_SESSION_MAX_TOKENS
 
-    is_streaming = bool(body.get("stream"))
-    logger.info("LLM request: stream=%s max_tokens=%d", is_streaming, max_tokens)
+    logger.info("LLM request received")
 
     # Budget check
     budget_resp = await _check_budget(session_id, max_tokens, meta, model)
