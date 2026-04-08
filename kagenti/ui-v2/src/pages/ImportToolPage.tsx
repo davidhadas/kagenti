@@ -246,7 +246,7 @@ export const ImportToolPage: React.FC = () => {
     const branch = gitBranch || 'main';
     const path = gitPath.replace(/^\/+|\/+$/g, '');
 
-    return `https://raw.githubusercontent.com/${org}/${repo}/refs/heads/${branch}/${path}/.env.authbridge`;
+    return `https://raw.githubusercontent.com/${org}/${repo}/refs/heads/${branch}/${path}/.env.openai`;
   };
 
   // Environment variable handlers
