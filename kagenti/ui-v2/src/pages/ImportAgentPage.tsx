@@ -187,6 +187,13 @@ export const ImportAgentPage: React.FC = () => {
     setOutboundRoutes(updated);
   };
 
+  // Port exclusion annotations
+  const [outboundPortsExclude, setOutboundPortsExclude] = useState('');
+  const [inboundPortsExclude, setInboundPortsExclude] = useState('');
+  // AuthBridge config overrides
+  const [defaultOutboundPolicy, setDefaultOutboundPolicy] = useState('');
+  const [expectedAudience, setExpectedAudience] = useState('');
+
   // Validation state
   const [validated, setValidated] = useState<Record<string, 'success' | 'error' | 'default'>>({});
 
@@ -479,6 +486,10 @@ export const ImportAgentPage: React.FC = () => {
         spiffeHelperInject: authBridgeEnabled ? spiffeHelperInject : undefined,
         clientRegistrationInject: authBridgeEnabled ? clientRegistrationInject : undefined,
         outboundRoutes: authBridgeEnabled && outboundRoutes.length > 0 ? outboundRoutes.map(({ id, ...r }) => r) : undefined,
+        outboundPortsExclude: authBridgeEnabled && outboundPortsExclude ? outboundPortsExclude : undefined,
+        inboundPortsExclude: authBridgeEnabled && inboundPortsExclude ? inboundPortsExclude : undefined,
+        defaultOutboundPolicy: authBridgeEnabled && defaultOutboundPolicy ? defaultOutboundPolicy : undefined,
+        expectedAudience: authBridgeEnabled && expectedAudience ? expectedAudience : undefined,
         // Shipwright build configuration (always enabled)
         shipwrightConfig,
       });
@@ -509,6 +520,10 @@ export const ImportAgentPage: React.FC = () => {
         spiffeHelperInject: authBridgeEnabled ? spiffeHelperInject : undefined,
         clientRegistrationInject: authBridgeEnabled ? clientRegistrationInject : undefined,
         outboundRoutes: authBridgeEnabled && outboundRoutes.length > 0 ? outboundRoutes.map(({ id, ...r }) => r) : undefined,
+        outboundPortsExclude: authBridgeEnabled && outboundPortsExclude ? outboundPortsExclude : undefined,
+        inboundPortsExclude: authBridgeEnabled && inboundPortsExclude ? inboundPortsExclude : undefined,
+        defaultOutboundPolicy: authBridgeEnabled && defaultOutboundPolicy ? defaultOutboundPolicy : undefined,
+        expectedAudience: authBridgeEnabled && expectedAudience ? expectedAudience : undefined,
       });
     }
   };
@@ -1100,6 +1115,66 @@ export const ImportAgentPage: React.FC = () => {
                 <Button variant="link" onClick={addRoute}>
                   Add Route
                 </Button>
+              </ExpandableSection>
+              )}
+
+
+              {authBridgeEnabled && (
+              <ExpandableSection
+                toggleText="AuthBridge Advanced Configuration"
+              >
+                <FormGroup label="Outbound Ports to Exclude" fieldId="outboundPortsExclude">
+                  <TextInput
+                    id="outboundPortsExclude"
+                    value={outboundPortsExclude}
+                    onChange={(_e, v) => setOutboundPortsExclude(v)}
+                    placeholder="e.g. 11434,443"
+                  />
+                  <FormHelperText>
+                    <HelperText>
+                      <HelperTextItem>Comma-separated ports to bypass outbound proxy interception.</HelperTextItem>
+                    </HelperText>
+                  </FormHelperText>
+                </FormGroup>
+                <FormGroup label="Inbound Ports to Exclude" fieldId="inboundPortsExclude">
+                  <TextInput
+                    id="inboundPortsExclude"
+                    value={inboundPortsExclude}
+                    onChange={(_e, v) => setInboundPortsExclude(v)}
+                    placeholder="e.g. 9090"
+                  />
+                  <FormHelperText>
+                    <HelperText>
+                      <HelperTextItem>Comma-separated ports to bypass inbound proxy interception.</HelperTextItem>
+                    </HelperText>
+                  </FormHelperText>
+                </FormGroup>
+                <FormGroup label="Default Outbound Policy" fieldId="defaultOutboundPolicy">
+                  <TextInput
+                    id="defaultOutboundPolicy"
+                    value={defaultOutboundPolicy}
+                    onChange={(_e, v) => setDefaultOutboundPolicy(v)}
+                    placeholder="passthrough (default)"
+                  />
+                  <FormHelperText>
+                    <HelperText>
+                      <HelperTextItem>Set to &quot;exchange&quot; to require token exchange for all outbound traffic by default.</HelperTextItem>
+                    </HelperText>
+                  </FormHelperText>
+                </FormGroup>
+                <FormGroup label="Expected Audience" fieldId="expectedAudience">
+                  <TextInput
+                    id="expectedAudience"
+                    value={expectedAudience}
+                    onChange={(_e, v) => setExpectedAudience(v)}
+                    placeholder="Auto-derived from SPIFFE ID"
+                  />
+                  <FormHelperText>
+                    <HelperText>
+                      <HelperTextItem>Override the expected audience claim for inbound JWT validation.</HelperTextItem>
+                    </HelperText>
+                  </FormHelperText>
+                </FormGroup>
               </ExpandableSection>
               )}
 

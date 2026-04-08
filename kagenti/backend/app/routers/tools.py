@@ -52,6 +52,8 @@ from app.core.constants import (
     KAGENTI_ENVOY_PROXY_INJECT_LABEL,
     KAGENTI_SPIFFE_HELPER_INJECT_LABEL,
     KAGENTI_CLIENT_REGISTRATION_INJECT_LABEL,
+    KAGENTI_OUTBOUND_PORTS_EXCLUDE,
+    KAGENTI_INBOUND_PORTS_EXCLUDE,
 )
 from app.models.responses import (
     ToolSummary,
@@ -227,6 +229,14 @@ class CreateToolRequest(BaseModel):
     spiffeHelperInject: Optional[bool] = None
     clientRegistrationInject: Optional[bool] = None
 
+    # Port exclusion annotations
+    outboundPortsExclude: Optional[str] = None
+    inboundPortsExclude: Optional[str] = None
+
+    # AuthBridge config overrides
+    defaultOutboundPolicy: Optional[str] = None
+    expectedAudience: Optional[str] = None
+
     # Outbound routing rules (authproxy-routes ConfigMap)
     outboundRoutes: Optional[List["OutboundRoute"]] = None
 
@@ -247,6 +257,10 @@ class FinalizeToolBuildRequest(BaseModel):
     spiffeHelperInject: Optional[bool] = None
     clientRegistrationInject: Optional[bool] = None
     outboundRoutes: Optional[List[OutboundRoute]] = None
+    outboundPortsExclude: Optional[str] = None
+    inboundPortsExclude: Optional[str] = None
+    defaultOutboundPolicy: Optional[str] = None
+    expectedAudience: Optional[str] = None
 
 
 class ToolShipwrightBuildInfoResponse(BaseModel):
@@ -502,6 +516,14 @@ def _build_tool_shipwright_build_manifest(
     }
     if request.outboundRoutes:
         resource_config["outboundRoutes"] = [r.model_dump() for r in request.outboundRoutes]
+    if request.outboundPortsExclude:
+        resource_config["outboundPortsExclude"] = request.outboundPortsExclude
+    if request.inboundPortsExclude:
+        resource_config["inboundPortsExclude"] = request.inboundPortsExclude
+    if request.defaultOutboundPolicy:
+        resource_config["defaultOutboundPolicy"] = request.defaultOutboundPolicy
+    if request.expectedAudience:
+        resource_config["expectedAudience"] = request.expectedAudience
     # Add persistent storage config if present (for StatefulSet)
     if request.persistentStorage:
         resource_config["persistentStorage"] = request.persistentStorage.model_dump()
@@ -910,6 +932,8 @@ def _build_tool_deployment_manifest(
     envoy_proxy_inject: Optional[bool] = None,
     spiffe_helper_inject: Optional[bool] = None,
     client_registration_inject: Optional[bool] = None,
+    outbound_ports_exclude: Optional[str] = None,
+    inbound_ports_exclude: Optional[str] = None,
 ) -> dict:
     """
     Build a Kubernetes Deployment manifest for an MCP tool.
@@ -976,10 +1000,15 @@ def _build_tool_deployment_manifest(
 
     # Build annotations
     annotations = {}
+    pod_annotations: Dict[str, str] = {}
     if description:
         annotations[KAGENTI_DESCRIPTION_ANNOTATION] = description
     if shipwright_build_name:
         annotations["kagenti.io/shipwright-build"] = shipwright_build_name
+    if outbound_ports_exclude:
+        pod_annotations[KAGENTI_OUTBOUND_PORTS_EXCLUDE] = outbound_ports_exclude
+    if inbound_ports_exclude:
+        pod_annotations[KAGENTI_INBOUND_PORTS_EXCLUDE] = inbound_ports_exclude
 
     manifest = {
         "apiVersion": "apps/v1",
@@ -1001,6 +1030,7 @@ def _build_tool_deployment_manifest(
             "template": {
                 "metadata": {
                     "labels": pod_labels,
+                    "annotations": pod_annotations,
                 },
                 "spec": {
                     "serviceAccountName": name,
@@ -1067,6 +1097,8 @@ def _build_tool_statefulset_manifest(
     envoy_proxy_inject: Optional[bool] = None,
     spiffe_helper_inject: Optional[bool] = None,
     client_registration_inject: Optional[bool] = None,
+    outbound_ports_exclude: Optional[str] = None,
+    inbound_ports_exclude: Optional[str] = None,
 ) -> dict:
     """
     Build a Kubernetes StatefulSet manifest for an MCP tool.
@@ -1137,10 +1169,15 @@ def _build_tool_statefulset_manifest(
 
     # Build annotations
     annotations = {}
+    pod_annotations: Dict[str, str] = {}
     if description:
         annotations[KAGENTI_DESCRIPTION_ANNOTATION] = description
     if shipwright_build_name:
         annotations["kagenti.io/shipwright-build"] = shipwright_build_name
+    if outbound_ports_exclude:
+        pod_annotations[KAGENTI_OUTBOUND_PORTS_EXCLUDE] = outbound_ports_exclude
+    if inbound_ports_exclude:
+        pod_annotations[KAGENTI_INBOUND_PORTS_EXCLUDE] = inbound_ports_exclude
 
     manifest = {
         "apiVersion": "apps/v1",
@@ -1163,6 +1200,7 @@ def _build_tool_statefulset_manifest(
             "template": {
                 "metadata": {
                     "labels": pod_labels,
+                    "annotations": pod_annotations,
                 },
                 "spec": {
                     "serviceAccountName": name,
@@ -1410,6 +1448,17 @@ async def create_tool(
                         namespace=request.namespace,
                         routes=request.outboundRoutes,
                     )
+                if request.defaultOutboundPolicy or request.expectedAudience:
+                    extra = {}
+                    if request.defaultOutboundPolicy:
+                        extra["DEFAULT_OUTBOUND_POLICY"] = request.defaultOutboundPolicy
+                    if request.expectedAudience:
+                        extra["EXPECTED_AUDIENCE"] = request.expectedAudience
+                    kube.upsert_configmap(
+                        namespace=request.namespace,
+                        name="authbridge-config",
+                        data=extra,
+                    )
 
             # Create workload (Deployment or StatefulSet)
             if request.workloadType == WORKLOAD_TYPE_STATEFULSET:
@@ -1434,6 +1483,8 @@ async def create_tool(
                     envoy_proxy_inject=request.envoyProxyInject,
                     spiffe_helper_inject=request.spiffeHelperInject,
                     client_registration_inject=request.clientRegistrationInject,
+                    outbound_ports_exclude=request.outboundPortsExclude,
+                    inbound_ports_exclude=request.inboundPortsExclude,
                 )
                 kube.create_statefulset(request.namespace, workload_manifest)
                 logger.info(
@@ -1456,6 +1507,8 @@ async def create_tool(
                     envoy_proxy_inject=request.envoyProxyInject,
                     spiffe_helper_inject=request.spiffeHelperInject,
                     client_registration_inject=request.clientRegistrationInject,
+                    outbound_ports_exclude=request.outboundPortsExclude,
+                    inbound_ports_exclude=request.inboundPortsExclude,
                 )
                 kube.create_deployment(request.namespace, workload_manifest)
                 logger.info(
@@ -1870,6 +1923,8 @@ async def finalize_tool_shipwright_build(
                 envoy_proxy_inject=envoy_proxy_inject,
                 spiffe_helper_inject=spiffe_helper_inject,
                 client_registration_inject=client_registration_inject,
+                outbound_ports_exclude=tool_config_dict.get("outboundPortsExclude"),
+                inbound_ports_exclude=tool_config_dict.get("inboundPortsExclude"),
             )
             kube.create_statefulset(namespace, workload_manifest)
             logger.info(
@@ -1893,6 +1948,8 @@ async def finalize_tool_shipwright_build(
                 envoy_proxy_inject=envoy_proxy_inject,
                 spiffe_helper_inject=spiffe_helper_inject,
                 client_registration_inject=client_registration_inject,
+                outbound_ports_exclude=tool_config_dict.get("outboundPortsExclude"),
+                inbound_ports_exclude=tool_config_dict.get("inboundPortsExclude"),
             )
             kube.create_deployment(namespace, workload_manifest)
             logger.info(

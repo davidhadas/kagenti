@@ -39,6 +39,10 @@ KAGENTI_ENVOY_PROXY_INJECT_LABEL = "kagenti.io/envoy-proxy-inject"
 KAGENTI_SPIFFE_HELPER_INJECT_LABEL = "kagenti.io/spiffe-helper-inject"
 KAGENTI_CLIENT_REGISTRATION_INJECT_LABEL = "kagenti.io/client-registration-inject"
 
+# Port exclusion annotations (matched by kagenti-webhook init-iptables.sh)
+KAGENTI_OUTBOUND_PORTS_EXCLUDE = "kagenti.io/outbound-ports-exclude"
+KAGENTI_INBOUND_PORTS_EXCLUDE = "kagenti.io/inbound-ports-exclude"
+
 # Labels - Values
 KAGENTI_UI_CREATOR_LABEL = "kagenti-ui"
 KAGENTI_OPERATOR_LABEL_NAME = "kagenti-operator"

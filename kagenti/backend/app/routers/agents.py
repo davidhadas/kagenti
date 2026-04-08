@@ -68,6 +68,9 @@ from app.core.constants import (
     KAGENTI_ENVOY_PROXY_INJECT_LABEL,
     KAGENTI_SPIFFE_HELPER_INJECT_LABEL,
     KAGENTI_CLIENT_REGISTRATION_INJECT_LABEL,
+    # Port exclusion annotations
+    KAGENTI_OUTBOUND_PORTS_EXCLUDE,
+    KAGENTI_INBOUND_PORTS_EXCLUDE,
     # AuthBridge ConfigMap defaults
     DEFAULT_KEYCLOAK_INTERNAL_URL,
     DEFAULT_KEYCLOAK_REALM,
@@ -240,6 +243,14 @@ class CreateAgentRequest(BaseModel):
     envoyProxyInject: Optional[bool] = None
     spiffeHelperInject: Optional[bool] = None
     clientRegistrationInject: Optional[bool] = None
+
+    # Port exclusion annotations
+    outboundPortsExclude: Optional[str] = None
+    inboundPortsExclude: Optional[str] = None
+
+    # AuthBridge config overrides (authbridge-config ConfigMap)
+    defaultOutboundPolicy: Optional[str] = None
+    expectedAudience: Optional[str] = None
 
     # Outbound routing rules (authproxy-routes ConfigMap)
     outboundRoutes: Optional[List["OutboundRoute"]] = None
@@ -1969,6 +1980,14 @@ def _build_agent_shipwright_build_manifest(
     }
     if request.outboundRoutes:
         resource_config["outboundRoutes"] = [r.model_dump() for r in request.outboundRoutes]
+    if request.outboundPortsExclude:
+        resource_config["outboundPortsExclude"] = request.outboundPortsExclude
+    if request.inboundPortsExclude:
+        resource_config["inboundPortsExclude"] = request.inboundPortsExclude
+    if request.defaultOutboundPolicy:
+        resource_config["defaultOutboundPolicy"] = request.defaultOutboundPolicy
+    if request.expectedAudience:
+        resource_config["expectedAudience"] = request.expectedAudience
     # Add env vars if present
     if request.envVars:
         resource_config["envVars"] = [ev.model_dump(exclude_none=True) for ev in request.envVars]
@@ -2099,6 +2118,16 @@ def _build_common_labels(
     if request.clientRegistrationInject is True:
         labels[KAGENTI_CLIENT_REGISTRATION_INJECT_LABEL] = "true"
     return labels
+
+
+def _build_common_annotations(request: "CreateAgentRequest") -> Dict[str, str]:
+    """Build pod template annotations for port exclusions and other webhook directives."""
+    annotations: Dict[str, str] = {}
+    if request.outboundPortsExclude:
+        annotations[KAGENTI_OUTBOUND_PORTS_EXCLUDE] = request.outboundPortsExclude
+    if request.inboundPortsExclude:
+        annotations[KAGENTI_INBOUND_PORTS_EXCLUDE] = request.inboundPortsExclude
+    return annotations
 
 
 def _build_selector_labels(request: "CreateAgentRequest") -> Dict[str, str]:
@@ -2577,6 +2606,17 @@ async def create_agent(
                         namespace=request.namespace,
                         routes=request.outboundRoutes,
                     )
+                if request.defaultOutboundPolicy or request.expectedAudience:
+                    extra_config = {}
+                    if request.defaultOutboundPolicy:
+                        extra_config["DEFAULT_OUTBOUND_POLICY"] = request.defaultOutboundPolicy
+                    if request.expectedAudience:
+                        extra_config["EXPECTED_AUDIENCE"] = request.expectedAudience
+                    kube.upsert_configmap(
+                        namespace=request.namespace,
+                        name="authbridge-config",
+                        data=extra_config,
+                    )
 
             # Create workload based on workloadType
             if request.workloadType == WORKLOAD_TYPE_DEPLOYMENT:
@@ -2747,6 +2787,10 @@ class FinalizeShipwrightBuildRequest(BaseModel):
     spiffeHelperInject: Optional[bool] = None
     clientRegistrationInject: Optional[bool] = None
     outboundRoutes: Optional[List[OutboundRoute]] = None
+    outboundPortsExclude: Optional[str] = None
+    inboundPortsExclude: Optional[str] = None
+    defaultOutboundPolicy: Optional[str] = None
+    expectedAudience: Optional[str] = None
 
 
 @router.post(
@@ -2957,6 +3001,28 @@ async def finalize_shipwright_build(
         # Propagate SPIRE identity setting from stored config
         final_spire_enabled = stored_config.get("spireEnabled", False)
 
+        # Port exclusion and advanced config
+        final_outbound_ports_exclude = (
+            request.outboundPortsExclude
+            if request.outboundPortsExclude is not None
+            else stored_config.get("outboundPortsExclude")
+        )
+        final_inbound_ports_exclude = (
+            request.inboundPortsExclude
+            if request.inboundPortsExclude is not None
+            else stored_config.get("inboundPortsExclude")
+        )
+        final_default_outbound_policy = (
+            request.defaultOutboundPolicy
+            if request.defaultOutboundPolicy is not None
+            else stored_config.get("defaultOutboundPolicy")
+        )
+        final_expected_audience = (
+            request.expectedAudience
+            if request.expectedAudience is not None
+            else stored_config.get("expectedAudience")
+        )
+
         # Outbound routing rules
         final_outbound_routes = None
         stored_routes = stored_config.get("outboundRoutes")
@@ -3002,6 +3068,10 @@ async def finalize_shipwright_build(
             spiffeHelperInject=final_spiffe_helper_inject,
             clientRegistrationInject=final_client_registration_inject,
             outboundRoutes=final_outbound_routes,
+            outboundPortsExclude=final_outbound_ports_exclude,
+            inboundPortsExclude=final_inbound_ports_exclude,
+            defaultOutboundPolicy=final_default_outbound_policy,
+            expectedAudience=final_expected_audience,
         )
 
         # Ensure a dedicated ServiceAccount exists so the webhook's
