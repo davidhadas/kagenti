@@ -1444,9 +1444,9 @@ async def create_tool(
                         namespace=request.namespace,
                         routes=request.outboundRoutes,
                     )
-                if final_default_outbound_policy:
+                if request.defaultOutboundPolicy:
                     extra = {
-                        "DEFAULT_OUTBOUND_POLICY": final_default_outbound_policy,
+                        "DEFAULT_OUTBOUND_POLICY": request.defaultOutboundPolicy,
                     }
                     kube.upsert_configmap(
                         namespace=request.namespace,
@@ -1906,6 +1906,15 @@ async def finalize_tool_shipwright_build(
                     kube=kube,
                     namespace=namespace,
                     routes=final_outbound_routes,
+                )
+            if final_default_outbound_policy:
+                extra = {
+                    "DEFAULT_OUTBOUND_POLICY": final_default_outbound_policy,
+                }
+                kube.upsert_configmap(
+                    namespace=namespace,
+                    name="authbridge-config",
+                    data=extra,
                 )
 
         # Create workload (Deployment or StatefulSet)
