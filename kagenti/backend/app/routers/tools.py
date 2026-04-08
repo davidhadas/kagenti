@@ -48,6 +48,10 @@ from app.core.constants import (
     # SPIRE identity constants
     KAGENTI_SPIRE_LABEL,
     KAGENTI_SPIRE_ENABLED_VALUE,
+    # Per-sidecar injection labels
+    KAGENTI_ENVOY_PROXY_INJECT_LABEL,
+    KAGENTI_SPIFFE_HELPER_INJECT_LABEL,
+    KAGENTI_CLIENT_REGISTRATION_INJECT_LABEL,
 )
 from app.models.responses import (
     ToolSummary,
@@ -214,6 +218,11 @@ class CreateToolRequest(BaseModel):
     # SPIRE identity (spiffe-helper sidecar injection)
     spireEnabled: bool = False
 
+    # Per-sidecar injection controls (None = use webhook defaults)
+    envoyProxyInject: Optional[bool] = None
+    spiffeHelperInject: Optional[bool] = None
+    clientRegistrationInject: Optional[bool] = None
+
 
 class FinalizeToolBuildRequest(BaseModel):
     """Request to finalize a tool Shipwright build by creating the Deployment/StatefulSet."""
@@ -227,6 +236,9 @@ class FinalizeToolBuildRequest(BaseModel):
     createHttpRoute: Optional[bool] = None
     authBridgeEnabled: Optional[bool] = None
     imagePullSecret: Optional[str] = None
+    envoyProxyInject: Optional[bool] = None
+    spiffeHelperInject: Optional[bool] = None
+    clientRegistrationInject: Optional[bool] = None
 
 
 class ToolShipwrightBuildInfoResponse(BaseModel):
@@ -476,6 +488,9 @@ def _build_tool_shipwright_build_manifest(
         "workloadType": request.workloadType,
         "authBridgeEnabled": request.authBridgeEnabled,
         "spireEnabled": request.spireEnabled,
+        "envoyProxyInject": request.envoyProxyInject,
+        "spiffeHelperInject": request.spiffeHelperInject,
+        "clientRegistrationInject": request.clientRegistrationInject,
     }
     # Add persistent storage config if present (for StatefulSet)
     if request.persistentStorage:
@@ -882,6 +897,9 @@ def _build_tool_deployment_manifest(
     shipwright_build_name: Optional[str] = None,
     auth_bridge_enabled: bool = False,
     spire_enabled: bool = False,
+    envoy_proxy_inject: Optional[bool] = None,
+    spiffe_helper_inject: Optional[bool] = None,
+    client_registration_inject: Optional[bool] = None,
 ) -> dict:
     """
     Build a Kubernetes Deployment manifest for an MCP tool.
@@ -936,6 +954,15 @@ def _build_tool_deployment_manifest(
     if spire_enabled:
         labels[KAGENTI_SPIRE_LABEL] = KAGENTI_SPIRE_ENABLED_VALUE
         pod_labels[KAGENTI_SPIRE_LABEL] = KAGENTI_SPIRE_ENABLED_VALUE
+    if envoy_proxy_inject is False:
+        labels[KAGENTI_ENVOY_PROXY_INJECT_LABEL] = "false"
+        pod_labels[KAGENTI_ENVOY_PROXY_INJECT_LABEL] = "false"
+    if spiffe_helper_inject is False:
+        labels[KAGENTI_SPIFFE_HELPER_INJECT_LABEL] = "false"
+        pod_labels[KAGENTI_SPIFFE_HELPER_INJECT_LABEL] = "false"
+    if client_registration_inject is True:
+        labels[KAGENTI_CLIENT_REGISTRATION_INJECT_LABEL] = "true"
+        pod_labels[KAGENTI_CLIENT_REGISTRATION_INJECT_LABEL] = "true"
 
     # Build annotations
     annotations = {}
@@ -1027,6 +1054,9 @@ def _build_tool_statefulset_manifest(
     storage_size: str = "1Gi",
     auth_bridge_enabled: bool = False,
     spire_enabled: bool = False,
+    envoy_proxy_inject: Optional[bool] = None,
+    spiffe_helper_inject: Optional[bool] = None,
+    client_registration_inject: Optional[bool] = None,
 ) -> dict:
     """
     Build a Kubernetes StatefulSet manifest for an MCP tool.
@@ -1085,6 +1115,15 @@ def _build_tool_statefulset_manifest(
     if spire_enabled:
         labels[KAGENTI_SPIRE_LABEL] = KAGENTI_SPIRE_ENABLED_VALUE
         pod_labels[KAGENTI_SPIRE_LABEL] = KAGENTI_SPIRE_ENABLED_VALUE
+    if envoy_proxy_inject is False:
+        labels[KAGENTI_ENVOY_PROXY_INJECT_LABEL] = "false"
+        pod_labels[KAGENTI_ENVOY_PROXY_INJECT_LABEL] = "false"
+    if spiffe_helper_inject is False:
+        labels[KAGENTI_SPIFFE_HELPER_INJECT_LABEL] = "false"
+        pod_labels[KAGENTI_SPIFFE_HELPER_INJECT_LABEL] = "false"
+    if client_registration_inject is True:
+        labels[KAGENTI_CLIENT_REGISTRATION_INJECT_LABEL] = "true"
+        pod_labels[KAGENTI_CLIENT_REGISTRATION_INJECT_LABEL] = "true"
 
     # Build annotations
     annotations = {}
@@ -1376,6 +1415,9 @@ async def create_tool(
                     description=description,
                     auth_bridge_enabled=request.authBridgeEnabled,
                     spire_enabled=request.spireEnabled,
+                    envoy_proxy_inject=request.envoyProxyInject,
+                    spiffe_helper_inject=request.spiffeHelperInject,
+                    client_registration_inject=request.clientRegistrationInject,
                 )
                 kube.create_statefulset(request.namespace, workload_manifest)
                 logger.info(
@@ -1395,6 +1437,9 @@ async def create_tool(
                     description=description,
                     auth_bridge_enabled=request.authBridgeEnabled,
                     spire_enabled=request.spireEnabled,
+                    envoy_proxy_inject=request.envoyProxyInject,
+                    spiffe_helper_inject=request.spiffeHelperInject,
+                    client_registration_inject=request.clientRegistrationInject,
                 )
                 kube.create_deployment(request.namespace, workload_manifest)
                 logger.info(
@@ -1741,6 +1786,23 @@ async def finalize_tool_shipwright_build(
         # Propagate SPIRE identity setting from stored config
         spire_enabled = tool_config_dict.get("spireEnabled", False)
 
+        # Per-sidecar injection controls
+        envoy_proxy_inject = (
+            request.envoyProxyInject
+            if request.envoyProxyInject is not None
+            else tool_config_dict.get("envoyProxyInject")
+        )
+        spiffe_helper_inject = (
+            request.spiffeHelperInject
+            if request.spiffeHelperInject is not None
+            else tool_config_dict.get("spiffeHelperInject")
+        )
+        client_registration_inject = (
+            request.clientRegistrationInject
+            if request.clientRegistrationInject is not None
+            else tool_config_dict.get("clientRegistrationInject")
+        )
+
         # Ensure a dedicated ServiceAccount exists so the webhook's
         # SPIFFE identity uses the workload name, not the ReplicaSet hash.
         kube.ensure_service_account(namespace=namespace, name=name)
@@ -1775,6 +1837,9 @@ async def finalize_tool_shipwright_build(
                 storage_size=storage_size,
                 auth_bridge_enabled=auth_bridge_enabled,
                 spire_enabled=spire_enabled,
+                envoy_proxy_inject=envoy_proxy_inject,
+                spiffe_helper_inject=spiffe_helper_inject,
+                client_registration_inject=client_registration_inject,
             )
             kube.create_statefulset(namespace, workload_manifest)
             logger.info(
@@ -1795,6 +1860,9 @@ async def finalize_tool_shipwright_build(
                 shipwright_build_name=name,
                 auth_bridge_enabled=auth_bridge_enabled,
                 spire_enabled=spire_enabled,
+                envoy_proxy_inject=envoy_proxy_inject,
+                spiffe_helper_inject=spiffe_helper_inject,
+                client_registration_inject=client_registration_inject,
             )
             kube.create_deployment(namespace, workload_manifest)
             logger.info(

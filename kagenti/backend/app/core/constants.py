@@ -34,6 +34,11 @@ APP_KUBERNETES_IO_COMPONENT = "app.kubernetes.io/component"
 KAGENTI_SPIRE_LABEL = "kagenti.io/spire"
 KAGENTI_SPIRE_ENABLED_VALUE = "enabled"
 
+# Per-sidecar injection labels (matched by kagenti-webhook precedence evaluator)
+KAGENTI_ENVOY_PROXY_INJECT_LABEL = "kagenti.io/envoy-proxy-inject"
+KAGENTI_SPIFFE_HELPER_INJECT_LABEL = "kagenti.io/spiffe-helper-inject"
+KAGENTI_CLIENT_REGISTRATION_INJECT_LABEL = "kagenti.io/client-registration-inject"
+
 # Labels - Values
 KAGENTI_UI_CREATOR_LABEL = "kagenti-ui"
 KAGENTI_OPERATOR_LABEL_NAME = "kagenti-operator"

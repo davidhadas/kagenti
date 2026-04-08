@@ -224,6 +224,10 @@ export const agentService = {
     authBridgeEnabled?: boolean;
     // SPIRE identity
     spireEnabled?: boolean;
+    // Per-sidecar injection controls
+    envoyProxyInject?: boolean;
+    spiffeHelperInject?: boolean;
+    clientRegistrationInject?: boolean;
     shipwrightConfig?: ShipwrightBuildConfig;
   }): Promise<{ success: boolean; name: string; namespace: string; message: string }> {
     return apiFetch('/agents', {
@@ -429,6 +433,9 @@ export const shipwrightService = {
       }>;
       createHttpRoute?: boolean;
       authBridgeEnabled?: boolean;
+      envoyProxyInject?: boolean;
+      spiffeHelperInject?: boolean;
+      clientRegistrationInject?: boolean;
       imagePullSecret?: string;
     }
   ): Promise<{ success: boolean; name: string; namespace: string; message: string }> {
@@ -514,6 +521,10 @@ export const toolService = {
     authBridgeEnabled?: boolean;
     // SPIRE identity
     spireEnabled?: boolean;
+    // Per-sidecar injection controls
+    envoyProxyInject?: boolean;
+    spiffeHelperInject?: boolean;
+    clientRegistrationInject?: boolean;
   }): Promise<{ success: boolean; name: string; namespace: string; message: string }> {
     return apiFetch('/tools', {
       method: 'POST',
@@ -644,6 +655,9 @@ export const toolShipwrightService = {
       }>;
       createHttpRoute?: boolean;
       authBridgeEnabled?: boolean;
+      envoyProxyInject?: boolean;
+      spiffeHelperInject?: boolean;
+      clientRegistrationInject?: boolean;
       imagePullSecret?: string;
     }
   ): Promise<{ success: boolean; name: string; namespace: string; message: string }> {

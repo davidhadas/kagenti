@@ -150,6 +150,11 @@ export const ImportToolPage: React.FC = () => {
   // SPIRE identity
   const [spireEnabled, setSpireEnabled] = useState(false);
 
+  // Per-sidecar injection controls
+  const [envoyProxyInject, setEnvoyProxyInject] = useState<boolean | undefined>(undefined);
+  const [spiffeHelperInject, setSpiffeHelperInject] = useState<boolean | undefined>(undefined);
+  const [clientRegistrationInject, setClientRegistrationInject] = useState<boolean | undefined>(undefined);
+
   // Validation state
   const [validated, setValidated] = useState<Record<string, 'success' | 'error' | 'default'>>({});
 
@@ -438,6 +443,9 @@ export const ImportToolPage: React.FC = () => {
         createHttpRoute,
         authBridgeEnabled,
         spireEnabled,
+        envoyProxyInject: authBridgeEnabled ? envoyProxyInject : undefined,
+        spiffeHelperInject: authBridgeEnabled ? spiffeHelperInject : undefined,
+        clientRegistrationInject: authBridgeEnabled ? clientRegistrationInject : undefined,
       });
     } else {
       // Image deployment
@@ -460,6 +468,9 @@ export const ImportToolPage: React.FC = () => {
         createHttpRoute,
         authBridgeEnabled,
         spireEnabled,
+        envoyProxyInject: authBridgeEnabled ? envoyProxyInject : undefined,
+        spiffeHelperInject: authBridgeEnabled ? spiffeHelperInject : undefined,
+        clientRegistrationInject: authBridgeEnabled ? clientRegistrationInject : undefined,
       });
     }
   };
@@ -948,6 +959,34 @@ export const ImportToolPage: React.FC = () => {
                   onChange={(_e, checked) => setSpireEnabled(checked)}
                 />
               </FormGroup>
+
+              {authBridgeEnabled && (
+              <>
+              <FormGroup fieldId="sidecarControls" label="Advanced Injection Controls">
+                <Checkbox
+                  id="envoyProxyInject"
+                  label="Envoy Proxy"
+                  isChecked={envoyProxyInject !== false}
+                  onChange={(_e, checked) => setEnvoyProxyInject(checked ? undefined : false)}
+                  description="Envoy proxy with go-processor for traffic interception. Disable to skip envoy-proxy sidecar."
+                />
+                <Checkbox
+                  id="spiffeHelperInject"
+                  label="SPIFFE Helper"
+                  isChecked={spiffeHelperInject !== false}
+                  onChange={(_e, checked) => setSpiffeHelperInject(checked ? undefined : false)}
+                  description="SPIFFE identity helper for SVID management. Disable to skip spiffe-helper sidecar."
+                />
+                <Checkbox
+                  id="clientRegistrationInject"
+                  label="Legacy Client Registration Sidecar"
+                  isChecked={clientRegistrationInject === true}
+                  onChange={(_e, checked) => setClientRegistrationInject(checked ? true : undefined)}
+                  description="Enable only if you need sidecar-based Keycloak client registration instead of operator-managed credentials."
+                />
+              </FormGroup>
+              </>
+              )}
 
               {/* Pod Configuration */}
               <ExpandableSection

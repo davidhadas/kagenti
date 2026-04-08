@@ -64,6 +64,10 @@ from app.core.constants import (
     # SPIRE identity constants
     KAGENTI_SPIRE_LABEL,
     KAGENTI_SPIRE_ENABLED_VALUE,
+    # Per-sidecar injection labels
+    KAGENTI_ENVOY_PROXY_INJECT_LABEL,
+    KAGENTI_SPIFFE_HELPER_INJECT_LABEL,
+    KAGENTI_CLIENT_REGISTRATION_INJECT_LABEL,
     # AuthBridge ConfigMap defaults
     DEFAULT_KEYCLOAK_INTERNAL_URL,
     DEFAULT_KEYCLOAK_REALM,
@@ -223,6 +227,11 @@ class CreateAgentRequest(BaseModel):
     authBridgeEnabled: bool = True
     # SPIRE identity (spiffe-helper sidecar injection)
     spireEnabled: bool = False
+
+    # Per-sidecar injection controls (None = use webhook defaults)
+    envoyProxyInject: Optional[bool] = None
+    spiffeHelperInject: Optional[bool] = None
+    clientRegistrationInject: Optional[bool] = None
 
     # Shipwright build configuration
     shipwrightConfig: Optional[ShipwrightBuildConfig] = None
@@ -1922,6 +1931,9 @@ def _build_agent_shipwright_build_manifest(
         "workloadType": request.workloadType,  # Store workload type for finalization
         "authBridgeEnabled": request.authBridgeEnabled,
         "spireEnabled": request.spireEnabled,
+        "envoyProxyInject": request.envoyProxyInject,
+        "spiffeHelperInject": request.spiffeHelperInject,
+        "clientRegistrationInject": request.clientRegistrationInject,
     }
     # Add env vars if present
     if request.envVars:
@@ -2045,6 +2057,13 @@ def _build_common_labels(
     # SPIRE identity label (triggers spiffe-helper sidecar injection by kagenti-webhook)
     if request.spireEnabled:
         labels[KAGENTI_SPIRE_LABEL] = KAGENTI_SPIRE_ENABLED_VALUE
+    # Per-sidecar injection labels (opt-out for envoy/spiffe, opt-in for client-registration)
+    if request.envoyProxyInject is False:
+        labels[KAGENTI_ENVOY_PROXY_INJECT_LABEL] = "false"
+    if request.spiffeHelperInject is False:
+        labels[KAGENTI_SPIFFE_HELPER_INJECT_LABEL] = "false"
+    if request.clientRegistrationInject is True:
+        labels[KAGENTI_CLIENT_REGISTRATION_INJECT_LABEL] = "true"
     return labels
 
 
@@ -2684,6 +2703,9 @@ class FinalizeShipwrightBuildRequest(BaseModel):
     createHttpRoute: Optional[bool] = None
     authBridgeEnabled: Optional[bool] = None
     imagePullSecret: Optional[str] = None
+    envoyProxyInject: Optional[bool] = None
+    spiffeHelperInject: Optional[bool] = None
+    clientRegistrationInject: Optional[bool] = None
 
 
 @router.post(
@@ -2894,6 +2916,23 @@ async def finalize_shipwright_build(
         # Propagate SPIRE identity setting from stored config
         final_spire_enabled = stored_config.get("spireEnabled", False)
 
+        # Per-sidecar injection controls
+        final_envoy_proxy_inject = (
+            request.envoyProxyInject
+            if request.envoyProxyInject is not None
+            else stored_config.get("envoyProxyInject")
+        )
+        final_spiffe_helper_inject = (
+            request.spiffeHelperInject
+            if request.spiffeHelperInject is not None
+            else stored_config.get("spiffeHelperInject")
+        )
+        final_client_registration_inject = (
+            request.clientRegistrationInject
+            if request.clientRegistrationInject is not None
+            else stored_config.get("clientRegistrationInject")
+        )
+
         # Step 3: Create workload + Service with the built image
         # Build a CreateAgentRequest-like object for manifest builders
         agent_request = CreateAgentRequest(
@@ -2910,6 +2949,9 @@ async def finalize_shipwright_build(
             createHttpRoute=final_create_route,
             authBridgeEnabled=final_auth_bridge,
             spireEnabled=final_spire_enabled,
+            envoyProxyInject=final_envoy_proxy_inject,
+            spiffeHelperInject=final_spiffe_helper_inject,
+            clientRegistrationInject=final_client_registration_inject,
         )
 
         # Ensure a dedicated ServiceAccount exists so the webhook's
