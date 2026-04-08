@@ -313,7 +313,17 @@ class SidecarManager:
         namespace: str = "team1",
         agent_name: str = "sandbox-legion",
     ) -> SidecarHandle:
-        """Enable a sidecar for a session. Spawns the asyncio task."""
+        """Enable a sidecar for a session. Spawns the asyncio task.
+
+        Requires KAGENTI_FEATURE_FLAG_SIDECARS to be enabled.
+        """
+        from app.core.config import settings
+
+        if not settings.kagenti_feature_flag_sidecars:
+            raise RuntimeError(
+                "Sidecars are disabled — set KAGENTI_FEATURE_FLAG_SIDECARS=true to enable"
+            )
+
         # Restore any persisted state from DB on first access
         await self._restore_sidecars_for_session(parent_context_id, namespace)
 
