@@ -27,8 +27,9 @@ import {
 } from '@xyflow/react';
 import dagre from 'dagre';
 import type { AgentLoop } from '../types/agentLoop';
-import type { AgentGraphCard, GraphTopology, GraphEdge as TopologyEdge } from '../types/graphCard';
-import { countTools, formatTokens, formatDuration } from '../utils/loopFormatting';
+import type { AgentGraphCard, GraphTopology, GraphEdge as TopologyEdge, EventTypeDef } from '../types/graphCard';
+// loopFormatting utilities available if MessageSidebar is restored
+// import { countTools, formatTokens, formatDuration } from '../utils/loopFormatting';
 import { EVENT_CATALOG } from '../utils/loopBuilder';
 import { GraphDetailPanel } from './GraphDetailPanel';
 
@@ -56,16 +57,8 @@ const COLOR_HIGHLIGHT_BLUE = '#4fc3f7';
 const COLOR_BORDER = '#555';
 /** Dark border / divider. */
 const COLOR_BORDER_DARK = '#333';
-/** Overlay background for popups, badges, toolbar buttons. */
-const COLOR_OVERLAY_BG = 'rgba(30, 30, 50, 0.85)';
 /** Popup panel background. */
 const COLOR_PANEL_BG = '#1a1a2e';
-/** Status green. */
-const COLOR_STATUS_OK = '#4caf50';
-/** Status red. */
-const COLOR_STATUS_FAIL = '#f44336';
-/** Status amber. */
-const COLOR_STATUS_WARN = '#ff9800';
 
 /** Default fallback for untraversed edges. */
 const COLOR_EDGE_INACTIVE = '#444';
@@ -78,8 +71,6 @@ const NODE_HEIGHT = 50;
 const EDGE_STROKE_MAX = 4;
 /** Per-traversal stroke growth. */
 const EDGE_STROKE_STEP = 0.3;
-/** Max characters shown for user message in sidebar. */
-const MSG_TRUNCATE = 35;
 
 // ---------------------------------------------------------------------------
 // Default graph card topology (sandbox-legion, used as fallback)
@@ -587,17 +578,6 @@ function buildTopologyGraph(
 // Message sidebar helpers
 // ---------------------------------------------------------------------------
 
-interface MessageEntry {
-  loopId: string;
-  userMessage: string;
-  status: string;
-  stepProgress: string;
-  toolCount: number;
-  tokens: string;
-  duration: string;
-  isActive: boolean;
-}
-
 /**
  * Build event flow graph: event types as NODES, sequential transitions as EDGES.
  * This is the "Topology + Events" view — shows the actual event type flow
@@ -675,131 +655,6 @@ function buildEventFlowGraph(
 
   return { nodes, edges };
 }
-
-function buildMessageEntries(loops: AgentLoop[], selectedLoopId: string | null): MessageEntry[] {
-  return loops.map((loop) => {
-    const stepStr = loop.status === 'done' || loop.status === 'failed'
-      ? `${loop.totalSteps} steps`
-      : `step ${loop.currentStep + 1}/${loop.totalSteps || '?'}`;
-
-    return {
-      loopId: loop.id,
-      userMessage: loop.userMessage || loop.id.substring(0, 8),
-      status: loop.status,
-      stepProgress: stepStr,
-      toolCount: countTools(loop),
-      tokens: formatTokens(loop),
-      duration: formatDuration(loop.budget.wallClockS),
-      isActive: selectedLoopId === loop.id || (selectedLoopId === null && loop === loops[loops.length - 1]),
-    };
-  });
-}
-
-function statusIcon(status: string): string {
-  switch (status) {
-    case 'done':      return '[done]';
-    case 'failed':    return '[failed]';
-    case 'canceled':  return '[canceled]';
-    default:          return '[running]';
-  }
-}
-
-function statusColor(status: string): string {
-  switch (status) {
-    case 'done':      return COLOR_STATUS_OK;
-    case 'failed':    return COLOR_STATUS_FAIL;
-    case 'canceled':  return COLOR_STATUS_WARN;
-    default:          return COLOR_ACCENT_BLUE;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Extracted sub-components
-// ---------------------------------------------------------------------------
-
-interface MessageSidebarProps {
-  loops: AgentLoop[];
-  messageEntries: MessageEntry[];
-  selectedLoopId: string | null;
-  setSelectedLoopId: (id: string | null) => void;
-}
-
-/** Collapsible message list shown on the left in multi-message mode. */
-const MessageSidebar: React.FC<MessageSidebarProps> = React.memo(
-  ({ loops, messageEntries, selectedLoopId, setSelectedLoopId }) => (
-    <>
-      {/* Sidebar header */}
-      <div style={{
-        padding: '8px 10px',
-        borderBottom: `1px solid ${COLOR_BORDER_DARK}`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexShrink: 0,
-      }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: COLOR_TEXT_SECONDARY }}>
-          Messages ({loops.length})
-        </span>
-        <button
-          onClick={() => setSelectedLoopId(null)}
-          title="Show all messages"
-          style={{
-            background: selectedLoopId === null ? '#1a3a5c' : 'none',
-            border: `1px solid ${COLOR_BORDER}`,
-            color: COLOR_TEXT_SECONDARY,
-            borderRadius: 3,
-            padding: '2px 6px',
-            fontSize: 10,
-            cursor: 'pointer',
-          }}
-        >
-          All
-        </button>
-      </div>
-
-      {/* Message list */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}>
-        {messageEntries.map((entry, idx) => (
-          <div
-            key={entry.loopId}
-            data-testid={`graph-msg-entry-${idx}`}
-            onClick={() => setSelectedLoopId(entry.isActive && selectedLoopId !== null ? null : entry.loopId)}
-            style={{
-              padding: '8px 10px',
-              cursor: 'pointer',
-              backgroundColor: entry.isActive ? 'rgba(88, 166, 255, 0.1)' : 'transparent',
-              borderLeft: entry.isActive ? `3px solid ${COLOR_ACCENT_BLUE}` : '3px solid transparent',
-              transition: 'background-color 0.15s',
-            }}
-          >
-            {/* User prompt summary */}
-            <div style={{
-              fontSize: 12,
-              fontWeight: 500,
-              color: COLOR_TEXT_SECONDARY,
-              marginBottom: 4,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}>
-              {idx + 1}. {entry.userMessage.length > MSG_TRUNCATE
-                ? entry.userMessage.substring(0, MSG_TRUNCATE) + '...'
-                : entry.userMessage}
-            </div>
-            {/* Status line */}
-            <div style={{ fontSize: 11, color: COLOR_TEXT_MUTED, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ color: statusColor(entry.status) }}>{statusIcon(entry.status)}</span>
-              <span>{entry.stepProgress}</span>
-              <span>{entry.toolCount} tools</span>
-              <span>{entry.tokens} tok</span>
-            </div>
-          </div>
-        ))}
-      </div>
-    </>
-  ),
-);
-MessageSidebar.displayName = 'MessageSidebar';
 
 // ---------------------------------------------------------------------------
 
@@ -910,8 +765,8 @@ export const TopologyGraphView: React.FC<TopologyGraphViewProps> = React.memo(({
   const loops = useMemo(() => allLoops || [loop], [allLoops, loop]);
   const topology = graphCard?.topology || DEFAULT_TOPOLOGY;
 
-  const [sidebarOpen, setSidebarOpen] = useState(loops.length > 1);
-  const [selectedLoopId, setSelectedLoopId] = useState<string | null>(null);
+  const [_sidebarOpen, _setSidebarOpen] = useState(loops.length > 1);
+  const [selectedLoopId, _setSelectedLoopId] = useState<string | null>(null);
   const [hoveredEdge, setHoveredEdge] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -972,7 +827,7 @@ export const TopologyGraphView: React.FC<TopologyGraphViewProps> = React.memo(({
     if (graphCard?.event_catalog) {
       const map: Record<string, string[]> = {};
       for (const [evtType, def] of Object.entries(graphCard.event_catalog)) {
-        map[evtType] = def.langgraph_nodes;
+        map[evtType] = (def as EventTypeDef & { langgraph_nodes: string[] }).langgraph_nodes;
       }
       return map;
     }
@@ -1050,11 +905,6 @@ export const TopologyGraphView: React.FC<TopologyGraphViewProps> = React.memo(({
     return edge;
   }), [rawEdges, animActiveEdge, animVisitedNodes, animActiveTopoNode]);
 
-  // Message sidebar entries
-  const messageEntries = useMemo(
-    () => buildMessageEntries(loops, selectedLoopId),
-    [loops, selectedLoopId],
-  );
 
   const onEdgeClick = useCallback((_event: React.MouseEvent, edge: Edge) => {
     setHoveredEdge((prev) => (prev === edge.id ? null : edge.id));

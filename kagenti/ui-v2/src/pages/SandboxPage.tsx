@@ -1271,7 +1271,6 @@ export const SandboxPage: React.FC = () => {
               }
               const loopId = data.loop_id;
               const le = data.loop_event || data;
-              const eventType = le.type;
               // Apply event using shared builder
               updateLoop(loopId, (prev) => applyLoopEvent(prev, le));
 

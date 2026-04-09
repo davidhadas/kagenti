@@ -47,28 +47,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { sandboxService } from '@/services/api';
 import { NamespaceSelector } from '@/components/NamespaceSelector';
+import type { TaskSummary } from '@/types/sandbox';
 
 // NOTE: We use the sandboxService.listSessions() which returns TaskListResponse
 // The session metadata contains: parent_context_id, session_type, passover_from, passover_to
-
-/** Shape of a session item returned by sandboxService.listSessions(). */
-interface SessionItem {
-  context_id?: string;
-  id?: string;
-  metadata?: {
-    session_type?: string;
-    parent_context_id?: string;
-    title?: string;
-    agent_variant?: string;
-    created_at?: string;
-    passover_from?: string;
-    passover_to?: string;
-  };
-  status?: {
-    state?: string;
-    timestamp?: string;
-  };
-}
 
 type SessionType = 'all' | 'root' | 'child' | 'passover';
 
@@ -79,7 +61,7 @@ export const SessionsTablePage: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<SessionType>('all');
   const [searchText, setSearchText] = useState('');
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [sessionToDelete, setSessionToDelete] = useState<SessionItem | null>(null);
+  const [sessionToDelete, setSessionToDelete] = useState<TaskSummary | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
@@ -100,7 +82,7 @@ export const SessionsTablePage: React.FC = () => {
   const filteredSessions = sessions.filter((s) => {
     // Type filter
     if (typeFilter !== 'all') {
-      const sessionType = s.metadata?.session_type || 'root';
+      const sessionType = (s.metadata?.session_type as string) || 'root';
       if (sessionType !== typeFilter) return false;
     }
     // Search by context ID
@@ -120,7 +102,7 @@ export const SessionsTablePage: React.FC = () => {
     },
   });
 
-  const handleDeleteClick = (session: SessionItem) => {
+  const handleDeleteClick = (session: TaskSummary) => {
     setSessionToDelete(session);
     setDeleteModalOpen(true);
     setOpenMenuId(null);
@@ -143,11 +125,11 @@ export const SessionsTablePage: React.FC = () => {
 
   const truncateId = (id: string) => id ? id.slice(0, 8) + '...' : '';
 
-  const getSessionType = (session: SessionItem): string => {
-    return session.metadata?.session_type || 'root';
+  const getSessionType = (session: TaskSummary): string => {
+    return (session.metadata?.session_type as string) || 'root';
   };
 
-  const renderTypeBadge = (session: SessionItem) => {
+  const renderTypeBadge = (session: TaskSummary) => {
     const type = getSessionType(session);
     const colors: Record<string, 'blue' | 'cyan' | 'purple' | 'grey'> = {
       root: 'blue',
@@ -157,7 +139,7 @@ export const SessionsTablePage: React.FC = () => {
     return <Label color={colors[type] || 'grey'} isCompact>{type}</Label>;
   };
 
-  const renderStatusBadge = (session: SessionItem) => {
+  const renderStatusBadge = (session: TaskSummary) => {
     const state = session.status?.state || 'unknown';
     let color: 'green' | 'blue' | 'red' | 'grey' = 'grey';
     let label = state;
@@ -263,9 +245,9 @@ export const SessionsTablePage: React.FC = () => {
             <Tbody>
               {filteredSessions.map((session) => {
                 const contextId = session.context_id || session.id || '';
-                const parentId = session.metadata?.parent_context_id;
-                const title = session.metadata?.title || session.metadata?.agent_variant || 'Untitled';
-                const createdAt = session.metadata?.created_at || session.status?.timestamp;
+                const parentId = session.metadata?.parent_context_id as string | undefined;
+                const title = (session.metadata?.title as string) || (session.metadata?.agent_variant as string) || 'Untitled';
+                const createdAt = (session.metadata?.created_at as string) || session.status?.timestamp;
 
                 return (
                   <Tr key={contextId}>

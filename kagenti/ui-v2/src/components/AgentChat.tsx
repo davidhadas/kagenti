@@ -314,7 +314,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({ namespace, name }) => {
     }
   };
 
-  const handleHitlResponse = async (taskId: string, action: 'approve' | 'deny') => {
+  const handleHitlResponse = async (_taskId: string, action: 'approve' | 'deny') => {
     try {
       const token = await getToken();
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
