@@ -814,6 +814,7 @@ async def delete_agent(
     This deletes:
     - Deployment, StatefulSet, or Job (whichever exists)
     - Service
+    - HTTPRoute (if exists)
     - Shipwright Build CR (if exists)
     - Shipwright BuildRun CRs (if exist)
     - Legacy: Agent CR (if exists, for backward compatibility)
@@ -860,6 +861,23 @@ async def delete_agent(
             pass
         else:
             logger.warning(f"Failed to delete Service '{name}': {e.reason}")
+
+    # Delete the HTTPRoute (if exists)
+    try:
+        kube.delete_custom_resource(
+            group="gateway.networking.k8s.io",
+            version="v1",
+            namespace=namespace,
+            plural="httproutes",
+            name=name,
+        )
+        messages.append(f"HTTPRoute '{name}' deleted")
+    except ApiException as e:
+        if e.status == 404:
+            # HTTPRoute doesn't exist, that's fine
+            pass
+        else:
+            logger.warning(f"Failed to delete HTTPRoute '{name}': {e.reason}")
 
     # Delete the AgentRuntime CR (if exists)
     try:
