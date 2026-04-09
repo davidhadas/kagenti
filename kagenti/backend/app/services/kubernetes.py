@@ -450,7 +450,7 @@ class KubernetesService:
                 namespace=namespace,
             )
         except ApiException as e:
-            logger.error(f"Error deleting Service {name} in {namespace}: {e}")
+            logger.error("Error deleting Service: %s", e.status)
             raise
 
     # -------------------------------------------------------------------------
@@ -484,14 +484,14 @@ class KubernetesService:
         except ApiException as e:
             if e.status == 409:
                 # Secret already exists — patch it
-                logger.info(f"Secret '{name}' already exists in {namespace}, patching")
+                logger.info("Secret already exists, patching")
                 result = self.core_api.patch_namespaced_secret(
                     name=name,
                     namespace=namespace,
                     body=body,
                 )
                 return result.to_dict()
-            logger.error(f"Error creating Secret {name} in {namespace}: {e}")
+            logger.error("Error creating Secret: %s", e.status)
             raise
 
     # -------------------------------------------------------------------------
@@ -525,14 +525,14 @@ class KubernetesService:
         except ApiException as e:
             if e.status == 409:
                 # ConfigMap already exists — patch it
-                logger.info(f"ConfigMap '{name}' already exists in {namespace}, patching")
+                logger.info("ConfigMap already exists, patching")
                 result = self.core_api.patch_namespaced_config_map(
                     name=name,
                     namespace=namespace,
                     body=body,
                 )
                 return result.to_dict()
-            logger.error(f"Error creating ConfigMap {name} in {namespace}: {e}")
+            logger.error("Error creating ConfigMap: %s", e.status)
             raise
 
     # -------------------------------------------------------------------------
