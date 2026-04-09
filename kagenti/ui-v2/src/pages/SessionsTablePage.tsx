@@ -97,7 +97,7 @@ export const SessionsTablePage: React.FC = () => {
   const sessions = sessionsResponse?.items ?? [];
 
   // Filter by session type and search text
-  const filteredSessions = sessions.filter((s: SessionItem) => {
+  const filteredSessions = sessions.filter((s) => {
     // Type filter
     if (typeFilter !== 'all') {
       const sessionType = s.metadata?.session_type || 'root';
@@ -134,8 +134,8 @@ export const SessionsTablePage: React.FC = () => {
 
   const handleDeleteConfirm = () => {
     if (sessionToDelete) {
-      const contextId = sessionToDelete.context_id || sessionToDelete.id;
-      if (deleteConfirmText === contextId.slice(0, 8)) {
+      const contextId = sessionToDelete.context_id || sessionToDelete.id || '';
+      if (contextId && deleteConfirmText === contextId.slice(0, 8)) {
         deleteMutation.mutate({ contextId });
       }
     }
@@ -261,8 +261,8 @@ export const SessionsTablePage: React.FC = () => {
               </Tr>
             </Thead>
             <Tbody>
-              {filteredSessions.map((session: SessionItem) => {
-                const contextId = session.context_id || session.id;
+              {filteredSessions.map((session) => {
+                const contextId = session.context_id || session.id || '';
                 const parentId = session.metadata?.parent_context_id;
                 const title = session.metadata?.title || session.metadata?.agent_variant || 'Untitled';
                 const createdAt = session.metadata?.created_at || session.status?.timestamp;
