@@ -77,6 +77,7 @@ const EDGE_STROKE_STEP = 0.3;
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_TOPOLOGY: GraphTopology = {
+  description: 'Default sandbox-legion graph topology',
   entry_node: 'router',
   terminal_nodes: ['__end__'],
   nodes: {
