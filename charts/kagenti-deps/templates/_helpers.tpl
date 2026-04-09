@@ -112,7 +112,7 @@ not concatenated (e.g. service.extensions).
 {{- $_ := set $mlflowExp "headers" $headers -}}
 {{- end -}}
 {{- end -}}
-{{- if and $mlflowEnabled $.Values.mlflow.auth.enabled -}}
+{{- if and $mlflowEnabled $.Values.mlflow.auth.enabled (not $rhoaiMlflow) -}}
 {{- $mlflowExporter := index $config "exporters" "otlphttp/mlflow" | default dict -}}
 {{- $_ := set $mlflowExporter "auth" (dict "authenticator" "oauth2client/mlflow") -}}
 {{- end -}}

@@ -154,10 +154,9 @@ istio:
 # receivers/processors/exporters), provide the full array.
 #
 otel:
-  # Enable the MLflow OTEL pipeline without deploying MLflow itself.
-  # Use this when MLflow is managed externally (e.g. RHOAI DSC mlflowoperator).
-  # Set traces_endpoint in mlflowConfig to the external MLflow service URL.
-  # Has no effect when components.mlflow.enabled is true (that flag takes precedence).
+  # MLflow OTEL pipeline for externally managed MLflow (e.g. RHOAI DSC).
+  # Also activates when components.mlflow.enabled is true.
+  # TODO: Replace with a single mlflow.mode enum (none|managed|external).
   mlflow:
     enabled: false
     workspace: "team1"     # RHOAI workspace namespace for x-mlflow-workspace header

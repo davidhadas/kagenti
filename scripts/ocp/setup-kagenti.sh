@@ -381,9 +381,13 @@ for ns in v.get('agentNamespaces', ['team1', 'team2']):
 }
 
 log_info "Step 2.5: MLflow DSC preflight + provisioning"
-_mlflow_check_dsc
-_mlflow_create_cr
-_mlflow_wait_ready
+if ! $KUBECTL get crd datascienceclusters.datasciencecluster.opendatahub.io &>/dev/null; then
+  log_warn "RHOAI not installed (DataScienceCluster CRD not found) — skipping MLflow provisioning"
+else
+  _mlflow_check_dsc
+  _mlflow_create_cr
+  _mlflow_wait_ready
+fi
 echo ""
 
 # ============================================================================
@@ -465,13 +469,21 @@ _wait_deployment_ready() {
 
 _wait_kagenti_deps_ready() {
   if $DRY_RUN; then return; fi
-  # Keycloak: OLM installs the RHBK operator first, which then processes the
-  # Keycloak CR and creates the deployment — wait for each step in order.
+
+  # Parallel chains for cert-manager and Istio
+  _wait_deployment_ready cert-manager-webhook cert-manager cert-manager &
+  local pid_cm=$!
+  _wait_deployment_ready istiod istio-system Istio &
+  local pid_istio=$!
+
+  # Keycloak chain — sequential (each step creates the next resource)
   _wait_deployment_ready rhbk-operator "$KC_NAMESPACE" "RHBK operator"
   _wait_deployment_ready postgres-kc "$KC_NAMESPACE" "Keycloak PostgreSQL" statefulset
   _wait_deployment_ready keycloak "$KC_NAMESPACE" Keycloak statefulset
-  _wait_deployment_ready cert-manager-webhook cert-manager cert-manager
-  _wait_deployment_ready istiod istio-system Istio
+
+  # Collect parallel results
+  wait $pid_cm || log_warn "cert-manager readiness check failed"
+  wait $pid_istio || log_warn "Istio readiness check failed"
 }
 
 # Apply operand CRs that --no-hooks skipped.
@@ -514,7 +526,7 @@ for doc in docs:
              if 'helm.sh/hook' not in l and 'helm.sh/hook-weight' not in l and 'helm.sh/hook-delete-policy' not in l]
     print('---')
     print('\n'.join(lines))
-" | $KUBECTL apply -f - 2>/dev/null || true
+" | $KUBECTL apply -f - || true
 }
 
 _helm_kagenti_deps() {
@@ -603,10 +615,10 @@ _adopt_for_helm() {
   if [ -n "$ns" ]; then ns_flag=(-n "$ns"); fi
   if $KUBECTL get "$kind" "$name" "${ns_flag[@]}" &>/dev/null; then
     $KUBECTL label "$kind" "$name" "${ns_flag[@]}" \
-      app.kubernetes.io/managed-by=Helm --overwrite 2>/dev/null || true
+      app.kubernetes.io/managed-by=Helm --overwrite || true
     $KUBECTL annotate "$kind" "$name" "${ns_flag[@]}" \
       meta.helm.sh/release-name=kagenti-deps \
-      meta.helm.sh/release-namespace=kagenti-system --overwrite 2>/dev/null || true
+      meta.helm.sh/release-namespace=kagenti-system --overwrite || true
   fi
 }
 
@@ -645,7 +657,7 @@ _ensure_rhoai_shared_trust() {
     fi
     sleep 5
   done
-  $KUBECTL rollout status deployment/cert-manager-webhook -n cert-manager --timeout=180s 2>/dev/null || true
+  $KUBECTL rollout status deployment/cert-manager-webhook -n cert-manager --timeout=180s || true
 
   log_info "Waiting for cert-manager webhook endpoints..."
   tries=0
@@ -800,21 +812,21 @@ ${ROOT_CERT}"
   log_info "Restarting istiods..."
   if $KUBECTL get deployment/istiod -n istio-system &>/dev/null; then
     $KUBECTL rollout restart deployment/istiod -n istio-system
-    $KUBECTL rollout status deployment/istiod -n istio-system --timeout=300s 2>/dev/null || true
+    $KUBECTL rollout status deployment/istiod -n istio-system --timeout=300s || true
   else
     log_warn "deployment/istiod not found in istio-system — check kagenti-deps hooks"
   fi
   $KUBECTL rollout restart deployment/istiod-openshift-gateway -n openshift-ingress 2>/dev/null || true
-  $KUBECTL rollout status deployment/istiod-openshift-gateway -n openshift-ingress --timeout=300s 2>/dev/null || true
+  $KUBECTL rollout status deployment/istiod-openshift-gateway -n openshift-ingress --timeout=300s || true
 
   # --- Delete stale istio-ca-root-cert ConfigMaps and restart ztunnel ---
   log_info "Cleaning up stale CA ConfigMaps and restarting ztunnel..."
   for ns in kagenti-system gateway-system keycloak mcp-system istio-system istio-ztunnel; do
-    $KUBECTL delete configmap istio-ca-root-cert -n "$ns" --ignore-not-found 2>/dev/null || true
+    $KUBECTL delete configmap istio-ca-root-cert -n "$ns" --ignore-not-found || true
   done
 
   $KUBECTL rollout restart daemonset/ztunnel -n istio-ztunnel 2>/dev/null || true
-  $KUBECTL rollout status daemonset/ztunnel -n istio-ztunnel --timeout=300s 2>/dev/null || true
+  $KUBECTL rollout status daemonset/ztunnel -n istio-ztunnel --timeout=300s || true
   log_success "Shared trust reconciliation complete"
 }
 _ensure_rhoai_shared_trust
