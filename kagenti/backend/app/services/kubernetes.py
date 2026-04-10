@@ -7,6 +7,7 @@ Kubernetes service for API client management and common operations.
 
 import logging
 import os
+import re
 from functools import lru_cache
 from typing import List, Optional
 
@@ -18,6 +19,14 @@ from kubernetes.config import ConfigException
 from app.core.constants import ENABLED_NAMESPACE_LABEL_KEY, ENABLED_NAMESPACE_LABEL_VALUE
 
 logger = logging.getLogger(__name__)
+
+# Sanitize K8s resource names: strip control characters (CWE-117 log injection)
+_UNSAFE_CHARS = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _sanitize(value: str) -> str:
+    """Strip control characters from a value to prevent log injection."""
+    return _UNSAFE_CHARS.sub("", value)
 
 
 class KubernetesService:
@@ -444,6 +453,8 @@ class KubernetesService:
 
     def delete_service(self, namespace: str, name: str) -> None:
         """Delete a Service by name."""
+        namespace = _sanitize(namespace)
+        name = _sanitize(name)
         try:
             self.core_api.delete_namespaced_service(
                 name=name,
@@ -467,6 +478,8 @@ class KubernetesService:
 
         If the secret already exists (409 Conflict), updates it in place.
         """
+        namespace = _sanitize(namespace)
+        name = _sanitize(name)
         metadata = kubernetes.client.V1ObjectMeta(name=name, labels=labels)
         body = kubernetes.client.V1Secret(
             api_version="v1",
@@ -505,6 +518,8 @@ class KubernetesService:
 
         If the ConfigMap already exists (409 Conflict), updates it in place.
         """
+        namespace = _sanitize(namespace)
+        name = _sanitize(name)
         metadata = kubernetes.client.V1ObjectMeta(name=name, labels=labels)
         body = kubernetes.client.V1ConfigMap(
             api_version="v1",
