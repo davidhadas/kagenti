@@ -267,8 +267,10 @@ export const ImportToolPage: React.FC = () => {
     const [, org, repo] = githubMatch;
     const branch = gitBranch || 'main';
     const path = gitPath.replace(/^\/+|\/+$/g, '');
+    // GitHub Tool AuthBridge demo uses Keycloak/JWKS env + secret refs (not LLM keys).
+    const envFile = path === 'mcp/github_tool' ? '.env.authbridge' : '.env.openai';
 
-    return `https://raw.githubusercontent.com/${org}/${repo}/refs/heads/${branch}/${path}/.env.openai`;
+    return `https://raw.githubusercontent.com/${org}/${repo}/refs/heads/${branch}/${path}/${envFile}`;
   };
 
   // Environment variable handlers
