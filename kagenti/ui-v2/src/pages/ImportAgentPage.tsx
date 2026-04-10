@@ -1031,9 +1031,32 @@ export const ImportAgentPage: React.FC = () => {
                       setClientRegistrationInject(true);
                     }
                   }}
-                  description="When enabled, the webhook injects AuthBridge sidecars (envoy-proxy, go-processor, spiffe-helper, client-registration) into the agent pod for inbound JWT validation, outbound token exchange, and automatic Keycloak client registration."
+                  description="When enabled, the webhook injects AuthBridge for inbound JWT validation, outbound token exchange, and Keycloak client registration. With the default webhook settings this is three sidecars (envoy-proxy, spiffe-helper, client-registration) plus proxy-init; if the cluster operator enables featureGates.combinedSidecar on kagenti-webhook, a single authbridge container is used instead (see docs linked below)."
               />
               </FormGroup>
+
+              {authBridgeEnabled && (
+                <Alert
+                  variant="info"
+                  isInline
+                  title="Combined AuthBridge container"
+                  style={{ marginBottom: '16px' }}
+                >
+                  <Text component="p">
+                    There is no toggle here for the single-container mode. When{' '}
+                    <code>featureGates.combinedSidecar</code> is <code>true</code> on the admission
+                    webhook, injected pods get one <code>authbridge</code> container (see{' '}
+                    <a
+                      href="https://github.com/kagenti/kagenti/blob/main/docs/authbridge-combined-sidecar.md"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Combined AuthBridge sidecar
+                    </a>
+                    ). Advanced injection checkboxes still apply as flags inside that container.
+                  </Text>
+                </Alert>
+              )}
 
               {/* SPIRE Identity */}
               <FormGroup fieldId="spireEnabled">

@@ -987,9 +987,32 @@ export const ImportToolPage: React.FC = () => {
                       setClientRegistrationInject(true);
                     }
                   }}
-                  description="When enabled, the webhook injects AuthBridge sidecars (envoy-proxy, go-processor, spiffe-helper, client-registration) into the tool pod for inbound JWT validation, outbound token exchange, and automatic Keycloak client registration."
-              />
+                  description="When enabled, the webhook injects AuthBridge for inbound JWT validation, outbound token exchange, and Keycloak client registration. Default webhook settings use three sidecars plus proxy-init; with featureGates.combinedSidecar enabled on kagenti-webhook, a single authbridge container is used instead (see docs linked below)."
+                />
               </FormGroup>
+
+              {authBridgeEnabled && (
+                <Alert
+                  variant="info"
+                  isInline
+                  title="Combined AuthBridge container"
+                  style={{ marginBottom: '16px' }}
+                >
+                  <Text component="p">
+                    Combined mode is configured on the admission webhook (
+                    <code>featureGates.combinedSidecar</code>), not on this page. See{' '}
+                    <a
+                      href="https://github.com/kagenti/kagenti/blob/main/docs/authbridge-combined-sidecar.md"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Combined AuthBridge sidecar
+                    </a>{' '}
+                    for operator steps. Advanced injection checkboxes still apply as flags inside the
+                    combined container when that gate is on.
+                  </Text>
+                </Alert>
+              )}
 
               {/* SPIRE Identity */}
               <FormGroup fieldId="spireEnabled">
