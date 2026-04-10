@@ -482,8 +482,6 @@ class KubernetesService:
             return result.to_dict()
         except ApiException as e:
             if e.status == 409:
-                # Secret already exists — patch it
-                logger.info("Secret already exists, patching")
                 result = self.core_api.patch_namespaced_secret(
                     name=name,
                     namespace=namespace,
@@ -523,7 +521,6 @@ class KubernetesService:
         except ApiException as e:
             if e.status == 409:
                 # ConfigMap already exists — patch it
-                logger.info("ConfigMap already exists, patching")
                 result = self.core_api.patch_namespaced_config_map(
                     name=name,
                     namespace=namespace,
