@@ -17,6 +17,7 @@ import base64
 import logging
 import os
 from typing import Dict, Optional
+from urllib.parse import quote_plus
 
 import asyncpg
 
@@ -85,7 +86,7 @@ def _dsn_for_namespace(namespace: str) -> str:
     if not creds:
         return _convention_dsn(namespace)
     return (
-        f"postgresql://{creds['username']}:{creds['password']}"
+        f"postgresql://{quote_plus(creds['username'])}:{quote_plus(creds['password'])}"
         f"@{creds['host']}:{creds['port']}/{creds['database']}"
     )
 
