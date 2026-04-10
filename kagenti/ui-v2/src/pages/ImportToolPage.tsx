@@ -463,7 +463,9 @@ export const ImportToolPage: React.FC = () => {
         imageTag,
         shipwrightConfig,
         envVars: envVars.filter((ev) => ev.name && (ev.value !== undefined || ev.valueFrom)),
-        servicePorts: showPodConfig ? servicePorts : undefined,
+        // Always send ports so Shipwright finalize uses them (matches Import Agent behavior).
+        // Previously omitted when Pod Configuration stayed collapsed → backend defaulted to 8000.
+        servicePorts,
         createHttpRoute,
         authBridgeEnabled,
         spireEnabled,
@@ -492,7 +494,7 @@ export const ImportToolPage: React.FC = () => {
           : undefined,
         envVars: envVars.filter((ev) => ev.name && (ev.value !== undefined || ev.valueFrom)),
         imagePullSecret: imagePullSecret || undefined,
-        servicePorts: showPodConfig ? servicePorts : undefined,
+        servicePorts,
         createHttpRoute,
         authBridgeEnabled,
         spireEnabled,
