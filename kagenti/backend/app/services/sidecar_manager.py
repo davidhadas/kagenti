@@ -176,14 +176,15 @@ class SidecarManager:
 
     def __init__(self) -> None:
         self._registry: dict[str, dict[SidecarType, SidecarHandle]] = {}
-        # Per-session event queues: parent_context_id -> Queue
-        self._session_queues: dict[str, asyncio.Queue] = {}
+        # Per-sidecar event queues: each sidecar gets its own queue so
+        # Queue.get() in one sidecar doesn't steal events from another.
+        # Fan-out happens in fan_out_event().
 
-    def get_session_queue(self, parent_context_id: str) -> asyncio.Queue:
-        """Get or create the event queue for a session. SSE proxy fans out to this."""
-        if parent_context_id not in self._session_queues:
-            self._session_queues[parent_context_id] = asyncio.Queue(maxsize=1000)
-        return self._session_queues[parent_context_id]
+    def _get_or_create_queue(self, handle: "SidecarHandle") -> asyncio.Queue:
+        """Get or create a per-sidecar event queue."""
+        if handle.event_queue is None:
+            handle.event_queue = asyncio.Queue(maxsize=1000)
+        return handle.event_queue
 
     async def _persist_sidecar_state(self, parent_context_id: str) -> None:
         """Persist all sidecar handles for a session into the session's task metadata.
@@ -292,17 +293,18 @@ class SidecarManager:
             )
 
     def fan_out_event(self, parent_context_id: str, event: dict) -> None:
-        """Called by SSE proxy to fan out an event to all sidecars for a session."""
-        queue = self._session_queues.get(parent_context_id)
-        if queue is None:
-            return
-        try:
-            queue.put_nowait(event)
-        except asyncio.QueueFull:
-            logger.warning(
-                "Event queue full for session %s, dropping event",
-                parent_context_id[:12],
-            )
+        """Called by SSE proxy to fan out an event to all sidecars for a session.
+
+        Each sidecar has its own queue, so events are delivered to all
+        sidecars independently (no stealing).
+        """
+        session_sidecars = self._registry.get(parent_context_id, {})
+        for handle in session_sidecars.values():
+            if handle.enabled and handle.event_queue is not None:
+                try:
+                    handle.event_queue.put_nowait(event)
+                except asyncio.QueueFull:
+                    logger.warning("Event queue full for sidecar %s", handle.sidecar_type.value)
 
     async def enable(
         self,
@@ -352,7 +354,7 @@ class SidecarManager:
             enabled=True,
             auto_approve=auto_approve,
             config=effective_config,
-            event_queue=self.get_session_queue(parent_context_id),
+            event_queue=asyncio.Queue(maxsize=1000),
         )
 
         # Restore observations from previous enable (if any)
@@ -507,7 +509,6 @@ class SidecarManager:
             await self.disable(parent_context_id, sidecar_type)
 
         self._registry.pop(parent_context_id, None)
-        self._session_queues.pop(parent_context_id, None)
         logger.info("Cleaned up sidecars for session %s", parent_context_id[:12])
 
     async def shutdown(self) -> None:
@@ -591,12 +592,11 @@ class SidecarManager:
 
             # Check if we should auto-continue
             elif analyzer.should_continue():
-                if analyzer.continue_counter >= analyzer.counter_limit:
-                    # Limit reached — emit HITL observation
-                    obs = analyzer.emit_limit_reached()
-                    handle.observations.append(obs)
+                obs = analyzer.record_continue()
+                handle.observations.append(obs)
+                if obs.requires_approval:
+                    # Limit reached — record_continue() already set severity/message
                     if handle.auto_approve:
-                        # Auto-reset and keep going
                         reset_obs = analyzer.reset_counter()
                         handle.observations.append(reset_obs)
                         await self._send_continue(handle)
@@ -604,9 +604,6 @@ class SidecarManager:
                         handle.pending_interventions.append(obs)
                         logger.info("Looper: iteration limit reached, awaiting HITL")
                 else:
-                    # Auto-continue the agent
-                    obs = analyzer.record_continue()
-                    handle.observations.append(obs)
                     await self._send_continue(handle)
 
             # Log iteration summary
@@ -637,7 +634,7 @@ class SidecarManager:
         import json
 
         try:
-            from app.routers.sandbox import get_session_pool
+            from app.services.session_db import get_session_pool
         except ImportError:
             return
 
@@ -745,7 +742,7 @@ class SidecarManager:
         import json
 
         try:
-            from app.routers.sandbox import get_session_pool
+            from app.services.session_db import get_session_pool
         except ImportError:
             logger.warning("Cannot import get_session_pool for child metadata write")
             return
