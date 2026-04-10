@@ -491,7 +491,9 @@ class KubernetesService:
                     body=body,
                 )
                 return result.to_dict()
-            logger.error("Error creating Secret: %s", e.status)
+            logger.error(
+                "Error creating Secret: status=%d", e.status if isinstance(e.status, int) else 0
+            )
             raise
 
     # -------------------------------------------------------------------------
