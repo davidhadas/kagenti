@@ -400,6 +400,11 @@ rules:
   - apiGroups: [""]
     resources: ["serviceaccounts"]
     verbs: ["get", "create"]
+  # RoleBindings — ensure_rolebinding() creates agent-authbridge-scc so service
+  # accounts in each agent namespace can use the kagenti-authbridge SCC (OpenShift).
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["rolebindings"]
+    verbs: ["get", "create"]
   {{- if .Values.featureFlags.sandbox }}
   # PersistentVolumeClaims for agent workspace storage (sandbox)
   - apiGroups: [""]

@@ -29,27 +29,9 @@ def detect_platform(kube: KubernetesService) -> str:
         'openshift' if route.openshift.io API is available, 'kubernetes' otherwise
     """
     try:
-        # Try to list routes API groups
-        # OpenShift exposes route.openshift.io/v1
-        from kubernetes import client
-
-        # Create API client
-        api_instance = client.ApiClient(kube.client.api_client.configuration)
-
-        # Get available API groups
-        with api_instance as api:
-            api_response = api.call_api(
-                "/apis", "GET", response_type="object", _return_http_data_only=True
-            )
-
-        groups = api_response.get("groups", [])
-        logger.debug("Available API groups: %s", [g.get("name") for g in groups])
-
-        for group in groups:
-            if group.get("name") == "route.openshift.io":
-                logger.info("Detected OpenShift platform (route.openshift.io API found)")
-                return "openshift"
-
+        if kube.api_group_exists("route.openshift.io"):
+            logger.info("Detected OpenShift platform (route.openshift.io API found)")
+            return "openshift"
         logger.info("Detected Kubernetes platform (no route.openshift.io API)")
         return "kubernetes"
     except Exception as e:

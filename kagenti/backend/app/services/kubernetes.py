@@ -40,6 +40,7 @@ class KubernetesService:
         self._apps_api: Optional[kubernetes.client.AppsV1Api] = None
         self._batch_api: Optional[kubernetes.client.BatchV1Api] = None
         self._rbac_api: Optional[kubernetes.client.RbacAuthorizationV1Api] = None
+        self._apis_api: Optional[kubernetes.client.ApisApi] = None
 
     def _load_config(self) -> kubernetes.client.ApiClient:
         """Load Kubernetes configuration (in-cluster or kubeconfig)."""
@@ -92,9 +93,30 @@ class KubernetesService:
             self._rbac_api = kubernetes.client.RbacAuthorizationV1Api(self.api_client)
         return self._rbac_api
 
+    @property
+    def apis_api(self) -> kubernetes.client.ApisApi:
+        """Get ApisApi client (GET /apis/ — API group discovery)."""
+        if self._apis_api is None:
+            self._apis_api = kubernetes.client.ApisApi(self.api_client)
+        return self._apis_api
+
     def is_running_in_cluster(self) -> bool:
         """Check if running inside a Kubernetes cluster."""
         return bool(os.getenv("KUBERNETES_SERVICE_HOST"))
+
+    def api_group_exists(self, group: str) -> bool:
+        """Return True if the cluster advertises the given API group (GET /apis/)."""
+        try:
+            response = self.apis_api.get_api_versions(_request_timeout=10)
+            groups = response.groups or []
+            logger.debug(
+                "Available API groups: %s",
+                sorted(g.name for g in groups if g and g.name),
+            )
+            return any(g.name == group for g in groups if g and g.name)
+        except ApiException as e:
+            logger.warning("Error listing API groups: %s", e)
+            return False
 
     def list_namespaces(self, label_selector: Optional[str] = None) -> List[str]:
         """List namespaces with optional label selector."""

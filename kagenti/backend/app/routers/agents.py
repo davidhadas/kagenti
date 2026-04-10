@@ -1995,7 +1995,7 @@ def _ensure_authbridge_scc_rolebinding(
         name="agent-authbridge-scc",
         cluster_role_name=cluster_role_name,
         subjects=[
-            kubernetes.client.V1Subject(
+            kubernetes.client.RbacV1Subject(
                 kind="Group",
                 api_group="rbac.authorization.k8s.io",
                 name=f"system:serviceaccounts:{namespace}",
