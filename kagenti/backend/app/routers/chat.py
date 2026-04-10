@@ -345,17 +345,15 @@ async def _stream_a2a_response(
 
                         try:
                             chunk = json.loads(data)
-                            logger.info(f"Parsed chunk keys: {list(chunk.keys())}")
-                            if "result" in chunk:
-                                logger.info(f"Result keys: {list(chunk['result'].keys())}")
 
-                            # Fan out event to sidecar manager
-                            try:
-                                from app.services.sidecar_manager import get_sidecar_manager
+                            # Fan out event to sidecars (only when sandbox flag is on)
+                            if settings.kagenti_feature_flag_sidecars:
+                                try:
+                                    from app.services.sidecar_manager import get_sidecar_manager
 
-                                get_sidecar_manager().fan_out_event(session_id, chunk)
-                            except Exception:
-                                pass  # Sidecar fan-out is best-effort
+                                    get_sidecar_manager().fan_out_event(session_id, chunk)
+                                except Exception:
+                                    logger.debug("Sidecar fan-out failed", exc_info=True)
 
                             if "result" not in chunk:
                                 logger.info("Skipping chunk - no 'result' field")
