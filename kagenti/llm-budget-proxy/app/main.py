@@ -135,6 +135,9 @@ async def lifespan(app: FastAPI):
         await db.close()
 
 
+# Module-level shared client for connection reuse
+_http_client = httpx.AsyncClient(timeout=httpx.Timeout(300.0))
+
 app = FastAPI(title="LLM Budget Proxy", lifespan=lifespan)
 
 
@@ -274,15 +277,14 @@ async def chat_completions(request: Request):
         )
 
     # Non-streaming: forward and record
-    async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
-        resp = await client.post(
-            f"{LITELLM_URL}/v1/chat/completions",
-            json=body,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-        )
+    resp = await _http_client.post(
+        f"{LITELLM_URL}/v1/chat/completions",
+        json=body,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
 
     latency_ms = int((time.monotonic() - start_time) * 1000)
 
@@ -297,7 +299,11 @@ async def chat_completions(request: Request):
             status="error",
             error_message=f"LiteLLM returned {resp.status_code}",
         )
-        return JSONResponse(status_code=resp.status_code, content=resp.json())
+        try:
+            content = resp.json()
+        except Exception:
+            content = {"error": {"message": resp.text[:200], "code": resp.status_code}}
+        return JSONResponse(status_code=resp.status_code, content=content)
 
     result = resp.json()
     usage = result.get("usage", {})
@@ -326,30 +332,29 @@ async def _stream_and_track(body: dict, api_key: str, meta: dict, start_time: fl
     body.setdefault("stream_options", {})
     body["stream_options"]["include_usage"] = True
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(300.0)) as client:
-        async with client.stream(
-            "POST",
-            f"{LITELLM_URL}/v1/chat/completions",
-            json=body,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-        ) as resp:
-            async for line in resp.aiter_lines():
-                yield line + "\n"
-                if line.startswith("data: ") and line != "data: [DONE]":
-                    try:
-                        chunk = json.loads(line[6:])
-                        usage = chunk.get("usage")
-                        if usage:
-                            prompt_tokens = usage.get("prompt_tokens", prompt_tokens)
-                            completion_tokens = usage.get(
-                                "completion_tokens", completion_tokens
-                            )
-                            total_tokens = usage.get("total_tokens", total_tokens)
-                    except (json.JSONDecodeError, KeyError):
-                        pass
+    async with _http_client.stream(
+        "POST",
+        f"{LITELLM_URL}/v1/chat/completions",
+        json=body,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    ) as resp:
+        async for line in resp.aiter_lines():
+            yield line + "\n"
+            if line.startswith("data: ") and line != "data: [DONE]":
+                try:
+                    chunk = json.loads(line[6:])
+                    usage = chunk.get("usage")
+                    if usage:
+                        prompt_tokens = usage.get("prompt_tokens", prompt_tokens)
+                        completion_tokens = usage.get(
+                            "completion_tokens", completion_tokens
+                        )
+                        total_tokens = usage.get("total_tokens", total_tokens)
+                except (json.JSONDecodeError, KeyError):
+                    pass
 
     latency_ms = int((time.monotonic() - start_time) * 1000)
     await _record_call(
@@ -378,15 +383,14 @@ async def embeddings(request: Request):
     api_key = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
     meta = _extract_metadata(body)
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
-        resp = await client.post(
-            f"{LITELLM_URL}/v1/embeddings",
-            json=body,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-        )
+    resp = await _http_client.post(
+        f"{LITELLM_URL}/v1/embeddings",
+        json=body,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+    )
 
     if resp.status_code == 200:
         result = resp.json()
@@ -401,19 +405,26 @@ async def embeddings(request: Request):
             total_tokens=usage.get("total_tokens", 0),
         )
         return result
-    return JSONResponse(status_code=resp.status_code, content=resp.json())
+    try:
+        content = resp.json()
+    except Exception:
+        content = {"error": {"message": resp.text[:200], "code": resp.status_code}}
+    return JSONResponse(status_code=resp.status_code, content=content)
 
 
 @app.get("/v1/models")
 async def models(request: Request):
     """Forward models list to LiteLLM."""
     api_key = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
-    async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
-        resp = await client.get(
-            f"{LITELLM_URL}/v1/models",
-            headers={"Authorization": f"Bearer {api_key}"},
-        )
-    return JSONResponse(status_code=resp.status_code, content=resp.json())
+    resp = await _http_client.get(
+        f"{LITELLM_URL}/v1/models",
+        headers={"Authorization": f"Bearer {api_key}"},
+    )
+    try:
+        content = resp.json()
+    except Exception:
+        content = {"error": {"message": resp.text[:200], "code": resp.status_code}}
+    return JSONResponse(status_code=resp.status_code, content=content)
 
 
 @app.get("/internal/usage/{session_id}")
