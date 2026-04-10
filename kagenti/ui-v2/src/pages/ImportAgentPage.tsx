@@ -4,6 +4,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isValidEnvVarName, isValidContainerImage, isValidImageTag } from '../utils/validation';
+import { newRouteRowId } from '../utils/routeRowId';
 import {
   PageSection,
   Title,
@@ -179,7 +180,11 @@ export const ImportAgentPage: React.FC = () => {
 
   // Outbound routing rules
   const [outboundRoutes, setOutboundRoutes] = useState<Array<{ id: string; host: string; target_audience: string; token_scopes: string }>>([]);
-  const addRoute = () => setOutboundRoutes([...outboundRoutes, { id: crypto.randomUUID(), host: '', target_audience: '', token_scopes: 'openid' }]);
+  const addRoute = () =>
+    setOutboundRoutes((prev) => [
+      ...prev,
+      { id: newRouteRowId(), host: '', target_audience: '', token_scopes: 'openid' },
+    ]);
   const removeRoute = (i: number) => setOutboundRoutes(outboundRoutes.filter((_, idx) => idx !== i));
   const updateRoute = (i: number, field: string, value: string) => {
     const updated = [...outboundRoutes];
@@ -192,6 +197,7 @@ export const ImportAgentPage: React.FC = () => {
   const [inboundPortsExclude, setInboundPortsExclude] = useState('');
   // AuthBridge config overrides
   const [defaultOutboundPolicy, setDefaultOutboundPolicy] = useState('passthrough');
+  const [showOutboundRouting, setShowOutboundRouting] = useState(false);
 
   // Validation state
   const [validated, setValidated] = useState<Record<string, 'success' | 'error' | 'default'>>({});
@@ -1071,7 +1077,8 @@ export const ImportAgentPage: React.FC = () => {
               {authBridgeEnabled && (
               <ExpandableSection
                 toggleText={`Outbound Routing Rules (${outboundRoutes.length} route${outboundRoutes.length !== 1 ? 's' : ''})`}
-                isExpanded={outboundRoutes.length > 0}
+                isExpanded={showOutboundRouting}
+                onToggle={(_event, expanded) => setShowOutboundRouting(expanded)}
               >
                 <Text component="p" style={{ marginBottom: '8px' }}>
                   Configure token exchange rules for outbound HTTP requests. Each route matches a service host and specifies the target audience and OAuth scopes for the exchanged token.
