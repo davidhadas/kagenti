@@ -15,7 +15,7 @@ else
     log_info "Using Kind/Kubernetes Shipwright Build"
 fi
 
-AGENT_EXAMPLES_BRANCH="${AGENT_EXAMPLES_BRANCH:-fix/weather-tool-resilience}"
+AGENT_EXAMPLES_BRANCH="${AGENT_EXAMPLES_BRANCH:-main}"
 
 if [ "$IS_OPENSHIFT" = "true" ]; then
     # OpenShift: Use BuildConfig (native OpenShift builds)

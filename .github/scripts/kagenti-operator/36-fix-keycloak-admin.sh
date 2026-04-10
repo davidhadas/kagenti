@@ -91,7 +91,7 @@ USER_ID=\$($KCADM get users --config /tmp/kc/kcadm.config -r master \
     -q username=$DESIRED_USER --fields id --format csv --noquotes 2>/dev/null || echo '')
 if [ -n \"\$ADMIN_ROLE_ID\" ] && [ -n \"\$USER_ID\" ]; then
     $KCADM add-roles --config /tmp/kc/kcadm.config -r master \
-        --uusername $DESIRED_USER --rolename admin 2>/dev/null && echo 'Admin role assigned' || echo 'Role already assigned'
+        --username $DESIRED_USER --rolename admin 2>/dev/null && echo 'Admin role assigned' || echo 'Role already assigned'
 fi
 "
 log_success "Permanent admin user ensured: $DESIRED_USER/$DESIRED_PASS"
