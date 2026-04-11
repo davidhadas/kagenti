@@ -74,7 +74,7 @@ async def get_agent_card(
     Fetch the A2A agent card for an agent.
 
     The agent card describes the agent's capabilities, skills, and metadata.
-    All agents (including sandbox) go through AuthBridge on port 8080.
+    All agents are reached via their cluster-internal URL through AuthBridge.
     """
     agent_url = get_agent_url(name, namespace)
     card_url = f"{agent_url}{A2A_AGENT_CARD_PATH}"
@@ -324,19 +324,26 @@ async def _stream_a2a_response(
                 headers=headers,
             ) as response:
                 response.raise_for_status()
-                logger.info(f"Connected to agent, status={response.status_code}")
+                logger.debug("Connected to agent, status=%d", response.status_code)
+
+                # Resolve sidecar manager once before the loop (not per-chunk)
+                _sidecar_mgr = None
+                if getattr(settings, "kagenti_feature_flag_sidecars", False):
+                    try:
+                        from app.services.sidecar_manager import get_sidecar_manager
+
+                        _sidecar_mgr = get_sidecar_manager()
+                    except ImportError:
+                        pass
 
                 async for line in response.aiter_lines():
                     if not line:
                         continue
 
-                    logger.info(f"Received line from agent: {line[:300]}")
-
                     # Parse SSE format
                     if line.startswith("data: "):
                         data = line[6:]
                         if data == "[DONE]":
-                            logger.info("Received [DONE] signal from agent")
                             done_payload = {"done": True, "session_id": session_id}
                             if username:
                                 done_payload["username"] = username
@@ -346,17 +353,14 @@ async def _stream_a2a_response(
                         try:
                             chunk = json.loads(data)
 
-                            # Fan out event to sidecars (only when sandbox flag is on)
-                            if settings.kagenti_feature_flag_sidecars:
+                            # Fan out event to sidecars (resolved once above)
+                            if _sidecar_mgr is not None:
                                 try:
-                                    from app.services.sidecar_manager import get_sidecar_manager
-
-                                    get_sidecar_manager().fan_out_event(session_id, chunk)
+                                    _sidecar_mgr.fan_out_event(session_id, chunk)
                                 except Exception:
                                     logger.debug("Sidecar fan-out failed", exc_info=True)
 
                             if "result" not in chunk:
-                                logger.info("Skipping chunk - no 'result' field")
                                 continue
 
                             result = chunk["result"]
@@ -366,7 +370,7 @@ async def _stream_a2a_response(
 
                             # TaskArtifactUpdateEvent
                             if "artifact" in result:
-                                logger.info("Processing TaskArtifactUpdateEvent")
+                                logger.debug("Processing TaskArtifactUpdateEvent")
                                 artifact = result.get("artifact", {})
                                 parts = artifact.get("parts", [])
                                 content = _extract_text_from_parts(parts)
@@ -380,7 +384,7 @@ async def _stream_a2a_response(
                                 if content:
                                     payload["content"] = content
 
-                                logger.info(f"Yielding artifact event: {artifact.get('name')}")
+                                logger.debug("Yielding artifact event")
                                 yield f"data: {json.dumps(payload)}\n\n"
 
                             # TaskStatusUpdateEvent
@@ -389,9 +393,8 @@ async def _stream_a2a_response(
                                 is_final = result.get("final", False)
                                 state = status.get("state", "UNKNOWN")
 
-                                logger.info(
-                                    f"Processing TaskStatusUpdateEvent: taskId={result.get('taskId')}, "
-                                    f"state={state}, final={is_final}"
+                                logger.debug(
+                                    "TaskStatusUpdateEvent: state=%s final=%s", state, is_final
                                 )
 
                                 # Extract status message text if present
@@ -404,9 +407,7 @@ async def _stream_a2a_response(
                                 event_type = "status"
                                 if state == "INPUT_REQUIRED":
                                     event_type = "hitl_request"
-                                    logger.info(
-                                        f"HITL request detected: taskId={result.get('taskId')}"
-                                    )
+                                    logger.info("HITL request detected")
 
                                 payload["event"] = {
                                     "type": event_type,
