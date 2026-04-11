@@ -19,7 +19,7 @@ dependencies = [
     "PyYAML>=6.0.3",
 
     # Dependencies for reliable logging in the authentication process.
-    "typer>=0.20.0"
+    "typer>=0.24.1"
 ]
 
 [project.optional-dependencies]
