@@ -82,7 +82,7 @@ from app.services.shipwright import (
     get_output_image_from_buildrun,
     resolve_clone_secret,
 )
-from app.utils.routes import create_route_for_agent_or_tool, route_exists
+from app.utils.routes import create_route_for_agent_or_tool, lookup_service_port, route_exists
 from app.routers.agents import (
     _ensure_authbridge_configmaps,
     _ensure_authproxy_routes,
@@ -2027,40 +2027,30 @@ async def finalize_tool_shipwright_build(
         raise HTTPException(status_code=e.status, detail=str(e.reason))
 
 
-def _get_tool_url(name: str, namespace: str, port: int = DEFAULT_IN_CLUSTER_PORT) -> str:
+def _get_tool_url(name: str, namespace: str, kube: KubernetesService) -> str:
     """Get the URL for an MCP tool server.
+
+    Looks up the K8s Service to find the actual port instead of assuming
+    the default.  Falls back to DEFAULT_IN_CLUSTER_PORT when the Service
+    is missing or has no ports.
 
     Service naming convention:
     - Service name: {name}-mcp
-    - Port: configurable, defaults to 8000
 
     Returns different URL formats based on deployment context:
     - In-cluster: http://{name}-mcp.{namespace}.svc.cluster.local:{port}
     - Off-cluster (local dev): http://{name}.{domain}:8080 (via HTTPRoute)
     """
+    service_name = _get_tool_service_name(name)
+    port = lookup_service_port(service_name, namespace, kube, DEFAULT_IN_CLUSTER_PORT)
+
     if settings.is_running_in_cluster:
-        # In-cluster: use service DNS with new naming convention
-        service_name = _get_tool_service_name(name)
         return f"http://{service_name}.{namespace}.svc.cluster.local:{port}"
     else:
-        # Off-cluster: use external domain (e.g., localtest.me) via HTTPRoute
+        # Off-cluster: HTTPRoute handles mapping to the Service port;
+        # the URL only needs the gateway listener port (8080).
         domain = settings.domain_name
         return f"http://{name}.{domain}:8080"
-
-
-def _get_tool_service_port(kube: KubernetesService, name: str, namespace: str) -> int:
-    """Look up the actual service port for a tool from K8s.
-
-    Falls back to DEFAULT_IN_CLUSTER_PORT if the service cannot be found.
-    """
-    try:
-        service = kube.get_service(namespace, _get_tool_service_name(name))
-        ports = service.get("spec", {}).get("ports", [])
-        if ports:
-            return ports[0].get("port", DEFAULT_IN_CLUSTER_PORT)
-    except ApiException:
-        pass
-    return DEFAULT_IN_CLUSTER_PORT
 
 
 @router.post(
@@ -2079,11 +2069,10 @@ async def connect_to_tool(
     This endpoint connects to the MCP server and retrieves the list of
     available tools using the MCP client library.
     """
-    service_port = _get_tool_service_port(kube, name, namespace)
-    tool_url = _get_tool_url(name, namespace, port=service_port)
+    tool_url = _get_tool_url(name, namespace, kube)
     mcp_endpoint = f"{tool_url}/mcp"
 
-    logger.info(f"Connecting to MCP server at {mcp_endpoint}")
+    logger.info("Connecting to MCP server at %s", mcp_endpoint)
 
     exit_stack = AsyncExitStack()
     try:
@@ -2160,8 +2149,7 @@ async def invoke_tool(
     This endpoint calls a specific tool on the MCP server with
     the provided arguments and returns the result.
     """
-    service_port = _get_tool_service_port(kube, name, namespace)
-    tool_url = _get_tool_url(name, namespace, port=service_port)
+    tool_url = _get_tool_url(name, namespace, kube)
     mcp_endpoint = f"{tool_url}/mcp"
 
     exit_stack = AsyncExitStack()

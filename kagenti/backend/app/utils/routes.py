@@ -269,6 +269,25 @@ def create_route_for_agent_or_tool(
         create_httproute(kube, name, namespace, service_name, service_port)
 
 
+def lookup_service_port(
+    service_name: str,
+    namespace: str,
+    kube: KubernetesService,
+    default_port: int,
+) -> int:
+    """Look up the first port of a K8s Service, falling back to *default_port*."""
+    try:
+        service = kube.get_service(namespace=namespace, name=service_name)
+        ports = service.get("spec", {}).get("ports", [])
+        if ports:
+            return ports[0].get("port", default_port)
+    except Exception:
+        logger.warning(
+            f"Could not look up Service {service_name} in {namespace}, using default port"
+        )
+    return default_port
+
+
 def get_agent_url(name: str, namespace: str, port: int = DEFAULT_OFF_CLUSTER_PORT) -> str:
     """Get the URL for an A2A agent.
 
