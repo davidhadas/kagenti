@@ -295,6 +295,12 @@ def lookup_service_port(
     return default_port
 
 
+def resolve_agent_url(name: str, namespace: str, kube: KubernetesService) -> str:
+    """Resolve agent URL by looking up actual Service port."""
+    port = lookup_service_port(name, namespace, kube, DEFAULT_OFF_CLUSTER_PORT)
+    return get_agent_url(name, namespace, port)
+
+
 def get_agent_url(name: str, namespace: str, port: int = DEFAULT_OFF_CLUSTER_PORT) -> str:
     """Get the URL for an A2A agent.
 
