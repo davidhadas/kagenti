@@ -286,17 +286,19 @@ export const ToolDetailPage: React.FC = () => {
   // If route check fails or is loading, default to false (in-cluster URL is safer default)
   const hasRoute = routeStatusData?.hasRoute ?? false;
 
+  // Prefer the real port from the Service; fall back to 8000
+  const servicePort = tool?.service?.ports?.[0]?.port || 8000;
+
   // Determine the appropriate URL based on route existence
   // External URL: http://{name}.{namespace}.{domainName}:8080/mcp (via HTTPRoute)
-  // In-cluster URL: http://{name}-mcp.{namespace}.svc.cluster.local:8000/mcp
+  // In-cluster URL: http://{name}-mcp.{namespace}.svc.cluster.local:{port}/mcp
   const domainName = dashboardConfig?.domainName || 'localtest.me';
   const toolExternalUrl = hasRoute
     ? `http://${name}.${namespace}.${domainName}:8080/mcp`
-    : `http://${name}-mcp.${namespace}.svc.cluster.local:8000/mcp`;
+    : `http://${name}-mcp.${namespace}.svc.cluster.local:${servicePort}/mcp`;
 
   // In-cluster URL for MCP server (used by MCP Inspector which runs in-cluster)
-  // Service naming: {name}-mcp on port 8000
-  const mcpInClusterUrl = `http://${name}-mcp.${namespace}.svc.cluster.local:8000/mcp`;
+  const mcpInClusterUrl = `http://${name}-mcp.${namespace}.svc.cluster.local:${servicePort}/mcp`;
 
   // Construct MCP Inspector URL with pre-configured server
   // MCP Inspector runs in-cluster, so it needs the in-cluster URL

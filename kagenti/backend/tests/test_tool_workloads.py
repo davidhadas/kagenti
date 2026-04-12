@@ -393,6 +393,16 @@ class TestMCPUrlGeneration:
         url = _get_mcp_service_url("my-complex-tool-name", "team1")
         assert url == "http://my-complex-tool-name-mcp.team1.svc.cluster.local:8000/mcp"
 
+    def test_mcp_url_custom_port(self):
+        """Verify MCP URL uses custom port when specified."""
+        url = _get_mcp_service_url("weather-tool", "team1", port=9090)
+        assert url == "http://weather-tool-mcp.team1.svc.cluster.local:9090/mcp"
+
+    def test_mcp_url_default_port(self):
+        """Verify MCP URL defaults to 8000 when port not specified."""
+        url = _get_mcp_service_url("weather-tool", "team1")
+        assert url == "http://weather-tool-mcp.team1.svc.cluster.local:8000/mcp"
+
 
 # Helper functions to test - these would be imported from tools.py
 # For now, we define stubs that match the expected implementation
@@ -666,6 +676,6 @@ def _get_statefulset_status(statefulset: dict) -> str:
     return "Not Ready"
 
 
-def _get_mcp_service_url(name: str, namespace: str) -> str:
+def _get_mcp_service_url(name: str, namespace: str, port: int = 8000) -> str:
     """Get the in-cluster MCP service URL for a tool."""
-    return f"http://{name}-mcp.{namespace}.svc.cluster.local:8000/mcp"
+    return f"http://{name}-mcp.{namespace}.svc.cluster.local:{port}/mcp"
