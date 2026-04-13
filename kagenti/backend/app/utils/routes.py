@@ -281,9 +281,11 @@ def lookup_service_port(
         ports = service.get("spec", {}).get("ports", [])
         if ports:
             return ports[0].get("port", default_port)
-    except Exception:
+    except ApiException:
         logger.warning(
-            f"Could not look up Service {service_name} in {namespace}, using default port"
+            "Could not look up Service %s in %s, using default port",
+            service_name,
+            namespace,
         )
     return default_port
 
