@@ -128,6 +128,8 @@ spec:
               value: "{{ .Values.featureFlags.triggers }}"
             - name: KEYCLOAK_URL
               value: {{ .Values.keycloak.url | quote }}
+            - name: KEYCLOAK_PUBLIC_URL
+              value: {{ .Values.keycloak.publicUrl | quote }}
             # Dashboard URLs from ConfigMap (populated by ui-routes-job)
             - name: TRACES_DASHBOARD_URL
               valueFrom:

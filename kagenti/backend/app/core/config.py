@@ -98,24 +98,25 @@ class Settings(BaseSettings):
 
     # Legacy direct config (fallback if AUTH_ENDPOINT not provided)
     keycloak_url: str = ""
+    # Browser-facing Keycloak URL (from keycloak.publicUrl Helm value)
+    keycloak_public_url: str = ""
     keycloak_realm: str = "kagenti"
     keycloak_client_id: str = "kagenti-ui"
 
     @property
     def effective_keycloak_url(self) -> str:
         """
-        Extract Keycloak base URL from AUTH_ENDPOINT or use direct config.
+        External (browser-facing) Keycloak URL for frontend auth redirects.
 
-        This returns the external (browser-facing) URL, used for frontend
-        auth config and redirect flows.
+        Priority: AUTH_ENDPOINT (from oauth secret) > KEYCLOAK_PUBLIC_URL
+        (from Helm) > KEYCLOAK_URL (internal, last resort) > constructed default.
         """
         if self.auth_endpoint:
-            # Parse AUTH_ENDPOINT to extract base URL
-            # Pattern: {base_url}/realms/{realm}/protocol/openid-connect/auth
             match = re.match(r"(https?://[^/]+)/realms/", self.auth_endpoint)
             if match:
                 return match.group(1)
-        # Fallback to direct config or default
+        if self.keycloak_public_url:
+            return self.keycloak_public_url
         if self.keycloak_url:
             return self.keycloak_url
         return f"http://keycloak.{self.domain_name}:8080"
