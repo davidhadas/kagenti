@@ -10,6 +10,7 @@ import re
 from typing import Any, Dict, List, Literal, Optional
 from contextlib import AsyncExitStack
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from kubernetes.client import ApiException
 from mcp import ClientSession
@@ -2116,10 +2117,22 @@ async def connect_to_tool(
 
             return MCPToolsResponse(tools=tools)
 
-    except ConnectionError as e:
-        logger.error(f"Connection error to MCP server: {e}")
+    except (ConnectionError, httpx.NetworkError) as e:
+        logger.error(f"Connection error to MCP server at {tool_url}: {e}")
         raise HTTPException(
-            status_code=503,
+            status_code=502,
+            detail=f"Failed to connect to MCP server at {tool_url}",
+        )
+    except httpx.TimeoutException as e:
+        logger.error(f"Timeout connecting to MCP server at {tool_url}: {e}")
+        raise HTTPException(
+            status_code=504,
+            detail=f"Timeout connecting to MCP server at {tool_url}",
+        )
+    except httpx.HTTPError as e:
+        logger.error(f"HTTP error connecting to MCP server at {tool_url}: {e}")
+        raise HTTPException(
+            status_code=502,
             detail=f"Failed to connect to MCP server at {tool_url}",
         )
     except Exception as e:
@@ -2189,10 +2202,22 @@ async def invoke_tool(
 
             return MCPInvokeResponse(result=result_data)
 
-    except ConnectionError as e:
-        logger.error(f"Connection error to MCP server: {e}")
+    except (ConnectionError, httpx.NetworkError) as e:
+        logger.error(f"Connection error to MCP server at {tool_url}: {e}")
         raise HTTPException(
-            status_code=503,
+            status_code=502,
+            detail=f"Failed to connect to MCP server at {tool_url}",
+        )
+    except httpx.TimeoutException as e:
+        logger.error(f"Timeout connecting to MCP server at {tool_url}: {e}")
+        raise HTTPException(
+            status_code=504,
+            detail=f"Timeout connecting to MCP server at {tool_url}",
+        )
+    except httpx.HTTPError as e:
+        logger.error(f"HTTP error connecting to MCP server at {tool_url}: {e}")
+        raise HTTPException(
+            status_code=502,
             detail=f"Failed to connect to MCP server at {tool_url}",
         )
     except HTTPException:
