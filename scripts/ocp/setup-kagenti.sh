@@ -17,6 +17,10 @@
 #   ./scripts/ocp/setup-kagenti.sh --realm nerc                 # Custom Keycloak realm (default: kagenti)
 #   ./scripts/ocp/setup-kagenti.sh --skip-ovn-patch             # Skip OVN gateway patch
 #   ./scripts/ocp/setup-kagenti.sh --skip-mcp-gateway           # Skip MCP Gateway install
+#   ./scripts/ocp/setup-kagenti.sh --skip-mlflow                # Disable Kagenti-Operator <-> MLflow integration
+#   ./scripts/ocp/setup-kagenti.sh --operator-repo ~/kagenti-operator  # Use local operator chart
+#   ./scripts/ocp/setup-kagenti.sh --operator-image quay.io/user/kagenti-operator:dev  # Custom operator image
+#   ./scripts/ocp/setup-kagenti.sh --operator-repo ~/kagenti-operator --operator-image quay.io/user/op:dev  # Both
 #
 # Prerequisites:
 #   - oc / kubectl with cluster-admin
@@ -42,8 +46,11 @@ KC_NAMESPACE="${KEYCLOAK_NAMESPACE:-keycloak}"
 SKIP_OVN_PATCH=false
 SKIP_MCP_GATEWAY=false
 SKIP_UI=false
+SKIP_MLFLOW=false
 SHOW_SECRETS=false
 MCP_GATEWAY_VERSION="0.5.1"
+OPERATOR_REPO=""
+OPERATOR_IMAGE=""
 DRY_RUN=false
 MLFLOW_NAMESPACE="redhat-ods-applications"
 MLFLOW_INSTANCE_NAME="mlflow"
@@ -70,7 +77,10 @@ while [[ $# -gt 0 ]]; do
     --skip-ovn-patch)     SKIP_OVN_PATCH=true; shift ;;
     --skip-mcp-gateway)   SKIP_MCP_GATEWAY=true; shift ;;
     --skip-ui)            SKIP_UI=true; shift ;;
+    --skip-mlflow)        SKIP_MLFLOW=true; shift ;;
     --show-secrets)       SHOW_SECRETS=true; shift ;;
+    --operator-repo)      OPERATOR_REPO="$2"; shift 2 ;;
+    --operator-image)     OPERATOR_IMAGE="$2"; shift 2 ;;
     --mcp-gateway-version) MCP_GATEWAY_VERSION="$2"; shift 2 ;;
     --dry-run)            DRY_RUN=true; shift ;;
     -h|--help)
@@ -83,7 +93,10 @@ while [[ $# -gt 0 ]]; do
       echo "  --skip-ovn-patch          Skip OVN gateway routing patch"
       echo "  --skip-mcp-gateway        Skip MCP Gateway installation"
       echo "  --skip-ui                 Skip Kagenti UI and backend installation"
+      echo "  --skip-mlflow             Skip MLflow integration (OTel traces + operator auto-config)"
       echo "  --show-secrets            Print Keycloak admin credentials to stdout (omitted by default for CI safety)"
+      echo "  --operator-repo PATH      Local path to kagenti-operator repo (overrides Chart.yaml dependency)"
+      echo "  --operator-image IMG:TAG  Custom operator image (e.g. quay.io/user/kagenti-operator:dev)"
       echo "  --mcp-gateway-version VER MCP Gateway chart version (default: $MCP_GATEWAY_VERSION)"
       echo "  --dry-run                 Show commands without executing"
       echo "  -h, --help                Show this help"
@@ -201,6 +214,7 @@ if [ ! -d "$KAGENTI_REPO/charts/kagenti-deps" ] || [ ! -d "$KAGENTI_REPO/charts/
   exit 1
 fi
 log_success "Kagenti repo: $KAGENTI_SOURCE"
+
 echo ""
 
 # ============================================================================
@@ -868,7 +882,27 @@ else
   KAGENTI_UI_FLAGS+=(--set "ui.backend.tag=v${LATEST_TAG}")
 fi
 
-run_cmd helm dependency update "$KAGENTI_REPO/charts/kagenti/"
+# Override operator chart dependency with local repo if provided
+if [ -n "$OPERATOR_REPO" ]; then
+  OPERATOR_REPO="$(cd "$OPERATOR_REPO" && pwd)"
+  if [ ! -f "$OPERATOR_REPO/charts/kagenti-operator/Chart.yaml" ]; then
+    log_error "Invalid operator repo: $OPERATOR_REPO (missing charts/kagenti-operator/Chart.yaml)"
+    exit 1
+  fi
+  log_info "Using local operator chart: $OPERATOR_REPO/charts/kagenti-operator"
+  # Place local chart directly into Helm's charts/ subdir — bypasses OCI dependency.
+  # Remove any existing tgz first — Helm prefers tgz over directory.
+  mkdir -p "$KAGENTI_REPO/charts/kagenti/charts"
+  rm -f "$KAGENTI_REPO/charts/kagenti/charts"/kagenti-operator-chart-*.tgz
+  cp -r "$OPERATOR_REPO/charts/kagenti-operator" \
+        "$KAGENTI_REPO/charts/kagenti/charts/kagenti-operator-chart"
+  # Clean up the copied chart on exit so it doesn't pollute git state
+  trap 'rm -rf "$KAGENTI_REPO/charts/kagenti/charts/kagenti-operator-chart"' EXIT
+fi
+
+if [ -z "$OPERATOR_REPO" ]; then
+  run_cmd helm dependency update "$KAGENTI_REPO/charts/kagenti/"
+fi
 
 # Detect Keycloak public URL from route (for OIDC redirects in the browser).
 # The internal URL (keycloak-service.KC_NAMESPACE:8080) is NOT reachable from outside the cluster.
@@ -884,19 +918,32 @@ fi
 
 log_info "Keycloak: realm=$KC_REALM namespace=$KC_NAMESPACE"
 
+# Build operator image override flags
+OPERATOR_IMAGE_FLAGS=()
+if [ -n "$OPERATOR_IMAGE" ]; then
+  OP_TAG="${OPERATOR_IMAGE##*:}"
+  OP_REPO="${OPERATOR_IMAGE%:*}"
+  OPERATOR_IMAGE_FLAGS+=(--set "kagenti-operator-chart.controllerManager.container.image.repository=${OP_REPO}")
+  OPERATOR_IMAGE_FLAGS+=(--set "kagenti-operator-chart.controllerManager.container.image.tag=${OP_TAG}")
+  OPERATOR_IMAGE_FLAGS+=(--set "kagenti-operator-chart.controllerManager.container.image.pullPolicy=Always")
+  log_info "Operator image: ${OPERATOR_IMAGE}"
+fi
+
 run_cmd $KUBECTL create namespace mcp-system --dry-run=client -o yaml | $KUBECTL apply -f -
 
 run_cmd helm upgrade --install kagenti "$KAGENTI_REPO/charts/kagenti/" \
   -n kagenti-system --create-namespace \
   -f "$SECRETS_FILE" \
   "${KAGENTI_UI_FLAGS[@]}" \
+  "${OPERATOR_IMAGE_FLAGS[@]}" \
   --set "agentOAuthSecret.spiffePrefix=spiffe://${DOMAIN}/sa" \
   --set uiOAuthSecret.useServiceAccountCA=false \
   --set agentOAuthSecret.useServiceAccountCA=false \
   --set mlflowOAuthSecret.useServiceAccountCA=false \
   --set mlflow.auth.enabled=false \
   --set "keycloak.publicUrl=${KEYCLOAK_PUBLIC_URL}" \
-  --set "keycloak.realm=${KC_REALM}"
+  --set "keycloak.realm=${KC_REALM}" \
+  --set "kagenti-operator-chart.mlflow.enable=$([ "$SKIP_MLFLOW" = true ] && echo false || echo true)"
 
 log_success "Kagenti installed"
 
