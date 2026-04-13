@@ -4,6 +4,7 @@
 """
 Kubernetes service for API client management and common operations.
 """
+# pylint: disable=too-many-public-methods
 
 import logging
 import os
@@ -455,13 +456,10 @@ class KubernetesService:
         """Delete a Service by name."""
         namespace = _sanitize(namespace)
         name = _sanitize(name)
-        try:
-            self.core_api.delete_namespaced_service(
-                name=name,
-                namespace=namespace,
-            )
-        except ApiException:
-            raise
+        self.core_api.delete_namespaced_service(
+            name=name,
+            namespace=namespace,
+        )
 
     # -------------------------------------------------------------------------
     # Secret Operations

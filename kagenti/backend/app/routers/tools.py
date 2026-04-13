@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 # Copyright 2025 IBM Corp.
 # Licensed under the Apache License, Version 2.0
 
@@ -267,7 +268,7 @@ class FinalizeToolBuildRequest(BaseModel):
     defaultOutboundPolicy: Optional[Literal["passthrough", "exchange"]] = None
 
 
-class ToolShipwrightBuildInfoResponse(BaseModel):
+class ToolShipwrightBuildInfoResponse(BaseModel):  # pylint: disable=too-many-instance-attributes
     """Full Shipwright Build information for tools."""
 
     # Build info

@@ -147,7 +147,7 @@ async def get_session_pool(namespace: str) -> asyncpg.Pool:
     """Return (or lazily create) the asyncpg pool for *namespace*."""
     pool = _pool_cache.get(namespace)
     if pool is not None:
-        if not pool._closed:
+        if not pool._closed:  # pylint: disable=protected-access
             return pool
         # Pool was closed externally — recreate
         logger.warning("DB pool for namespace=%s was closed — recreating", namespace)

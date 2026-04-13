@@ -6,6 +6,7 @@ Authentication and authorization utilities.
 
 Supports JWT token validation with Keycloak.
 """
+# pylint: disable=fixme
 
 import logging
 from typing import Optional, List

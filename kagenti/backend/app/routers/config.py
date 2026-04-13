@@ -14,6 +14,8 @@ from app.models.responses import DashboardConfigResponse
 
 
 class FeatureFlagsResponse(BaseModel):
+    """Response model for feature flag status."""
+
     sandbox: bool
     integrations: bool
     triggers: bool

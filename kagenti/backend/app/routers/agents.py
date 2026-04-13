@@ -1,3 +1,4 @@
+# pylint: disable=too-many-lines
 # Copyright 2025 IBM Corp.
 # Licensed under the Apache License, Version 2.0
 
@@ -99,17 +100,13 @@ from app.models.shipwright import (
     ShipwrightBuildStatusResponse,
     ShipwrightBuildRunStatusResponse,
     ResourceConfigFromBuild,
-    ShipwrightBuildInfoResponse,
 )
 from app.services.shipwright import (
     build_shipwright_build_manifest,
     build_shipwright_buildrun_manifest,
-    parse_buildrun_phase,
     extract_resource_config_from_build,
     get_latest_buildrun,
     extract_buildrun_info,
-    is_build_succeeded,
-    get_output_image_from_buildrun,
     resolve_clone_secret,
 )
 from app.services.shipwright_builds import collect_kagenti_shipwright_builds
@@ -279,7 +276,7 @@ class CreateAgentResponse(BaseModel):
     message: str
 
 
-class AgentShipwrightBuildInfoResponse(BaseModel):
+class AgentShipwrightBuildInfoResponse(BaseModel):  # pylint: disable=too-many-instance-attributes
     """Full Shipwright Build information for agents.
 
     This is an agent-specific wrapper that includes agentConfig for backwards compatibility.
@@ -3260,8 +3257,6 @@ async def finalize_shipwright_build(
             message=message,
         )
 
-    except HTTPException:
-        raise
     except ApiException as e:
         if e.status == 409:
             raise HTTPException(

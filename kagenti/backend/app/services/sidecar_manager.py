@@ -11,6 +11,7 @@ Each sidecar runs as an asyncio.Task in-process, consumes events from the
 parent session's SSE stream (via asyncio.Queue), and has its own LangGraph
 checkpointed state for persistence across restarts.
 """
+# pylint: disable=fixme
 
 import asyncio
 import json
@@ -27,6 +28,8 @@ logger = logging.getLogger(__name__)
 
 
 class SidecarType(str, Enum):
+    """Enumeration of available sidecar agent types."""
+
     LOOPER = "looper"
     HALLUCINATION_OBSERVER = "hallucination_observer"
     CONTEXT_GUARDIAN = "context_guardian"
@@ -59,7 +62,7 @@ class SidecarObservation:
 
 
 @dataclass
-class SidecarHandle:
+class SidecarHandle:  # pylint: disable=too-many-instance-attributes
     """Tracks a running sidecar's state."""
 
     task: Optional[asyncio.Task] = None
@@ -612,10 +615,10 @@ class SidecarManager:
                 "session_done=%s counter=%d/%d last_polled=%r",
                 len(handle.observations),
                 len(handle.pending_interventions),
-                analyzer._session_done,
+                analyzer._session_done,  # pylint: disable=protected-access
                 analyzer.continue_counter,
                 analyzer.counter_limit,
-                analyzer._last_polled_state,
+                analyzer._last_polled_state,  # pylint: disable=protected-access
             )
 
             # Hot-reload config
@@ -631,8 +634,6 @@ class SidecarManager:
         and only triggers auto-continue when a COMPLETED/FAILED transition
         is detected (idempotent — repeated polls of the same state are no-ops).
         """
-        import json
-
         try:
             from app.services.session_db import get_session_pool
         except ImportError:
@@ -655,8 +656,8 @@ class SidecarManager:
                     handle.parent_context_id[:12],
                     handle.namespace,
                     state,
-                    analyzer._last_polled_state,
-                    analyzer._session_done,
+                    analyzer._last_polled_state,  # pylint: disable=protected-access
+                    analyzer._session_done,  # pylint: disable=protected-access
                 )
                 if state:
                     # Feed state to analyzer — it handles dedup internally

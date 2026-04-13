@@ -177,8 +177,6 @@ async def run_reconciliation_loop() -> None:
     while True:
         try:
             await reconcile_builds()
-        except asyncio.CancelledError:
-            raise
         except Exception:
             logger.exception("Build reconciliation error")
 
