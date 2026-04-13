@@ -228,6 +228,10 @@ async def validate_token(token: str) -> TokenData:
         if "admin" in realm_roles and ROLE_ADMIN not in roles:
             roles.append(ROLE_ADMIN)
 
+        # All authenticated users get viewer access (issue #1130)
+        if ROLE_VIEWER not in roles:
+            roles.append(ROLE_VIEWER)
+
         return TokenData(
             sub=sub,
             username=username,
