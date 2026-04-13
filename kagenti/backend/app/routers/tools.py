@@ -777,6 +777,7 @@ async def delete_tool(
     2. Shipwright Build (if any)
     3. Deployment or StatefulSet
     4. Service
+    5. HTTPRoute or OpenShift Route (whichever exists)
     """
     deleted_resources = []
 
@@ -844,6 +845,34 @@ async def delete_tool(
     except ApiException as e:
         if e.status != 404:
             logger.warning(f"Failed to delete Service '{service_name}': {e}")
+
+    # Delete the HTTPRoute (if exists)
+    try:
+        kube.delete_custom_resource(
+            group="gateway.networking.k8s.io",
+            version="v1",
+            namespace=namespace,
+            plural="httproutes",
+            name=name,
+        )
+        deleted_resources.append(f"HTTPRoute/{name}")
+    except ApiException as e:
+        if e.status != 404:
+            logger.warning(f"Failed to delete HTTPRoute '{name}': {e}")
+
+    # Delete the OpenShift Route (if exists)
+    try:
+        kube.delete_custom_resource(
+            group="route.openshift.io",
+            version="v1",
+            namespace=namespace,
+            plural="routes",
+            name=name,
+        )
+        deleted_resources.append(f"Route/{name}")
+    except ApiException as e:
+        if e.status != 404:
+            logger.warning(f"Failed to delete Route '{name}': {e}")
 
     if deleted_resources:
         return DeleteResponse(
