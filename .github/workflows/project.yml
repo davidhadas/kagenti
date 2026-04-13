@@ -7,6 +7,9 @@ on:
     pull_request_target:
         types: [opened]
 
+permissions:
+  contents: read   # restrict default GITHUB_TOKEN permissions
+
 jobs:
     add:
         name: Add item to Kagenti Project
@@ -16,5 +19,5 @@ jobs:
             pull-requests: write
             contents: read
 
-        uses: kagenti/.github/.github/workflows/add-to-project.yml@main
+        uses: kagenti/.github/.github/workflows/add-to-project.yml@2e5cc851ca7162e9eb510e6da6a5c64022e606a7 # v1.0.0
         secrets: inherit
