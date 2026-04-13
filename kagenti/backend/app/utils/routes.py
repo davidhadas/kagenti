@@ -16,6 +16,11 @@ from app.core.constants import DEFAULT_OFF_CLUSTER_PORT
 logger = logging.getLogger(__name__)
 
 
+def sanitize_log(value: str) -> str:
+    """Strip newlines and control characters to prevent log injection (CWE-117)."""
+    return value.replace("\n", "").replace("\r", "").replace("\x00", "")
+
+
 def detect_platform(kube: KubernetesService) -> str:
     """
     Detect if running on OpenShift or regular Kubernetes.
@@ -284,8 +289,8 @@ def lookup_service_port(
     except ApiException:
         logger.warning(
             "Could not look up Service %s in %s, using default port",
-            service_name,
-            namespace,
+            sanitize_log(service_name),
+            sanitize_log(namespace),
         )
     return default_port
 

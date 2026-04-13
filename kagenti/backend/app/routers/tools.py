@@ -82,7 +82,12 @@ from app.services.shipwright import (
     get_output_image_from_buildrun,
     resolve_clone_secret,
 )
-from app.utils.routes import create_route_for_agent_or_tool, lookup_service_port, route_exists
+from app.utils.routes import (
+    create_route_for_agent_or_tool,
+    lookup_service_port,
+    route_exists,
+    sanitize_log,
+)
 from app.routers.agents import (
     _ensure_authbridge_configmaps,
     _ensure_authproxy_routes,
@@ -2072,7 +2077,7 @@ async def connect_to_tool(
     tool_url = _get_tool_url(name, namespace, kube)
     mcp_endpoint = f"{tool_url}/mcp"
 
-    logger.info("Connecting to MCP server at %s", mcp_endpoint)
+    logger.info("Connecting to MCP server at %s", sanitize_log(mcp_endpoint))
 
     exit_stack = AsyncExitStack()
     try:
@@ -2086,7 +2091,7 @@ async def connect_to_tool(
             session: ClientSession = await session_context.__aenter__()
             await session.initialize()
 
-            logger.info(f"MCP session initialized for tool '{name}'")
+            logger.info("MCP session initialized for tool %s", sanitize_log(name))
 
             # List available tools
             response = await session.list_tools()
@@ -2102,7 +2107,7 @@ async def connect_to_tool(
                             ),
                         )
                     )
-                logger.info(f"Listed {len(tools)} tools from MCP server '{name}'")
+                logger.info("Listed %d tools from MCP server %s", len(tools), sanitize_log(name))
 
             return MCPToolsResponse(tools=tools)
 
@@ -2164,12 +2169,16 @@ async def invoke_tool(
             session: ClientSession = await session_context.__aenter__()
             await session.initialize()
 
-            logger.info(f"MCP session initialized for tool invocation on '{name}'")
+            logger.info("MCP session initialized for tool invocation on %s", sanitize_log(name))
 
             # Call the tool using the MCP client library
             result = await session.call_tool(request.tool_name, request.arguments)
 
-            logger.info(f"Tool '{request.tool_name}' invoked successfully on '{name}'")
+            logger.info(
+                "Tool %s invoked successfully on %s",
+                sanitize_log(request.tool_name),
+                sanitize_log(name),
+            )
 
             # Convert the result to a serializable format
             result_data = {}
