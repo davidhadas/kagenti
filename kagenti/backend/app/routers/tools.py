@@ -2118,25 +2118,25 @@ async def connect_to_tool(
             return MCPToolsResponse(tools=tools)
 
     except (ConnectionError, httpx.NetworkError) as e:
-        logger.error(f"Connection error to MCP server at {tool_url}: {e}")
+        logger.error("Connection error to MCP server at %s: %s", tool_url, e)
         raise HTTPException(
             status_code=502,
             detail=f"Failed to connect to MCP server at {tool_url}",
         )
     except httpx.TimeoutException as e:
-        logger.error(f"Timeout connecting to MCP server at {tool_url}: {e}")
+        logger.error("Timeout connecting to MCP server at %s: %s", tool_url, e)
         raise HTTPException(
             status_code=504,
             detail=f"Timeout connecting to MCP server at {tool_url}",
         )
     except httpx.HTTPError as e:
-        logger.error(f"HTTP error connecting to MCP server at {tool_url}: {e}")
+        logger.error("HTTP error connecting to MCP server at %s: %s", tool_url, e)
         raise HTTPException(
             status_code=502,
             detail=f"Failed to connect to MCP server at {tool_url}",
         )
     except Exception as e:
-        logger.error(f"Unexpected error connecting to MCP server: {e}")
+        logger.error("Unexpected error connecting to MCP server: %s", e)
         raise HTTPException(
             status_code=500,
             detail=f"Error connecting to MCP server: {str(e)}",
@@ -2203,19 +2203,19 @@ async def invoke_tool(
             return MCPInvokeResponse(result=result_data)
 
     except (ConnectionError, httpx.NetworkError) as e:
-        logger.error(f"Connection error to MCP server at {tool_url}: {e}")
+        logger.error("Connection error to MCP server at %s: %s", tool_url, e)
         raise HTTPException(
             status_code=502,
             detail=f"Failed to connect to MCP server at {tool_url}",
         )
     except httpx.TimeoutException as e:
-        logger.error(f"Timeout connecting to MCP server at {tool_url}: {e}")
+        logger.error("Timeout connecting to MCP server at %s: %s", tool_url, e)
         raise HTTPException(
             status_code=504,
             detail=f"Timeout connecting to MCP server at {tool_url}",
         )
     except httpx.HTTPError as e:
-        logger.error(f"HTTP error connecting to MCP server at {tool_url}: {e}")
+        logger.error("HTTP error connecting to MCP server at %s: %s", tool_url, e)
         raise HTTPException(
             status_code=502,
             detail=f"Failed to connect to MCP server at {tool_url}",
@@ -2223,7 +2223,7 @@ async def invoke_tool(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error invoking MCP tool: {e}")
+        logger.error("Unexpected error invoking MCP tool: %s", e)
         raise HTTPException(
             status_code=500,
             detail=f"Error invoking MCP tool: {str(e)}",
