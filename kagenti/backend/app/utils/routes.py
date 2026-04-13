@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def sanitize_log(value: str) -> str:
     """Strip newlines and control characters to prevent log injection (CWE-117)."""
-    return value.replace("\n", "").replace("\r", "").replace("\x00", "")
+    return str(value).replace("\n", "").replace("\r", "").replace("\x00", "")
 
 
 def detect_platform(kube: KubernetesService) -> str:
@@ -78,6 +78,9 @@ def create_httproute(
         parent_ref_name: Name of the Gateway (default: "http")
         parent_ref_namespace: Namespace of the Gateway (default: "kagenti-system")
     """
+    name = sanitize_log(name)
+    namespace = sanitize_log(namespace)
+    service_name = sanitize_log(service_name)
     hostname = f"{name}.{namespace}.{settings.domain_name}"
 
     httproute_manifest = {
@@ -150,6 +153,9 @@ def create_openshift_route(
         service_name: Name of the backend service
         service_port: Port of the backend service
     """
+    name = sanitize_log(name)
+    namespace = sanitize_log(namespace)
+    service_name = sanitize_log(service_name)
     route_manifest = {
         "apiVersion": "route.openshift.io/v1",
         "kind": "Route",
@@ -210,6 +216,8 @@ def route_exists(
     Returns:
         True if HTTPRoute or Route exists, False otherwise
     """
+    name = sanitize_log(name)
+    namespace = sanitize_log(namespace)
     platform = detect_platform(kube)
 
     try:
@@ -263,6 +271,9 @@ def create_route_for_agent_or_tool(
         service_name: Name of the backend service
         service_port: Port of the backend service
     """
+    name = sanitize_log(name)
+    namespace = sanitize_log(namespace)
+    service_name = sanitize_log(service_name)
     logger.info(
         "Creating route for %s in namespace %s, service=%s, port=%s",
         name,
@@ -314,6 +325,8 @@ def get_agent_url(name: str, namespace: str, port: int = DEFAULT_OFF_CLUSTER_POR
     - In-cluster: http://{name}.{namespace}.svc.cluster.local:{port}
     - Off-cluster (local dev): http://{name}.{namespace}.{domain}:{port}
     """
+    name = sanitize_log(name)
+    namespace = sanitize_log(namespace)
     if settings.is_running_in_cluster:
         return f"http://{name}.{namespace}.svc.cluster.local:{port}"
     else:
