@@ -693,6 +693,7 @@ export const toolShipwrightService = {
 export interface DashboardConfig {
   traces: string;
   network: string;
+  mlflow: string;
   mcpInspector: string;
   mcpProxy: string;
   keycloakConsole: string;

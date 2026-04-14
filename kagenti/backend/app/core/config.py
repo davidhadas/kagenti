@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     # External service URLs (read from ConfigMap via environment variables)
     traces_dashboard_url: str = ""
     network_dashboard_url: str = ""
+    mlflow_dashboard_url: str = ""
     mcp_inspector_url: str = ""
     mcp_proxy_full_address: str = ""
     keycloak_console_url: str = ""

@@ -56,6 +56,7 @@ async def get_dashboard_config() -> DashboardConfigResponse:
     return DashboardConfigResponse(
         traces=settings.traces_dashboard_url,
         network=settings.network_dashboard_url or f"http://kiali.{domain}:8080",
+        mlflow=settings.mlflow_dashboard_url or f"http://mlflow.{domain}:8080",
         mcpInspector=settings.mcp_inspector_url or f"http://mcp-inspector.{domain}:8080",
         mcpProxy=settings.mcp_proxy_full_address or f"http://mcp-proxy.{domain}:8080",
         keycloakConsole=(

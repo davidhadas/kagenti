@@ -22,6 +22,7 @@ import {
   ChartLineIcon,
   NetworkIcon,
   ExternalLinkAltIcon,
+  CubesIcon,
 } from '@patternfly/react-icons';
 import { useQuery } from '@tanstack/react-query';
 
@@ -93,6 +94,7 @@ export const ObservabilityPage: React.FC = () => {
   // The backend provides fallback URLs if the ConfigMap values are not set
   const tracesUrl = dashboards?.traces || '';
   const networkUrl = dashboards?.network || '';
+  const mlflowUrl = dashboards?.mlflow || '';
 
   return (
     <>
@@ -141,6 +143,17 @@ export const ObservabilityPage: React.FC = () => {
               icon={<NetworkIcon />}
               url={networkUrl}
               buttonText="Open Kiali"
+              isLoading={isLoading}
+            />
+          </GridItem>
+
+          <GridItem md={6}>
+            <DashboardCard
+              title="MLflow"
+              description="Track experiments, model runs, and LLM traces with MLflow."
+              icon={<CubesIcon />}
+              url={mlflowUrl}
+              buttonText="Open MLflow"
               isLoading={isLoading}
             />
           </GridItem>
