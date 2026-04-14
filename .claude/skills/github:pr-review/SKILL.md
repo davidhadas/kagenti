@@ -34,6 +34,7 @@ export REPO=<repo-name>
 
 ## Table of Contents
 
+- [Variables](#variables)
 - [When to Use](#when-to-use)
 - [Context-Safe Execution](#context-safe-execution-mandatory)
 - [Phase 1: Gather PR Data](#phase-1-gather-pr-data)

@@ -13,7 +13,7 @@ Set at session start:
 
 ```bash
 export OWNER=<org-or-user>
-export REPO=<repo-name>
+export REPO=<repo-for-report-issue>   # where the weekly report issue is posted
 ```
 
 ## When to Use
@@ -74,7 +74,7 @@ Use this format for **every** repo, including kagenti itself:
 - PRs: `[kagenti/<repo>#N](https://github.com/kagenti/<repo>/pull/N)`
 
 Examples:
-- `[$OWNER/$REPO#960](https://github.com/$OWNER/$REPO/issues/960)`
+- `[kagenti/kagenti#960](https://github.com/kagenti/kagenti/issues/960)`
 - `[kagenti/kagenti-extensions#239](https://github.com/kagenti/kagenti-extensions/pull/239)`
 
 ### Phase 2: Deep Dive per Active Repo
