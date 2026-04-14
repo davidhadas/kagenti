@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     shipwright_default_strategy: str = "buildah-insecure-push"  # Default for dev
     shipwright_default_timeout: str = "15m"
 
+    # Default registry for source-based builds (override via DEFAULT_REGISTRY_URL env var)
+    default_registry_url: str = "registry.cr-system.svc.cluster.local:5000"
+
     # Build reconciliation settings
     build_reconciliation_interval: int = 30  # seconds between reconciliation scans
     enable_build_reconciliation: bool = True  # enable/disable the reconciliation loop

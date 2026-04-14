@@ -119,6 +119,10 @@ spec:
                   optional: true
             - name: ENABLE_AUTH
               value: "{{ .Values.ui.auth.enabled }}"
+            {{- if .Values.ui.backend.defaultRegistryUrl }}
+            - name: DEFAULT_REGISTRY_URL
+              value: {{ .Values.ui.backend.defaultRegistryUrl | quote }}
+            {{- end }}
             # Feature flags
             - name: KAGENTI_FEATURE_FLAG_SANDBOX
               value: "{{ .Values.featureFlags.sandbox }}"

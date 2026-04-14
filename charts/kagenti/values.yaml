@@ -86,6 +86,8 @@ ui:
   backend:
     image: ghcr.io/kagenti/kagenti/backend
     tag: latest
+    # Default registry for source-based builds (Kind: registry.cr-system.svc.cluster.local:5000)
+    defaultRegistryUrl: ""
     resources:
       limits:
         cpu: 250m
