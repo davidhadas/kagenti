@@ -147,16 +147,18 @@ export const ObservabilityPage: React.FC = () => {
             />
           </GridItem>
 
-          <GridItem md={6}>
-            <DashboardCard
-              title="MLflow"
-              description="Track experiments, model runs, and LLM traces with MLflow."
-              icon={<CubesIcon />}
-              url={mlflowUrl}
-              buttonText="Open MLflow"
-              isLoading={isLoading}
-            />
-          </GridItem>
+          {mlflowUrl && (
+            <GridItem md={6}>
+              <DashboardCard
+                title="MLflow"
+                description="Track experiments, model runs, and LLM traces with MLflow."
+                icon={<CubesIcon />}
+                url={mlflowUrl}
+                buttonText="Open MLflow"
+                isLoading={isLoading}
+              />
+            </GridItem>
+          )}
         </Grid>
 
         <Alert
@@ -165,9 +167,9 @@ export const ObservabilityPage: React.FC = () => {
           isInline
           style={{ marginTop: '24px' }}
         >
-          Ensure that the observability tools ({tracesUrl ? 'Phoenix for traces and ' : ''}Kiali for
-          service mesh) are properly configured and accessible from your
-          environment.
+          Ensure that the observability tools ({tracesUrl ? 'Phoenix for traces, ' : ''}Kiali for
+          service mesh{mlflowUrl ? ', and MLflow for experiment tracking' : ''}) are properly
+          configured and accessible from your environment.
         </Alert>
       </PageSection>
     </>
