@@ -12,6 +12,7 @@ flowchart TD
     GH -->|Triage issues| ISSUES["github:issues"]:::github
     GH -->|PR health| PRS["github:prs"]:::github
     GH -->|Review PR| PRREVIEW["github:pr-review"]:::github
+    GH -->|Dependabot triage| DEPBOT["github:dependabot"]:::github
 
     ORGWEEK -->|calls per repo| WEEK
     WEEK -->|calls| ISSUES
@@ -52,6 +53,9 @@ What do you need?
     ├─ Review a specific PR (inline comments, conventions)
     │   → github:pr-review
     │
+    ├─ Triage Dependabot PRs (categorize, bundle, merge)
+    │   → github:dependabot
+    │
     └─ Create an issue with proper template
         → repo:issue
 ```
@@ -66,6 +70,7 @@ What do you need?
 | `github:issues` | Issue triage: stale, blocking, no attention, should-close |
 | `github:pr-review` | Automated PR review: inline comments, conventions, security checks |
 | `github:prs` | PR health: passing CI without review, stale, conflicts |
+| `github:dependabot` | Dependabot triage: categorize, bundle, fix CI blockers, approve merges |
 
 ## Related Skills
 
