@@ -161,16 +161,30 @@ export const ObservabilityPage: React.FC = () => {
           )}
         </Grid>
 
-        <Alert
-          variant="info"
-          title="Note"
-          isInline
-          style={{ marginTop: '24px' }}
-        >
-          Ensure that the observability tools ({tracesUrl ? 'Phoenix for traces, ' : ''}Kiali for
-          service mesh{mlflowUrl ? ', and MLflow for experiment tracking' : ''}) are properly
-          configured and accessible from your environment.
-        </Alert>
+        {(() => {
+          const tools = [
+            tracesUrl && 'Phoenix for traces',
+            'Kiali for service mesh',
+            mlflowUrl && 'MLflow for experiment tracking',
+          ].filter(Boolean) as string[];
+          const toolList =
+            tools.length <= 1
+              ? tools.join('')
+              : tools.length === 2
+              ? tools.join(' and ')
+              : `${tools.slice(0, -1).join(', ')}, and ${tools[tools.length - 1]}`;
+          return (
+            <Alert
+              variant="info"
+              title="Note"
+              isInline
+              style={{ marginTop: '24px' }}
+            >
+              Ensure that the observability tools ({toolList}) are properly
+              configured and accessible from your environment.
+            </Alert>
+          );
+        })()}
       </PageSection>
     </>
   );
