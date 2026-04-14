@@ -341,6 +341,12 @@ jobs:
         env:
           KUBECONFIG: ${{ steps.create-cluster.outputs.cluster_kubeconfig }}
 
+      - name: Build mlflow-oauth-secret image from PR and restart job
+        if: success()
+        run: bash .github/scripts/common/26-build-mlflow-oauth-secret-image.sh
+        env:
+          KUBECONFIG: ${{ steps.create-cluster.outputs.cluster_kubeconfig }}
+
       - name: Set up Python
         if: success()
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
