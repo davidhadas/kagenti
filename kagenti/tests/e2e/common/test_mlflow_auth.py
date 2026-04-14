@@ -307,6 +307,7 @@ class TestMLflowAuth:
             token=None,
             timeout=10,
             verify_ssl=self.ssl_verify,
+            params={"max_results": "1"},
         )
 
         # Log the response for debugging
@@ -349,6 +350,7 @@ class TestMLflowAuth:
             token=None,
             timeout=10,
             verify_ssl=self.ssl_verify,
+            params={"max_results": "1"},
         )
 
         if response.status_code == 200:
