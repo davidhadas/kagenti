@@ -21,6 +21,7 @@ import base64
 import logging
 import os
 import sys
+import time
 from typing import Dict, Optional, Tuple
 
 from keycloak import KeycloakAdmin
@@ -153,22 +154,38 @@ def configure_ssl_verification(ssl_cert_file: Optional[str]) -> Optional[str]:
 
 
 def read_client_secret(
-    keycloak_admin: KeycloakAdmin, client_id: str
+    keycloak_admin: KeycloakAdmin,
+    client_id: str,
+    wait_timeout: int = 120,
+    poll_interval: int = 5,
 ) -> Tuple[str, str]:
     """Read the secret for an existing Keycloak confidential client.
 
-    The client MUST already exist (created via realm import).
-    Fails immediately if not found.
+    The client is created via the Keycloak realm import (KeycloakRealmImport
+    CR on OpenShift, ConfigMap on Kind). Because the realm import is processed
+    asynchronously, this function polls until the client appears or the
+    timeout is reached.
 
     Returns:
         Tuple of (internal_client_uuid, client_secret_value)
     """
-    internal_id = keycloak_admin.get_client_id(client_id)
-    if not internal_id:
-        raise KeycloakOperationError(
-            f"Keycloak client '{client_id}' not found in realm. "
-            "It must be created via the Keycloak realm import."
+    deadline = time.time() + wait_timeout
+    internal_id = None
+
+    while True:
+        internal_id = keycloak_admin.get_client_id(client_id)
+        if internal_id:
+            break
+        if time.time() >= deadline:
+            raise KeycloakOperationError(
+                f"Keycloak client '{client_id}' not found after {wait_timeout}s. "
+                "It must be created via the Keycloak realm import."
+            )
+        logger.info(
+            "Waiting for client '%s' to appear (realm import in progress)...",
+            client_id,
         )
+        time.sleep(poll_interval)
 
     logger.info("Found existing Keycloak client '%s': %s", client_id, internal_id)
 
