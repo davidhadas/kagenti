@@ -101,6 +101,17 @@ spec:
             temporary: false
         realmRoles:
           - ns-admin
+    clients:
+      - clientId: mlflow
+        enabled: true
+        publicClient: false
+        clientAuthenticatorType: client-secret
+        serviceAccountsEnabled: true
+        standardFlowEnabled: true
+        redirectUris:
+          - "*"
+        webOrigins:
+          - "+"
 {{- else }}
 ---
 apiVersion: v1
@@ -154,6 +165,18 @@ data:
           "email": "ns-admin@kagenti.local",
           "credentials": [{ "type": "password", "value": "ns-admin", "temporary": false }],
           "realmRoles": ["ns-admin"]
+        }
+      ],
+      "clients": [
+        {
+          "clientId": "mlflow",
+          "enabled": true,
+          "publicClient": false,
+          "clientAuthenticatorType": "client-secret",
+          "serviceAccountsEnabled": true,
+          "standardFlowEnabled": true,
+          "redirectUris": ["*"],
+          "webOrigins": ["+"]
         }
       ]
     }

@@ -33,9 +33,9 @@ charts:
         otel:
           enabled: true
         phoenix:
-          enabled: false
+          enabled: true
         mlflow:
-          enabled: false  # Disabled for Kind - requires full OTEL instrumentation
+          enabled: true
         mcpInspector:
           enabled: true
         metricsServer:
@@ -69,7 +69,7 @@ charts:
         mcpGateway:
           enabled: true
         phoenix:
-          enabled: false
+          enabled: true
       # configs
       ui:
         auth:
