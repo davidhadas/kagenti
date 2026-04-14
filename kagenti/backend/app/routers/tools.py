@@ -410,7 +410,7 @@ def _get_workload_status(workload: dict) -> str:
     available_replicas = status.get("available_replicas") or status.get("availableReplicas", 0)
 
     # Check conditions for more detail
-    conditions = status.get("conditions", [])
+    conditions = status.get("conditions") or []
     for condition in conditions:
         cond_type = condition.get("type", "")
         cond_status = condition.get("status", "")

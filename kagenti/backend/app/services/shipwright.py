@@ -368,7 +368,7 @@ def extract_buildrun_info(
     """
     metadata = buildrun.get("metadata", {})
     status = buildrun.get("status", {})
-    conditions = status.get("conditions", [])
+    conditions = status.get("conditions") or []
 
     # Parse phase
     phase, failure_message = parse_buildrun_phase(conditions)
@@ -397,7 +397,7 @@ def is_build_succeeded(buildrun: Dict[str, Any]) -> bool:
     Returns:
         True if the build succeeded, False otherwise
     """
-    conditions = buildrun.get("status", {}).get("conditions", [])
+    conditions = buildrun.get("status", {}).get("conditions") or []
     phase, _ = parse_buildrun_phase(conditions)
     return phase == "Succeeded"
 

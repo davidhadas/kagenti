@@ -656,7 +656,7 @@ def _get_deployment_status(deployment: dict) -> str:
     if available_replicas > 0 and ready_replicas > 0:
         return "Ready"
 
-    conditions = status.get("conditions", [])
+    conditions = status.get("conditions") or []
     for condition in conditions:
         if condition.get("type") == "Progressing" and condition.get("status") == "True":
             reason = condition.get("reason", "")

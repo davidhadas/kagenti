@@ -363,7 +363,7 @@ def _is_deployment_ready(resource_data: dict) -> str:
     Also maintains backward compatibility with Agent CRD status format.
     """
     status = resource_data.get("status", {})
-    conditions = status.get("conditions", [])
+    conditions = status.get("conditions") or []
 
     # Check for Kubernetes Deployment conditions (type=Available)
     for condition in conditions:
@@ -647,7 +647,7 @@ async def list_agents(
 
                     # Determine status from Agent CRD
                     agent_status = "Not Ready"
-                    for cond in status.get("conditions", []):
+                    for cond in status.get("conditions") or []:
                         if cond.get("type") == "Ready" and cond.get("status") == "True":
                             agent_status = "Ready"
                             break
@@ -1024,7 +1024,7 @@ async def list_migratable_agents(
         # Determine status
         status = agent.get("status", {})
         agent_status = "Unknown"
-        for cond in status.get("conditions", []):
+        for cond in status.get("conditions") or []:
             if cond.get("type") == "Ready":
                 agent_status = "Ready" if cond.get("status") == "True" else "Not Ready"
                 break
@@ -1669,7 +1669,7 @@ async def get_shipwright_buildrun_status(
 
         # Extract conditions
         conditions = []
-        for cond in status.get("conditions", []):
+        for cond in status.get("conditions") or []:
             conditions.append(
                 BuildStatusCondition(
                     type=cond.get("type", ""),
@@ -2909,7 +2909,7 @@ async def finalize_shipwright_build(
         buildrun_status = latest_buildrun.get("status", {})
 
         # Check if build succeeded
-        conditions = buildrun_status.get("conditions", [])
+        conditions = buildrun_status.get("conditions") or []
         build_succeeded = False
         failure_message = None
         for cond in conditions:
