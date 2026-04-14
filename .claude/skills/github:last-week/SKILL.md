@@ -7,6 +7,27 @@ description: Weekly repository report - deep issue analysis, PR health, CI trend
 
 Deep weekly analysis of repository health: issue investigation, PR status, CI trends.
 
+## Table of Contents
+
+- [Variables](#variables)
+- [When to Use](#when-to-use)
+- [Workflow](#workflow)
+- [Quick Stats](#quick-stats)
+- [Issue Analysis](#issue-analysis)
+- [PR Analysis](#pr-analysis)
+- [CI Health](#ci-health)
+- [Action Items](#action-items)
+- [Related Skills](#related-skills)
+
+## Variables
+
+Set at session start:
+
+```bash
+export OWNER=<org-or-user>
+export REPO=<repo-name>
+```
+
 ## When to Use
 
 - Weekly standup preparation
@@ -22,7 +43,7 @@ Deep weekly analysis of repository health: issue investigation, PR status, CI tr
 Run the data gathering script to get a consistent snapshot of all issues, PRs, and CI runs. This prevents stale data from long-running analysis.
 
 ```bash
-./.github/scripts/reports/weekly-report-data.sh 7 kagenti/kagenti
+./.github/scripts/reports/weekly-report-data.sh 7 $OWNER/$REPO
 ```
 
 This creates JSON files in `/tmp/kagenti/github/data/`:
@@ -74,7 +95,7 @@ For each issue, determine:
 
 2. **Work in progress?** — Check if any PR references this issue
    ```bash
-   gh pr list --repo kagenti/kagenti --state all --search "issue-number" --json number,title,state
+   gh pr list --repo $OWNER/$REPO --state all --search "issue-number" --json number,title,state
    ```
 
 3. **Severity classification**:
@@ -120,25 +141,25 @@ Classify each PR:
 Get all runs on main (last 7 days):
 
 ```bash
-gh run list --repo kagenti/kagenti --branch main --limit 30 --json databaseId,conclusion,name,createdAt,headSha,displayTitle
+gh run list --repo $OWNER/$REPO --branch main --limit 30 --json databaseId,conclusion,name,createdAt,headSha,displayTitle
 ```
 
 For each failed run, get the failing job and step:
 
 ```bash
-gh run view <run-id> --repo kagenti/kagenti --json jobs --jq '.jobs[] | select(.conclusion == "failure") | "\(.name): \(.steps[] | select(.conclusion == "failure") | .name)"'
+gh run view <run-id> --repo $OWNER/$REPO --json jobs --jq '.jobs[] | select(.conclusion == "failure") | "\(.name): \(.steps[] | select(.conclusion == "failure") | .name)"'
 ```
 
 Get the commit that triggered the failure:
 
 ```bash
-gh run view <run-id> --repo kagenti/kagenti --json headSha --jq '.headSha'
+gh run view <run-id> --repo $OWNER/$REPO --json headSha --jq '.headSha'
 ```
 
 Check what that commit changed:
 
 ```bash
-gh api repos/kagenti/kagenti/commits/<sha> --jq '.files[].filename'
+gh api repos/$OWNER/$REPO/commits/<sha> --jq '.files[].filename'
 ```
 
 Build a timeline of failures with root cause correlation:
@@ -149,7 +170,7 @@ Build a timeline of failures with root cause correlation:
 Since E2E doesn't run on every merge, find candidate PRs that could have caused a failure:
 
 ```bash
-gh pr list --repo kagenti/kagenti --state merged --json number,title,mergedAt,changedFiles --jq '.[] | select(.mergedAt > "LAST_SUCCESS_DATE" and .mergedAt < "FAILURE_DATE") | "#\(.number) \(.title) (\(.changedFiles) files)"'
+gh pr list --repo $OWNER/$REPO --state merged --json number,title,mergedAt,changedFiles --jq '.[] | select(.mergedAt > "LAST_SUCCESS_DATE" and .mergedAt < "FAILURE_DATE") | "#\(.number) \(.title) (\(.changedFiles) files)"'
 ```
 
 For each candidate PR, check if it touched relevant paths:

@@ -7,6 +7,15 @@ description: PR health analysis - CI passing without review, stale PRs, merge co
 
 Analyze open PRs to find those needing review, stuck in CI, or going stale.
 
+## Variables
+
+Set at session start:
+
+```bash
+export OWNER=<org-or-user>
+export REPO=<repo-name>
+```
+
 ## When to Use
 
 - Weekly PR grooming
@@ -20,31 +29,31 @@ Analyze open PRs to find those needing review, stuck in CI, or going stale.
 ### 1. All Open PRs
 
 ```bash
-gh pr list --repo kagenti/kagenti --state open --json number,title,author,createdAt,updatedAt,reviewDecision,statusCheckRollup
+gh pr list --repo $OWNER/$REPO --state open --json number,title,author,createdAt,updatedAt,reviewDecision,statusCheckRollup
 ```
 
 ### 2. PRs Passing CI Without Review
 
 ```bash
-gh pr list --repo kagenti/kagenti --state open --json number,title,author,reviewDecision,statusCheckRollup --jq '.[] | select(.reviewDecision != "APPROVED") | select(.statusCheckRollup != null) | select([.statusCheckRollup[] | select(.conclusion == "FAILURE")] | length == 0) | "#\(.number) \(.title) (@\(.author.login))"'
+gh pr list --repo $OWNER/$REPO --state open --json number,title,author,reviewDecision,statusCheckRollup --jq '.[] | select(.reviewDecision != "APPROVED") | select(.statusCheckRollup != null) | select([.statusCheckRollup[] | select(.conclusion == "FAILURE")] | length == 0) | "#\(.number) \(.title) (@\(.author.login))"'
 ```
 
 ### 3. Stale PRs (no update > 14 days)
 
 ```bash
-gh pr list --repo kagenti/kagenti --state open --json number,title,updatedAt,author --jq '.[] | select(.updatedAt < (now - 14*24*3600 | strftime("%Y-%m-%dT%H:%M:%SZ"))) | "#\(.number) \(.title) (last: \(.updatedAt))"'
+gh pr list --repo $OWNER/$REPO --state open --json number,title,updatedAt,author --jq '.[] | select(.updatedAt < (now - 14*24*3600 | strftime("%Y-%m-%dT%H:%M:%SZ"))) | "#\(.number) \(.title) (last: \(.updatedAt))"'
 ```
 
 ### 4. PRs with Failing CI
 
 ```bash
-gh pr list --repo kagenti/kagenti --state open --json number,title,statusCheckRollup --jq '.[] | select(.statusCheckRollup != null) | select([.statusCheckRollup[] | select(.conclusion == "FAILURE")] | length > 0) | "#\(.number) \(.title)"'
+gh pr list --repo $OWNER/$REPO --state open --json number,title,statusCheckRollup --jq '.[] | select(.statusCheckRollup != null) | select([.statusCheckRollup[] | select(.conclusion == "FAILURE")] | length > 0) | "#\(.number) \(.title)"'
 ```
 
 ### 5. PRs with Merge Conflicts
 
 ```bash
-gh pr list --repo kagenti/kagenti --state open --json number,title,mergeable --jq '.[] | select(.mergeable == "CONFLICTING") | "#\(.number) \(.title)"'
+gh pr list --repo $OWNER/$REPO --state open --json number,title,mergeable --jq '.[] | select(.mergeable == "CONFLICTING") | "#\(.number) \(.title)"'
 ```
 
 ## PR Health Report
@@ -64,6 +73,20 @@ gh pr list --repo kagenti/kagenti --state open --json number,title,mergeable --j
 ### Merge Conflicts: N
 - [list — needs rebase]
 ```
+
+## Troubleshooting
+
+### Problem: statusCheckRollup is null for all PRs
+**Symptom**: jq filters on CI status return no results.
+**Fix**: The repo may not have required status checks. Use `gh pr checks <N> --repo $OWNER/$REPO` per-PR instead.
+
+### Problem: mergeable shows UNKNOWN
+**Symptom**: GitHub hasn't computed mergeability yet.
+**Fix**: Wait a few seconds and re-query — GitHub computes this lazily. Or open the PR in the browser to trigger the check.
+
+### Problem: Stale query returns too many results
+**Symptom**: Old PRs with recent bot comments show as active.
+**Fix**: Filter by `updatedAt` AND check `comments` count or last human comment date.
 
 ## Related Skills
 

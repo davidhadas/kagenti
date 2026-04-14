@@ -30,6 +30,15 @@ flowchart TD
 
 Repository health analysis, issue triage, and PR management.
 
+## Variables
+
+Set at session start:
+
+```bash
+export OWNER=<org-or-user>
+export REPO=<repo-name>
+```
+
 ## Auto-Select Sub-Skill
 
 ```
@@ -39,7 +48,7 @@ What do you need?
     │   → github:my-status
     │
     ├─ Weekly summary (what happened last week?)
-    │   ├─ Single repo (kagenti/kagenti)
+    │   ├─ Single repo ($OWNER/$REPO)
     │   │   → github:last-week
     │   └─ Org-wide (all repos)
     │       → github:last-week-org

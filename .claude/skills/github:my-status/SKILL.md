@@ -7,6 +7,23 @@ description: Personal status dashboard - your PRs, reviews, issues, and worktree
 
 Personal action items: what needs your attention right now.
 
+## Table of Contents
+
+- [Variables](#variables)
+- [When to Use](#when-to-use)
+- [Workflow](#workflow)
+- [Output Format](#output-format)
+- [Related Skills](#related-skills)
+
+## Variables
+
+Set at session start:
+
+```bash
+export OWNER=<org-or-user>
+export REPO=<repo-name>
+```
+
 ## When to Use
 
 - Morning orientation: what do I need to work on today?
@@ -27,7 +44,7 @@ echo "Status for: $GH_USER"
 ### 2. My Open PRs (with CI + review status)
 
 ```bash
-gh pr list --repo kagenti/kagenti --author @me --state open \
+gh pr list --repo $OWNER/$REPO --author @me --state open \
   --json number,title,createdAt,updatedAt,reviewDecision,statusCheckRollup,headRefName \
   --jq '.[] | "#\(.number) [\(.headRefName)] \(.title)\n  Review: \(.reviewDecision // "NONE")\n  CI: \([.statusCheckRollup[]? | .conclusion] | group_by(.) | map("\(.[0]): \(length)") | join(", "))\n  Updated: \(.updatedAt)\n"'
 ```
@@ -35,7 +52,7 @@ gh pr list --repo kagenti/kagenti --author @me --state open \
 ### 3. Reviews Requested From Me
 
 ```bash
-gh pr list --repo kagenti/kagenti --search "review-requested:@me" --state open \
+gh pr list --repo $OWNER/$REPO --search "review-requested:@me" --state open \
   --json number,title,author,createdAt,updatedAt \
   --jq '.[] | "#\(.number) by @\(.author.login): \(.title) (updated: \(.updatedAt))"'
 ```
@@ -43,7 +60,7 @@ gh pr list --repo kagenti/kagenti --search "review-requested:@me" --state open \
 ### 4. Issues Assigned to Me
 
 ```bash
-gh issue list --repo kagenti/kagenti --assignee @me --state open \
+gh issue list --repo $OWNER/$REPO --assignee @me --state open \
   --json number,title,labels,createdAt,updatedAt \
   --jq '.[] | "#\(.number) \(.title)\n  Labels: \([.labels[].name] | join(", "))\n  Updated: \(.updatedAt)\n"'
 ```
@@ -51,7 +68,7 @@ gh issue list --repo kagenti/kagenti --assignee @me --state open \
 ### 5. PRs Where I Am Mentioned (last 7 days)
 
 ```bash
-gh pr list --repo kagenti/kagenti --search "mentions:@me" --state open \
+gh pr list --repo $OWNER/$REPO --search "mentions:@me" --state open \
   --json number,title,author,updatedAt \
   --jq '.[] | "#\(.number) by @\(.author.login): \(.title) (updated: \(.updatedAt))"'
 ```

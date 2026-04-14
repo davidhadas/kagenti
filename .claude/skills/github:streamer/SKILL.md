@@ -43,6 +43,21 @@ flowchart TD
 
 Split a large feature branch (or PR) into a chain of smaller, independently mergeable PRs. Supports cross-repo work spanning multiple worktrees.
 
+## Table of Contents
+
+- [When to Use](#when-to-use)
+- [Phase 1: Create Stream Worktrees](#phase-1-create-stream-worktrees)
+- [Phase 2: Feature Flags](#phase-2-feature-flags-if-needed)
+- [Phase 3: Create PR Branches](#phase-3-create-pr-branches)
+- [Phase 4: Review and Fix](#phase-4-review-and-fix)
+- [Phase 5: Rebase + DCO Signing](#phase-5-rebase--dco-signing)
+- [Phase 6: Test on Cluster](#phase-6-test-on-cluster)
+- [Phase 7: Merge in Dependency Order](#phase-7-merge-in-dependency-order)
+- [PR Status Dashboard](#pr-status-dashboard)
+- [Configuration](#configuration)
+- [Troubleshooting](#troubleshooting)
+- [Related Skills](#related-skills)
+
 ## When to Use
 
 - Feature branch exceeds 500-700 lines (too large for effective review)

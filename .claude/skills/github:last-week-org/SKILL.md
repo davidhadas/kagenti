@@ -7,6 +7,15 @@ description: Org-wide weekly report - covers all kagenti repos with proportional
 
 Deep weekly analysis across all kagenti org repositories. Active repos get full analysis; quiet repos get a one-liner summary.
 
+## Variables
+
+Set at session start:
+
+```bash
+export OWNER=<org-or-user>
+export REPO=<repo-name>
+```
+
 ## When to Use
 
 - Org-wide weekly standup / leadership update
@@ -65,7 +74,7 @@ Use this format for **every** repo, including kagenti itself:
 - PRs: `[kagenti/<repo>#N](https://github.com/kagenti/<repo>/pull/N)`
 
 Examples:
-- `[kagenti/kagenti#960](https://github.com/kagenti/kagenti/issues/960)`
+- `[$OWNER/$REPO#960](https://github.com/$OWNER/$REPO/issues/960)`
 - `[kagenti/kagenti-extensions#239](https://github.com/kagenti/kagenti-extensions/pull/239)`
 
 ### Phase 2: Deep Dive per Active Repo
@@ -202,7 +211,7 @@ Save the report:
 After generating the report, ask:
 
 > Org-wide weekly report ready at `/tmp/kagenti/github/org-weekly-report.md`.
-> Want me to create a GitHub issue in kagenti/kagenti with this report?
+> Want me to create a GitHub issue in $OWNER/$REPO with this report?
 > Suggested title: "Org Weekly Report [start-date] - [end-date]"
 >
 > You can also suggest a different repo or title.
