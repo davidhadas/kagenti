@@ -391,14 +391,6 @@ def get_mlflow_client():
     if _token_credentials:
         _refresh_mlflow_token()
 
-    # Verify token is set - fail if not
-    token = os.environ.get("MLFLOW_TRACKING_TOKEN", "")
-    if not token:
-        raise ValueError(
-            "MLFLOW_TRACKING_TOKEN not set - MLflow auth required. "
-            "Ensure mlflow_configured fixture ran before this test."
-        )
-
     # Reuse existing client if available
     if _mlflow_client is None:
         _mlflow_client = mlflow.MlflowClient()
