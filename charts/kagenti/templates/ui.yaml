@@ -17,6 +17,11 @@ data:
   {{- else }}
   TRACES_DASHBOARD_URL: ""
   {{- end }}
+  {{- if .Values.components.mlflow.enabled }}
+  MLFLOW_DASHBOARD_URL: "http://mlflow.{{ .Values.ui.domainName }}:8080"
+  {{- else }}
+  MLFLOW_DASHBOARD_URL: ""
+  {{- end }}
   NETWORK_TRAFFIC_DASHBOARD_URL: "http://kiali.{{ .Values.ui.domainName }}:8080"
   MCP_INSPECTOR_URL: "http://mcp-inspector.{{ .Values.ui.domainName }}:8080"
   MCP_PROXY_FULL_ADDRESS: "http://mcp-proxy.{{ .Values.ui.domainName }}:8080"
@@ -136,6 +141,12 @@ spec:
                   name: "{{ .Values.ui.configmap }}"
                   key: "NETWORK_TRAFFIC_DASHBOARD_URL"
                   optional: {{ (not .Values.openshift) }}
+            - name: MLFLOW_DASHBOARD_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: "{{ .Values.ui.configmap }}"
+                  key: "MLFLOW_DASHBOARD_URL"
+                  optional: true
             - name: MCP_INSPECTOR_URL
               valueFrom:
                 configMapKeyRef:

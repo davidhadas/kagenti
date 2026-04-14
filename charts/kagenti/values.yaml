@@ -27,6 +27,8 @@ components:
     enabled: true
   phoenix:
     enabled: false
+  mlflow:
+    enabled: false
 
 # Secrets — override via a .secrets.yaml file or --set secrets.<key>=<value>.
 # githubUser/githubToken are optional: only needed to deploy agents/tools from
