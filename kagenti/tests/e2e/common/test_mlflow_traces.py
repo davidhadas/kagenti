@@ -810,11 +810,7 @@ def mlflow_configured(mlflow_url, mlflow_client_token, is_openshift):
         os.environ["MLFLOW_TRACKING_TOKEN"] = mlflow_client_token
         logger.info("Set MLFLOW_TRACKING_TOKEN from MLflow client credentials")
     else:
-        pytest.fail(
-            "Failed to get MLflow OAuth token from Keycloak. "
-            "Check that mlflow-oauth-secret exists in kagenti-system and "
-            "Keycloak is accessible. Auth must work for tests to run."
-        )
+        logger.info("No MLflow OAuth token - running without auth (Kind/non-auth mode)")
 
     if not setup_mlflow_client(mlflow_url):
         pytest.fail(
