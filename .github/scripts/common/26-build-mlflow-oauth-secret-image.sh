@@ -88,33 +88,8 @@ EOF
     fi
 
     INTERNAL_REGISTRY="image-registry.openshift-image-registry.svc:5000"
-    INTERNAL_IMAGE="${INTERNAL_REGISTRY}/${BUILD_NS}/${BUILD_NAME}:latest"
-    log_info "Image available at: ${INTERNAL_IMAGE}"
-
-    # Restart the job with the freshly-built internal image
-    log_info "Restarting mlflow-oauth-secret job with updated image..."
-    kubectl delete job "$JOB_NAME" -n "$NAMESPACE" --ignore-not-found
-    sleep 2
-
-    helm upgrade kagenti "$REPO_ROOT/charts/kagenti" -n "$NAMESPACE" \
-        --reuse-values --no-hooks \
-        --set "mlflowOAuthSecret.image=${INTERNAL_REGISTRY}/${BUILD_NS}/${BUILD_NAME}" \
-        --set "mlflowOAuthSecret.tag=latest" \
-        --set "mlflowOAuthSecret.imagePullPolicy=Always" || true
-
-    log_info "Waiting for mlflow-oauth-secret job to complete..."
-    kubectl wait --for=condition=complete "job/$JOB_NAME" \
-        -n "$NAMESPACE" --timeout=180s || {
-        log_error "MLflow OAuth secret job did not complete"
-        kubectl logs "job/$JOB_NAME" -n "$NAMESPACE" || true
-        exit 1
-    }
-
-    log_info "Restarting otel-collector and mlflow to pick up the new secret..."
-    kubectl rollout restart deployment/otel-collector -n "$NAMESPACE"
-    kubectl rollout status deployment/otel-collector -n "$NAMESPACE" --timeout=120s
-    kubectl rollout restart deployment/mlflow -n "$NAMESPACE"
-    kubectl rollout status deployment/mlflow -n "$NAMESPACE" --timeout=120s
+    NEW_IMAGE="${INTERNAL_REGISTRY}/${BUILD_NS}/${BUILD_NAME}:latest"
+    log_info "Image available at: ${NEW_IMAGE}"
 
 else
     # ── Kind / vanilla Kubernetes: local build + kind load ──
@@ -127,26 +102,38 @@ else
     log_info "Loading image into Kind cluster '${CLUSTER_NAME}'..."
     kind load docker-image "${FULL_IMAGE}" --name "${CLUSTER_NAME}"
 
-    log_info "Restarting mlflow-oauth-secret job with updated image..."
-    kubectl delete job "$JOB_NAME" -n "$NAMESPACE" --ignore-not-found
-    sleep 2
-
-    helm upgrade kagenti "$REPO_ROOT/charts/kagenti" -n "$NAMESPACE" \
-        --reuse-values --no-hooks || true
-
-    log_info "Waiting for mlflow-oauth-secret job to complete..."
-    kubectl wait --for=condition=complete "job/$JOB_NAME" \
-        -n "$NAMESPACE" --timeout=180s || {
-        log_error "MLflow OAuth secret job did not complete"
-        kubectl logs "job/$JOB_NAME" -n "$NAMESPACE" || true
-        exit 1
-    }
-
-    log_info "Restarting otel-collector and mlflow to pick up the new secret..."
-    kubectl rollout restart deployment/otel-collector -n "$NAMESPACE"
-    kubectl rollout status deployment/otel-collector -n "$NAMESPACE" --timeout=120s
-    kubectl rollout restart deployment/mlflow -n "$NAMESPACE"
-    kubectl rollout status deployment/mlflow -n "$NAMESPACE" --timeout=120s
+    NEW_IMAGE="${FULL_IMAGE}"
 fi
+
+# The mlflow-oauth-secret-job is a Helm hook (post-install,post-upgrade).
+# Helm hooks are NOT created by `helm upgrade --no-hooks`, so we render
+# the job template and apply it directly with the updated image.
+log_info "Restarting mlflow-oauth-secret job with updated image..."
+kubectl delete job "$JOB_NAME" -n "$NAMESPACE" --ignore-not-found
+sleep 2
+
+# Render only the hook job template from the chart, patch the image,
+# and apply it directly to the cluster.
+helm template kagenti "$REPO_ROOT/charts/kagenti" -n "$NAMESPACE" \
+    --show-only templates/mlflow-oauth-secret-job.yaml \
+    -f <(helm get values kagenti -n "$NAMESPACE" -o yaml) \
+    --set "mlflowOAuthSecret.image=$(echo "$NEW_IMAGE" | cut -d: -f1)" \
+    --set "mlflowOAuthSecret.tag=$(echo "$NEW_IMAGE" | cut -d: -f2)" \
+    --set "mlflowOAuthSecret.imagePullPolicy=Always" \
+    | kubectl apply -f -
+
+log_info "Waiting for mlflow-oauth-secret job to complete..."
+kubectl wait --for=condition=complete "job/$JOB_NAME" \
+    -n "$NAMESPACE" --timeout=180s || {
+    log_error "MLflow OAuth secret job did not complete"
+    kubectl logs "job/$JOB_NAME" -n "$NAMESPACE" || true
+    exit 1
+}
+
+log_info "Restarting otel-collector and mlflow to pick up the new secret..."
+kubectl rollout restart deployment/otel-collector -n "$NAMESPACE"
+kubectl rollout status deployment/otel-collector -n "$NAMESPACE" --timeout=120s
+kubectl rollout restart deployment/mlflow -n "$NAMESPACE"
+kubectl rollout status deployment/mlflow -n "$NAMESPACE" --timeout=120s
 
 log_success "mlflow-oauth-secret image built and loaded"
