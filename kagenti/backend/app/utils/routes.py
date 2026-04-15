@@ -11,7 +11,7 @@ from kubernetes.client import ApiException
 
 from app.services.kubernetes import KubernetesService
 from app.core.config import settings
-from app.core.constants import DEFAULT_OFF_CLUSTER_PORT
+from app.core.constants import DEFAULT_IN_CLUSTER_PORT, DEFAULT_OFF_CLUSTER_PORT
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,46 @@ logger = logging.getLogger(__name__)
 def sanitize_log(value: str) -> str:
     """Strip newlines and control characters to prevent log injection (CWE-117)."""
     return str(value).replace("\n", "").replace("\r", "").replace("\x00", "")
+
+
+def select_route_port(
+    service_ports,
+    default_port: int = DEFAULT_IN_CLUSTER_PORT,
+) -> int:
+    """Select the best port for an HTTPRoute/Route from service port configuration.
+
+    Prefers the port named "http", falls back to the first port, then to the default.
+    Accepts both ServicePort model objects (with .name/.port attributes) and dicts.
+
+    Args:
+        service_ports: List of service port configs (ServicePort objects or dicts).
+        default_port: Port to use when no service ports are configured.
+
+    Returns:
+        The selected port number.
+    """
+    if not service_ports:
+        return default_port
+
+    def _get(sp, field):
+        """Get a field from a ServicePort object or dict."""
+        if isinstance(sp, dict):
+            return sp.get(field)
+        return getattr(sp, field, None)
+
+    # Prefer port named "http"
+    for sp in service_ports:
+        if _get(sp, "name") == "http":
+            port = _get(sp, "port")
+            if port is not None:
+                return port
+
+    # Fall back to first port
+    first_port = _get(service_ports[0], "port")
+    if first_port is not None:
+        return first_port
+
+    return default_port
 
 
 def detect_platform(kube: KubernetesService) -> str:

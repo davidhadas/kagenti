@@ -103,3 +103,61 @@ class TestResolveAgentUrl:
 
         url = resolve_agent_url("my-agent", "team1", kubernetes_service)
         assert url == "http://my-agent.team1.localtest.me:9090"
+
+
+class TestSelectRoutePort:
+    """Test cases for select_route_port()."""
+
+    def test_empty_list_returns_default(self):
+        from app.utils.routes import select_route_port
+
+        assert select_route_port([], default_port=8080) == 8080
+
+    def test_none_returns_default(self):
+        from app.utils.routes import select_route_port
+
+        assert select_route_port(None, default_port=9090) == 9090
+
+    def test_prefers_http_named_port_dict(self):
+        from app.utils.routes import select_route_port
+
+        ports = [
+            {"name": "grpc", "port": 9090},
+            {"name": "http", "port": 8080},
+        ]
+        assert select_route_port(ports) == 8080
+
+    def test_prefers_http_named_port_object(self):
+        from app.utils.routes import select_route_port
+
+        class FakePort:
+            def __init__(self, name, port):
+                self.name = name
+                self.port = port
+
+        ports = [FakePort("grpc", 9090), FakePort("http", 8080)]
+        assert select_route_port(ports) == 8080
+
+    def test_falls_back_to_first_port(self):
+        from app.utils.routes import select_route_port
+
+        ports = [{"name": "grpc", "port": 9090}, {"name": "metrics", "port": 2112}]
+        assert select_route_port(ports) == 9090
+
+    def test_falls_back_to_default_when_port_missing(self):
+        from app.utils.routes import select_route_port
+
+        ports = [{"name": "grpc"}]
+        assert select_route_port(ports, default_port=8000) == 8000
+
+    def test_single_http_port(self):
+        from app.utils.routes import select_route_port
+
+        ports = [{"name": "http", "port": 3000}]
+        assert select_route_port(ports) == 3000
+
+    def test_default_port_parameter(self):
+        from app.utils.routes import select_route_port
+        from app.core.constants import DEFAULT_IN_CLUSTER_PORT
+
+        assert select_route_port([]) == DEFAULT_IN_CLUSTER_PORT

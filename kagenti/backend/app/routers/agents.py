@@ -87,7 +87,12 @@ from app.models.responses import (
     DeleteResponse,
 )
 from app.services.kubernetes import KubernetesService, get_kubernetes_service
-from app.utils.routes import create_route_for_agent_or_tool, detect_platform, route_exists
+from app.utils.routes import (
+    create_route_for_agent_or_tool,
+    detect_platform,
+    route_exists,
+    select_route_port,
+)
 from app.models.shipwright import (
     ResourceType,
     ShipwrightBuildConfig,
@@ -2811,10 +2816,9 @@ async def create_agent(
 
             # Create HTTPRoute/Route if requested (not applicable for Jobs)
             if request.createHttpRoute and request.workloadType != WORKLOAD_TYPE_JOB:
-                service_port = (
-                    request.servicePorts[0].port
-                    if request.servicePorts
-                    else DEFAULT_OFF_CLUSTER_PORT
+                service_port = select_route_port(
+                    request.servicePorts,
+                    default_port=DEFAULT_OFF_CLUSTER_PORT,
                 )
                 create_route_for_agent_or_tool(
                     kube=kube,
@@ -3317,8 +3321,9 @@ async def finalize_shipwright_build(
 
         # Step 4: Create HTTPRoute/Route if requested (not applicable for Jobs)
         if final_create_route and final_workload_type != WORKLOAD_TYPE_JOB:
-            service_port = (
-                final_service_ports[0].port if final_service_ports else DEFAULT_OFF_CLUSTER_PORT
+            service_port = select_route_port(
+                final_service_ports,
+                default_port=DEFAULT_OFF_CLUSTER_PORT,
             )
             create_route_for_agent_or_tool(
                 kube=kube,

@@ -88,6 +88,7 @@ from app.utils.routes import (
     lookup_service_port,
     route_exists,
     sanitize_log,
+    select_route_port,
 )
 from app.routers.agents import (
     _ensure_authbridge_configmaps,
@@ -1533,10 +1534,10 @@ async def create_tool(
             # Create HTTPRoute/Route if requested
             # Service is now {name}-mcp on port 8000
             if request.createHttpRoute:
-                service_port = DEFAULT_IN_CLUSTER_PORT
-                if service_ports and len(service_ports) > 0:
-                    service_port = service_ports[0].get("port", DEFAULT_IN_CLUSTER_PORT)
-
+                service_port = select_route_port(
+                    service_ports,
+                    default_port=DEFAULT_IN_CLUSTER_PORT,
+                )
                 create_route_for_agent_or_tool(
                     kube=kube,
                     name=request.name,
@@ -1999,10 +2000,10 @@ async def finalize_tool_shipwright_build(
 
         # Create HTTPRoute if requested
         if create_http_route:
-            service_port = DEFAULT_IN_CLUSTER_PORT
-            if service_ports and len(service_ports) > 0:
-                service_port = service_ports[0].get("port", DEFAULT_IN_CLUSTER_PORT)
-
+            service_port = select_route_port(
+                service_ports,
+                default_port=DEFAULT_IN_CLUSTER_PORT,
+            )
             create_route_for_agent_or_tool(
                 kube=kube,
                 name=name,
