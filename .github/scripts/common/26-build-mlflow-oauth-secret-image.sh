@@ -11,7 +11,7 @@ IMAGE_TAG="$(grep -A5 'mlflowOAuthSecret:' "$REPO_ROOT/charts/kagenti/values.yam
 FULL_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
 
 NAMESPACE="kagenti-system"
-JOB_NAME="kagenti-mlflow-oauth-secret-job"
+JOB_NAME="mlflow-oauth-secret-job"
 
 # Only run if MLflow auth is enabled
 MLFLOW_AUTH_ENABLED=$(helm get values kagenti -n "$NAMESPACE" -o json 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin).get('mlflow',{}).get('auth',{}).get('enabled',False))" 2>/dev/null || echo "False")
