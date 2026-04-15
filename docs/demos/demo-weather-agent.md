@@ -6,7 +6,7 @@
 
 ## New Location
 
-**[Weather Agent Demo with AuthBridge](https://github.com/kagenti/kagenti-extensions/blob/main/AuthBridge/demos/weather-agent/demo-ui.md)**
+**[Weather Agent Demo with AuthBridge](https://github.com/kagenti/kagenti-extensions/blob/main/authbridge/demos/weather-agent/demo-ui.md)**
 — Deploy the Weather Agent via the Kagenti UI with automatic SPIFFE identity
 registration and inbound JWT validation.
 
@@ -27,5 +27,5 @@ not include AuthBridge security features. The new demo in `kagenti-extensions`:
 
 ## All Available Demos
 
-See the [AuthBridge Demos Index](https://github.com/kagenti/kagenti-extensions/blob/main/AuthBridge/demos/README.md)
+See the [AuthBridge Demos Index](https://github.com/kagenti/kagenti-extensions/blob/main/authbridge/demos/README.md)
 for a complete list of demos with a recommended learning path.

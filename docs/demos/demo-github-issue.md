@@ -10,8 +10,8 @@ Choose your deployment method:
 
 | Guide | Description |
 |-------|-------------|
-| **[UI Deployment](https://github.com/kagenti/kagenti-extensions/blob/main/AuthBridge/demos/github-issue/demo-ui.md)** | Import agent and tool via the Kagenti dashboard |
-| **[Manual Deployment](https://github.com/kagenti/kagenti-extensions/blob/main/AuthBridge/demos/github-issue/demo-manual.md)** | Deploy everything via `kubectl` and YAML manifests |
+| **[UI Deployment](https://github.com/kagenti/kagenti-extensions/blob/main/authbridge/demos/github-issue/demo-ui.md)** | Import agent and tool via the Kagenti dashboard |
+| **[Manual Deployment](https://github.com/kagenti/kagenti-extensions/blob/main/authbridge/demos/github-issue/demo-manual.md)** | Deploy everything via `kubectl` and YAML manifests |
 
 ## Why It Moved
 
@@ -38,5 +38,5 @@ to create fine-grained PAT tokens:
 
 ## All Available Demos
 
-See the [AuthBridge Demos Index](https://github.com/kagenti/kagenti-extensions/blob/main/AuthBridge/demos/README.md)
+See the [AuthBridge Demos Index](https://github.com/kagenti/kagenti-extensions/blob/main/authbridge/demos/README.md)
 for a complete list of demos with a recommended learning path.

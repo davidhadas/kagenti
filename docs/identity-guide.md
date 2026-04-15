@@ -11,7 +11,7 @@ In practice, the Authorization Pattern within the Agentic Platform enables:
 ## 📚 Related Documentation
 
 - **[Kagenti Identity Overview](./2025-10.Kagenti-Identity.pdf)** - High-level architectural concepts
-- **[AuthBridge Component](https://github.com/kagenti/kagenti-extensions/tree/main/AuthBridge)** - Complete end-to-end installation and demo with SPIFFE, Client Registration, and AuthProxy
+- **[AuthBridge Component](https://github.com/kagenti/kagenti-extensions/tree/main/authbridge)** - Complete end-to-end installation and demo with SPIFFE, Client Registration, and AuthProxy
 - **[Token Exchange Deep Dive](../kagenti/examples/identity/token_exchange.md)** - Detailed OAuth2 token exchange flows
 - **[Client Registration Examples](../kagenti/examples/identity/keycloak_token_exchange/README.md)** - Practical integration examples
 - **[Personas and Roles](../PERSONAS_AND_ROLES.md#23-security-and-identity-specialist)** - Security and identity specialist persona
@@ -610,7 +610,7 @@ tool_response = requests.post(
 
 ## 🌉 AuthBridge Component
 
-The [AuthBridge Component](https://github.com/kagenti/kagenti-extensions/tree/main/AuthBridge) provides a complete, hands-on implementation of Kagenti's identity and authorization patterns. It combines **Client Registration** and **AuthProxy** to demonstrate the full zero-trust authentication flow.
+The [AuthBridge Component](https://github.com/kagenti/kagenti-extensions/tree/main/authbridge) provides a complete, hands-on implementation of Kagenti's identity and authorization patterns. It combines **Client Registration** and **AuthProxy** to demonstrate the full zero-trust authentication flow.
 
 ### What AuthBridge Demonstrates
 
@@ -677,7 +677,7 @@ The [AuthBridge Component](https://github.com/kagenti/kagenti-extensions/tree/ma
 
 ### Installation and Hands-On Demo
 
-The [AuthBridge Component](https://github.com/kagenti/kagenti-extensions/tree/main/AuthBridge) provides a complete end-to-end example:
+The [AuthBridge Component](https://github.com/kagenti/kagenti-extensions/tree/main/authbridge) provides a complete end-to-end example:
 
 ```bash
 # Clone and deploy
@@ -692,15 +692,15 @@ curl -H "Authorization: Bearer $TOKEN" http://auth-target-service:8081/test
 # Returns: "authorized"
 ```
 
-For detailed installation and demo instructions please see the [AuthBridge Demo](https://github.com/kagenti/kagenti-extensions/tree/main/AuthBridge)
+For detailed installation and demo instructions please see the [AuthBridge Demo](https://github.com/kagenti/kagenti-extensions/tree/main/authbridge)
 
 ### AuthBridge Documentation
 
 For complete documentation, see:
 
-- **[AuthBridge README](https://github.com/kagenti/kagenti-extensions/tree/main/AuthBridge)** - Full demo instructions
-- **[AuthProxy](https://github.com/kagenti/kagenti-extensions/tree/main/AuthBridge/AuthProxy)** - Token validation and exchange proxy
-- **[Client Registration](https://github.com/kagenti/kagenti-extensions/tree/main/AuthBridge/client-registration)** - Automatic Keycloak client registration
+- **[AuthBridge README](https://github.com/kagenti/kagenti-extensions/tree/main/authbridge)** - Full demo instructions
+- **[AuthProxy](https://github.com/kagenti/kagenti-extensions/tree/main/authbridge/authproxy)** - Token validation and exchange proxy
+- **[Client Registration](https://github.com/kagenti/kagenti-extensions/tree/main/authbridge/client-registration)** - Automatic Keycloak client registration
 
 ---
 

@@ -7,7 +7,7 @@ This directory contains the official Kagenti project documentation.
 If you are new to Kagenti, we recommend the following flow to get started with a local Kind cluster. 
 
 1. [Installation Guide](./install.md): Step-by-step instructions to start a Kind cluster and install all prerequisite components
-2. [Quickstart Weather Agent](https://github.com/kagenti/kagenti-extensions/blob/main/AuthBridge/demos/weather-agent/demo-ui.md): Deploy your first agent with AuthBridge security.
+2. [Quickstart Weather Agent](https://github.com/kagenti/kagenti-extensions/blob/main/authbridge/demos/weather-agent/demo-ui.md): Deploy your first agent with AuthBridge security.
 
 Kagenti is built on existing open-source cloud-native technologies. 
 

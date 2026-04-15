@@ -268,4 +268,4 @@ This approach allows agents to access multiple tools through a single endpoint, 
 - [Importing a New Agent](./new-agent.md)
 - [MCP Gateway Instructions](./gateway.md)
 - [Components Overview](./components.md)
-- [Demo: Weather Agent and Tool](https://github.com/kagenti/kagenti-extensions/blob/main/AuthBridge/demos/weather-agent/demo-ui.md)
+- [Demo: Weather Agent and Tool](https://github.com/kagenti/kagenti-extensions/blob/main/authbridge/demos/weather-agent/demo-ui.md)

@@ -436,7 +436,7 @@ kubectl get route kagenti-ui -n kagenti-system -o jsonpath='{.status.ingress[0].
 
 ## Identity & Auth Bridge
 
-**Repository**: [kagenti/kagenti-extensions/AuthBridge](https://github.com/kagenti/kagenti-extensions/tree/main/AuthBridge)
+**Repository**: [kagenti/kagenti-extensions/AuthBridge](https://github.com/kagenti/kagenti-extensions/tree/main/authbridge)
 
 Kagenti provides a unified framework for identity and authorization in agentic systems, replacing static credentials with dynamic, short-lived tokens. We call this collection of assets **Auth Bridge**.
 
@@ -446,8 +446,8 @@ Kagenti provides a unified framework for identity and authorization in agentic s
 
 | Component | Purpose | Repository |
 |-----------|---------|------------|
-| **[Client Registration](https://github.com/kagenti/kagenti-extensions/tree/main/AuthBridge/client-registration)** | Automatic OAuth2/OIDC client provisioning using SPIFFE ID | `AuthBridge/client-registration` |
-| **[AuthProxy](https://github.com/kagenti/kagenti-extensions/tree/main/AuthBridge/AuthProxy)** | Inbound JWT validation (JWKS) and outbound token exchange | `AuthBridge/AuthProxy` |
+| **[Client Registration](https://github.com/kagenti/kagenti-extensions/tree/main/authbridge/client-registration)** | Automatic OAuth2/OIDC client provisioning using SPIFFE ID | `AuthBridge/client-registration` |
+| **[AuthProxy](https://github.com/kagenti/kagenti-extensions/tree/main/authbridge/authproxy)** | Inbound JWT validation (JWKS) and outbound token exchange | `AuthBridge/AuthProxy` |
 | **[SPIRE](https://spiffe.io/docs/latest/spire-about/)** | Workload identity and attestation | External |
 | **[Keycloak](https://www.keycloak.org/)** | Identity provider and access management | External |
 
@@ -518,7 +518,7 @@ An Envoy-based sidecar that handles both **inbound JWT validation** and **outbou
 | Feature | Description |
 |---------|-------------|
 | **User Management** | Create and manage Kagenti users |
-| **Client Registration** | OAuth clients for agents and UI (e.g. automated Keycloak Client registration via [Client Registration](https://github.com/kagenti/kagenti-extensions/tree/main/AuthBridge/client-registration) component) |
+| **Client Registration** | OAuth clients for agents and UI (e.g. automated Keycloak Client registration via [Client Registration](https://github.com/kagenti/kagenti-extensions/tree/main/authbridge/client-registration) component) |
 | **Token Exchange** | Exchange tokens between audiences ([RFC 8693](https://datatracker.ietf.org/doc/html/rfc8693)) |
 | **SSO** | Single sign-on across Kagenti components |
 

@@ -34,7 +34,7 @@ mcp-controller-666f8cf9bf-dcpbc      1/1     Running   0          30h
 
 ### Register Weather MCP Server
 
-The Weather Service Tool can be installed using the Kagenti UI [as usual](https://github.com/kagenti/kagenti-extensions/blob/main/AuthBridge/demos/weather-agent/demo-ui.md#step-3-import-the-weather-tool-via-kagenti-ui). Once it is
+The Weather Service Tool can be installed using the Kagenti UI [as usual](https://github.com/kagenti/kagenti-extensions/blob/main/authbridge/demos/weather-agent/demo-ui.md#step-3-import-the-weather-tool-via-kagenti-ui). Once it is
 installed, to register it with the Gateway, create an [`HTTPRoute`](https://gateway-api.sigs.k8s.io/api-types/httproute/):
 
 ```
@@ -94,7 +94,7 @@ The `weather-service` deployment can be edited manually or patched via a command
 Once the Gateway implementation has stabilized, `MCP_URL` can be set to this
 value by default, so we do not need to set this environment variable for every
 agent. To check if the weather service is working, simply use the chatbot
-exposed by the Weather Service Agent to query for weather information. Instructions for chatting with the agent can be referred to [here](https://github.com/kagenti/kagenti-extensions/blob/main/AuthBridge/demos/weather-agent/demo-ui.md#step-7-chat-via-kagenti-ui).
+exposed by the Weather Service Agent to query for weather information. Instructions for chatting with the agent can be referred to [here](https://github.com/kagenti/kagenti-extensions/blob/main/authbridge/demos/weather-agent/demo-ui.md#step-7-chat-via-kagenti-ui).
 
 ### Limitations
 

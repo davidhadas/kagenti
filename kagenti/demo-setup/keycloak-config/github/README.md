@@ -1,7 +1,7 @@
 # Keycloak Configuration for GitHub Issue Demo
 
 This script configures Keycloak for the
-[GitHub Issue Demo](https://github.com/kagenti/kagenti-extensions/blob/main/AuthBridge/demos/github-issue/demo.md).
+[GitHub Issue Demo](https://github.com/kagenti/kagenti-extensions/blob/main/authbridge/demos/github-issue/demo.md).
 Logging into Kagenti with accounts of different
 permissions affects the results those accounts receive.
 
