@@ -26,6 +26,7 @@ For general questions, feedback, or to reach the maintainer team:
 * **Kelly A** (@kellyaa) - Agent and Tools development
 * **Michael Le** (@mvle) - Security, MCP Gateway
 * **Evaline Ju** (@evaline-ju) - Guardrails, Token Mgmt, Observability
+* **Ryan Jenkins** (@RyanJenkins99) - Automation, HyperShift CI
 
 ## Responsibilities of Maintainers
 
