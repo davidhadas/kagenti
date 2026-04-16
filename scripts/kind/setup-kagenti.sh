@@ -41,6 +41,7 @@ WITH_OTEL=false
 WITH_BUILDS=false
 SKIP_CLUSTER=false
 DRY_RUN=false
+CONTAINER_ENGINE="${CONTAINER_ENGINE:-docker}"
 
 # Versions — keep in sync with deployments/ansible/default_values.yaml
 CERT_MANAGER_VERSION="v1.17.2"
@@ -360,6 +361,41 @@ kubectl label namespace kagenti-system shared-gateway-access=true --overwrite 2>
 
 log_success "kagenti-deps installed"
 echo ""
+
+# ── Configure Kind node to reach in-cluster container registry ──────────────
+if $WITH_BUILDS && ! $SKIP_CLUSTER; then
+  REGISTRY_NAME="registry"
+  REGISTRY_NS="cr-system"
+  REGISTRY_HOST="${REGISTRY_NAME}.${REGISTRY_NS}.svc.cluster.local"
+  REGISTRY_HOST_PORT="${REGISTRY_HOST}:5000"
+
+  log_info "Configuring Kind node to reach in-cluster registry (${REGISTRY_HOST_PORT})..."
+
+  if ! $DRY_RUN; then
+    CLUSTER_IP=$(kubectl get svc "$REGISTRY_NAME" -n "$REGISTRY_NS" -o jsonpath='{.spec.clusterIP}' 2>/dev/null || true)
+    if [ -n "$CLUSTER_IP" ]; then
+      # Add registry DNS to Kind node's /etc/hosts
+      $CONTAINER_ENGINE exec "${CLUSTER_NAME}-control-plane" \
+        sh -c "echo '${CLUSTER_IP} ${REGISTRY_HOST}' >> /etc/hosts"
+
+      # Configure containerd registry mirror for insecure in-cluster registry
+      $CONTAINER_ENGINE exec "${CLUSTER_NAME}-control-plane" sh -c "
+        mkdir -p /etc/containerd/certs.d/${REGISTRY_HOST_PORT}
+        cat > /etc/containerd/certs.d/${REGISTRY_HOST_PORT}/hosts.toml <<TOML
+server = \"http://${REGISTRY_HOST_PORT}\"
+
+[host.\"http://${REGISTRY_HOST_PORT}\"]
+  capabilities = [\"pull\", \"resolve\", \"push\"]
+  skip_verify = true
+TOML
+      "
+      log_success "Kind registry DNS configured (${CLUSTER_IP} -> ${REGISTRY_HOST})"
+    else
+      log_warn "Could not resolve registry ClusterIP — registry DNS not configured"
+    fi
+  fi
+  echo ""
+fi
 
 # ============================================================================
 # Step 6b: Install Shipwright (optional, --with-builds, after cert-manager)
