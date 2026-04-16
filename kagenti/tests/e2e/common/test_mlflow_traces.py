@@ -431,59 +431,6 @@ def get_all_traces() -> list[dict[str, Any]]:
         return []
 
 
-def get_traces_by_session_id(session_id: str) -> list[dict[str, Any]]:
-    """Get traces that match a specific session/conversation ID.
-
-    Filters traces by gen_ai.conversation.id in span attributes.
-    This allows correlating traces to a specific test run, preventing
-    false positives from old traces on repeated test runs.
-
-    Args:
-        session_id: The conversation/context ID to filter by
-
-    Returns:
-        List of traces that have spans with matching gen_ai.conversation.id
-    """
-    all_traces = get_all_traces()
-    matching_traces = []
-
-    client = get_mlflow_client()
-    if not client:
-        return []
-
-    for trace in all_traces:
-        try:
-            trace_info = trace.info if hasattr(trace, "info") else trace
-            request_id = (
-                trace_info.request_id
-                if hasattr(trace_info, "request_id")
-                else trace_info.get("request_id")
-            )
-
-            if not request_id:
-                continue
-
-            trace_data = client.get_trace(request_id)
-            if not trace_data:
-                continue
-
-            spans = trace_data.data.spans if hasattr(trace_data, "data") else []
-
-            for span in spans:
-                attributes = span.attributes if hasattr(span, "attributes") else {}
-                conversation_id = attributes.get("gen_ai.conversation.id")
-                if conversation_id == session_id:
-                    matching_traces.append(trace)
-                    break  # Found match, no need to check other spans
-
-        except Exception as e:
-            logger.warning(f"Error checking trace for session ID: {e}")
-            continue
-
-    logger.info(f"Found {len(matching_traces)} traces matching session ID {session_id}")
-    return matching_traces
-
-
 def is_weather_agent_trace(trace: Any) -> bool:
     """Check if a trace is from the weather agent.
 
@@ -1762,45 +1709,6 @@ class TestSessionTracking:
             print("  Traces may be using span-level service.name instead of trace tags")
 
         print("\nSUCCESS: Service grouping analysis complete")
-
-    def test_traces_filter_by_session_id(
-        self, mlflow_url: str, mlflow_configured: bool, test_session_id: str
-    ):
-        """
-        Test filtering traces by the current test session ID.
-
-        This demonstrates trace correlation between agent conversation tests
-        and observability tests. The test_session_id fixture provides a unique
-        ID that is passed to agent tests as context_id, allowing us to filter
-        for only traces from the current test run.
-
-        This prevents false positives from old traces when running repeated
-        test runs on the same cluster.
-        """
-        print(f"\n{'=' * 60}")
-        print("Session ID Trace Filtering")
-        print(f"{'=' * 60}")
-        print(f"Looking for traces with session ID: {test_session_id}")
-
-        # Get traces filtered by session ID
-        session_traces = get_traces_by_session_id(test_session_id)
-
-        print(f"Traces matching session ID: {len(session_traces)}")
-
-        if session_traces:
-            print("\nMatching traces:")
-            for i, trace in enumerate(session_traces[:5]):
-                trace_info = trace.info if hasattr(trace, "info") else trace
-                request_id = getattr(trace_info, "request_id", "unknown")
-                print(f"  [{i + 1}] {request_id[:40]}...")
-
-            print(f"\nSUCCESS: Found {len(session_traces)} traces for current session")
-        else:
-            # This is not a failure - just means agent tests haven't run with this session ID yet
-            pytest.skip(
-                f"No traces found for session ID {test_session_id}. "
-                "Run agent conversation tests first to generate traces with this session."
-            )
 
 
 @pytest.mark.observability
