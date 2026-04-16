@@ -240,14 +240,14 @@ if [ "$RUN_INSTALL" = "true" ]; then
 
     if [ "$CLEAN_KAGENTI" = "true" ]; then
         log_step "Uninstalling Kagenti (--clean-kagenti)..."
-        ./deployments/ansible/cleanup-install.sh || true
+        ./scripts/kind/cleanup-kagenti.sh || true
     fi
 
     log_step "Creating secrets..."
     ./.github/scripts/common/20-create-secrets.sh
 
-    log_step "Running Ansible installer..."
-    ./.github/scripts/kagenti-operator/30-run-installer.sh --env "$KAGENTI_ENV"
+    log_step "Running Kagenti installer..."
+    ./scripts/kind/setup-kagenti.sh --with-all --skip-cluster --cluster-name "$CLUSTER_NAME"
 
     log_step "Waiting for platform to be ready..."
     ./.github/scripts/common/40-wait-platform-ready.sh
@@ -340,8 +340,8 @@ fi
 
 if [ "$RUN_KAGENTI_UNINSTALL" = "true" ]; then
     log_phase "PHASE 5: Uninstall Kagenti Platform"
-    log_step "Running cleanup-install.sh..."
-    ./deployments/ansible/cleanup-install.sh || {
+    log_step "Running cleanup-kagenti.sh..."
+    ./scripts/kind/cleanup-kagenti.sh --cluster-name "$CLUSTER_NAME" || {
         log_error "Kagenti uninstall failed (non-fatal)"
     }
 else
