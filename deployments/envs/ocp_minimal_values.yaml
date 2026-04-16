@@ -119,6 +119,12 @@ charts:
     enabled: true
 
   ####################################################################
+  # kuadrant operator - AuthPolicy for MCP Gateway
+  ####################################################################
+  kuadrant:
+    enabled: true
+
+  ####################################################################
   # spire - On OpenShift, ZTWIM operator is used (configured in kagenti-deps)
   # Helm-based SPIRE is automatically skipped on OpenShift
   ####################################################################

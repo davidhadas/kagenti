@@ -1749,6 +1749,52 @@
   ansible.builtin.import_tasks: 03_setup_kind_registry_dns.yaml
 
 #
+#  Kuadrant Operator (AuthPolicy for MCP Gateway JWT validation and authorization)
+#
+- name: Install Kuadrant operator
+  block:
+    - name: Install kuadrant-operator via Helm
+      kubernetes.core.helm:
+        release_name: kuadrant-operator
+        chart_ref: kuadrant-operator
+        chart_repo_url: https://kuadrant.io/helm-charts/
+        chart_version: "{{ charts.kuadrant.version }}"
+        release_namespace: "{{ charts.kuadrant.namespace }}"
+        create_namespace: true
+        state: present
+        wait: true
+        timeout: "{{ helm_wait_timeout }}s"
+        values: "{{ (charts.kuadrant | default({})).get('values', {}) | default({}) }}"
+      register: kuadrant_operator_result
+      retries: 3
+      delay: 30
+      until: kuadrant_operator_result is not failed
+
+    - name: Wait for Kuadrant operator to be ready
+      command: >-
+        kubectl rollout status deployment/kuadrant-operator-controller-manager
+        -n {{ charts.kuadrant.namespace }} --timeout=300s
+      register: kuadrant_operator_ready
+      retries: 3
+      delay: 15
+      until: kuadrant_operator_ready.rc == 0
+
+    - name: Create Kuadrant CR to instantiate Authorino
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: kuadrant.io/v1beta1
+          kind: Kuadrant
+          metadata:
+            name: kuadrant
+            namespace: "{{ charts.kuadrant.namespace }}"
+      register: kuadrant_cr_result
+      retries: 3
+      delay: 15
+      until: kuadrant_cr_result is not failed
+  when: charts.kuadrant.enabled | default(false)
+
+#
 #  Namespace needed by MCP Gateway, that its own chart doesn't install
 #
 - name: Create gateway-system namespace for mcp-gateway
