@@ -245,10 +245,10 @@ kagenti-operator-chart:
   # Pin sidecar image tags injected by the AuthBridge webhook.
   defaults:
     images:
-      envoyProxy: ghcr.io/kagenti/kagenti-extensions/authbridge-unified:v0.5.0-alpha.2
-      proxyInit: ghcr.io/kagenti/kagenti-extensions/proxy-init:v0.5.0-alpha.2
-      spiffeHelper: ghcr.io/kagenti/kagenti-extensions/spiffe-helper:v0.5.0-alpha.2
-      clientRegistration: ghcr.io/kagenti/kagenti-extensions/client-registration:v0.5.0-alpha.2
+      envoyProxy: ghcr.io/kagenti/kagenti-extensions/authbridge-unified:v0.5.0-alpha.3
+      proxyInit: ghcr.io/kagenti/kagenti-extensions/proxy-init:v0.5.0-alpha.3
+      spiffeHelper: ghcr.io/kagenti/kagenti-extensions/spiffe-helper:v0.5.0-alpha.3
+      clientRegistration: ghcr.io/kagenti/kagenti-extensions/client-registration:v0.5.0-alpha.3
 
 # ------------------------------------------------------------------
 #  MCP Gateway Configuration
