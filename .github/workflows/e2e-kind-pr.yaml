@@ -13,6 +13,11 @@ on:
       - 'kagenti/ui-v2/package.json'
       - 'kagenti/ui-v2/package-lock.json'
 
+# Cancel stale runs when new commits are pushed to the same PR
+concurrency:
+  group: e2e-kind-pr-${{ github.head_ref }}
+  cancel-in-progress: true
+
 # Explicit permissions - principle of least privilege
 permissions:
   contents: read
@@ -58,6 +63,9 @@ jobs:
 
       - name: Run Ansible installer (dev mode with kagenti-operator)
         run: bash .github/scripts/kagenti-operator/30-run-installer.sh
+
+      - name: Build platform images from source (backend, ui-v2, agent-oauth-secret)
+        run: bash .github/scripts/common/26-build-platform-images.sh
 
       - name: Build ui-oauth-secret image from PR and restart job
         run: bash .github/scripts/common/25-build-oauth-secret-image.sh
@@ -108,6 +116,10 @@ jobs:
 
       - name: Start port-forward for agent service
         run: bash .github/scripts/common/85-start-port-forward.sh
+
+      - name: Print version matrix
+        if: success()
+        run: bash .github/scripts/common/86-print-version-matrix.sh
 
       - name: Pre-flight checks
         if: success()
