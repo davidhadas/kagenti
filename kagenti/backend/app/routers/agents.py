@@ -829,9 +829,9 @@ async def delete_agent(
         messages.append(f"Deployment '{name}' deleted")
     except ApiException as e:
         if e.status == 404:
-            logger.debug(f"Deployment '{name}' not found (may be other workload type)")
+            logger.debug("Deployment '%s' not found (may be other workload type)", name)
         else:
-            logger.warning(f"Failed to delete Deployment '{name}': {e.reason}")
+            logger.warning("Failed to delete Deployment '%s': %s", name, e.reason)
 
     # Delete the StatefulSet (if exists)
     try:
@@ -839,9 +839,9 @@ async def delete_agent(
         messages.append(f"StatefulSet '{name}' deleted")
     except ApiException as e:
         if e.status == 404:
-            logger.debug(f"StatefulSet '{name}' not found")
+            logger.debug("StatefulSet '%s' not found", name)
         else:
-            logger.warning(f"Failed to delete StatefulSet '{name}': {e.reason}")
+            logger.warning("Failed to delete StatefulSet '%s': %s", name, e.reason)
 
     # Delete the Job (if exists)
     try:
@@ -849,9 +849,9 @@ async def delete_agent(
         messages.append(f"Job '{name}' deleted")
     except ApiException as e:
         if e.status == 404:
-            logger.debug(f"Job '{name}' not found")
+            logger.debug("Job '%s' not found", name)
         else:
-            logger.warning(f"Failed to delete Job '{name}': {e.reason}")
+            logger.warning("Failed to delete Job '%s': %s", name, e.reason)
 
     # Delete the Service
     try:
@@ -862,7 +862,7 @@ async def delete_agent(
             # Service doesn't exist, that's fine
             pass
         else:
-            logger.warning(f"Failed to delete Service '{name}': {e.reason}")
+            logger.warning("Failed to delete Service '%s': %s", name, e.reason)
 
     # Delete the HTTPRoute (if exists)
     try:
@@ -879,7 +879,7 @@ async def delete_agent(
             # HTTPRoute doesn't exist, that's fine
             pass
         else:
-            logger.warning(f"Failed to delete HTTPRoute '{name}': {e.reason}")
+            logger.warning("Failed to delete HTTPRoute '%s': %s", name, e.reason)
 
     # Delete the OpenShift Route (if exists)
     try:
@@ -896,7 +896,7 @@ async def delete_agent(
             # Route doesn't exist, that's fine
             pass
         else:
-            logger.warning(f"Failed to delete Route '{name}': {e.reason}")
+            logger.warning("Failed to delete Route '%s': %s", name, e.reason)
 
     # Delete the AgentRuntime CR (if exists)
     try:
@@ -929,7 +929,7 @@ async def delete_agent(
             # Agent CR doesn't exist, that's expected for new deployments
             pass
         else:
-            logger.warning(f"Failed to delete Agent CR '{name}': {e.reason}")
+            logger.warning("Failed to delete Agent CR '%s': %s", name, e.reason)
 
     # Delete Shipwright BuildRuns associated with the build
     try:
@@ -954,10 +954,12 @@ async def delete_agent(
                     messages.append(f"BuildRun '{buildrun_name}' deleted")
                 except ApiException as e:
                     if e.status != 404:
-                        logger.warning(f"Failed to delete BuildRun '{buildrun_name}': {e.reason}")
+                        logger.warning(
+                            "Failed to delete BuildRun '%s': %s", buildrun_name, e.reason
+                        )
     except ApiException as e:
         if e.status != 404:
-            logger.warning(f"Failed to list BuildRuns for '{name}': {e.reason}")
+            logger.warning("Failed to list BuildRuns for '%s': %s", name, e.reason)
 
     # Delete the Shipwright Build CR if it exists
     try:
@@ -974,7 +976,7 @@ async def delete_agent(
             # Shipwright Build doesn't exist, that's fine (might be image-based or Tekton deployment)
             pass
         else:
-            logger.warning(f"Failed to delete Shipwright Build '{name}': {e.reason}")
+            logger.warning("Failed to delete Shipwright Build '%s': %s", name, e.reason)
 
     return DeleteResponse(success=True, message="; ".join(messages))
 
