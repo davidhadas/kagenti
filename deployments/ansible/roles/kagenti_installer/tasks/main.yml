@@ -1879,6 +1879,23 @@
         kagenti_openshift_overrides: "{{ kagenti_openshift_overrides | combine({'agentOAuthSecret': {'spiffePrefix': 'spiffe://' + ocp_trust_domain + '/sa'}}, recursive=True) }}"
       when: ocp_trust_domain is defined and ocp_trust_domain | trim | length > 0
 
+    # Discover Keycloak public URL from OpenShift Route.
+    # The authbridge-unified sidecar fetches JWKS at startup and validates JWT
+    # issuer claims, so keycloak.publicUrl must be the externally-reachable URL
+    # that matches the "iss" claim in tokens issued by Keycloak.
+    - name: Discover Keycloak Route host on OpenShift
+      command: >-
+        kubectl get route keycloak -n {{ (charts['kagenti'] | default({})).get('values', {}).get('keycloak', {}).get('namespace', 'keycloak') }}
+        -o jsonpath='{.spec.host}'
+      register: keycloak_route_host
+      failed_when: false
+      changed_when: false
+
+    - name: Override keycloak.publicUrl from discovered Route
+      set_fact:
+        kagenti_openshift_overrides: "{{ kagenti_openshift_overrides | combine({'keycloak': {'publicUrl': 'https://' + keycloak_route_host.stdout}}, recursive=True) }}"
+      when: keycloak_route_host.rc == 0 and keycloak_route_host.stdout | trim | length > 0
+
     - name: Debug kagenti OpenShift overrides
       debug:
         msg: "Kagenti OpenShift overrides: {{ kagenti_openshift_overrides }}"
