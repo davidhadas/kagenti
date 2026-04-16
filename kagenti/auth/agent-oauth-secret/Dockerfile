@@ -13,6 +13,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy common utilities from unified context
 COPY common/ ./common/
 
+# Copy auth shared utilities
+COPY auth/shared_utils.py ./kagenti/auth/
+
 # Copy the script
 COPY auth/agent-oauth-secret/agent_oauth_secret.py .
 
