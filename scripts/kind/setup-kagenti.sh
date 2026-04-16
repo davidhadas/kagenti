@@ -804,7 +804,9 @@ fi
 echo ""
 log_info "Access info:"
 echo ""
-echo "  Kagenti UI:   http://kagenti-ui.${DOMAIN}:8080"
+if $WITH_BACKEND; then
+  echo "  Kagenti UI:   http://kagenti-ui.${DOMAIN}:8080"
+fi
 echo "  Keycloak:     http://keycloak.${DOMAIN}:8080"
 if $WITH_SPIRE; then
   echo "  Tornjak:      http://spire-tornjak-api.${DOMAIN}:8080"
