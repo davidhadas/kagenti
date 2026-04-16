@@ -277,53 +277,54 @@ spec:
               if not db_uri:
                   return
 
-              # Wait for alembic migrations to create tables
-              # MLflow has ~50 migrations on fresh DB, can take 2-3 minutes
-              # Use fixed 5s interval (not exponential) to avoid giving up too early
+              # Phase 1: Create Default experiment (MLflow core tables)
               max_retries = 60
               for attempt in range(max_retries):
                   try:
                       with psycopg.connect(db_uri) as conn:
                           with conn.cursor() as cur:
-                              # Check if experiments table exists (created by alembic)
-                              # Direct INSERT with ON CONFLICT - avoids information_schema
-                              # check which fails in background threads due to PostgreSQL
-                              # catalog caching with new connections
                               ts = int(time_module.time() * 1000)
                               cur.execute(
                                   "INSERT INTO experiments (experiment_id, name, artifact_location, lifecycle_stage, creation_time, last_update_time) "
                                   "VALUES (0, %s, %s, %s, %s, %s) ON CONFLICT (experiment_id) DO NOTHING",
                                   ("Default", "/mlflow/artifacts/0", "active", ts, ts)
                               )
+                              conn.commit()
                               if cur.rowcount > 0:
                                   print("Created Default experiment (id=0)")
                               else:
                                   print("Default experiment already exists")
-
-                              cur.execute(
-                                  "INSERT INTO users (username, display_name, is_admin, is_service_account) "
-                                  "VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
-                                  ("service-account-mlflow", "MLflow Service Account", False, True)
-                              )
-                              if cur.rowcount > 0:
-                                  print("Created service account user: service-account-mlflow")
-
-                              cur.execute(
-                                  "INSERT INTO users (username, display_name, is_admin, is_service_account) "
-                                  "VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
-                                  ("admin", "Admin User", True, False)
-                              )
-                              if cur.rowcount > 0:
-                                  print("Created admin user: admin")
-
-                              conn.commit()
-                              return  # Success
+                              break
                   except Exception as e:
                       if attempt < max_retries - 1:
-                          print(f"Waiting for database tables (attempt {attempt + 1}/{max_retries}): {e}")
+                          print(f"Waiting for experiments table (attempt {attempt + 1}/{max_retries}): {e}")
                           time_module.sleep(5)
                       else:
-                          print(f"Warning: Could not initialize database after {max_retries} attempts: {e}")
+                          print(f"Warning: Could not create Default experiment after {max_retries} attempts: {e}")
+
+              # Phase 2: Create users (mlflow-oidc-auth tables, may take longer)
+              for attempt in range(max_retries):
+                  try:
+                      with psycopg.connect(db_uri) as conn:
+                          with conn.cursor() as cur:
+                              for uname, dname, admin, svc in [
+                                  ("service-account-mlflow", "MLflow Service Account", False, True),
+                                  ("admin", "Admin User", True, False),
+                              ]:
+                                  cur.execute(
+                                      "INSERT INTO users (username, display_name, is_admin, is_service_account) "
+                                      "VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING",
+                                      (uname, dname, admin, svc)
+                                  )
+                                  if cur.rowcount > 0:
+                                      print(f"Created user: {uname}")
+                              conn.commit()
+                              break
+                  except Exception as e:
+                      if attempt < max_retries - 1:
+                          time_module.sleep(5)
+                      else:
+                          print(f"Warning: Could not create users after {max_retries} attempts: {e}")
 
           # Start database initialization in background thread
           # This allows uvicorn to start serving while we wait for migrations
