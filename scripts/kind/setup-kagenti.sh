@@ -305,20 +305,19 @@ fi
 echo ""
 
 # ============================================================================
-# Step 5: Install Gateway API CRDs (if Istio or MCP Gateway)
+# Step 5: Install Gateway API CRDs
 # ============================================================================
-if $WITH_ISTIO || $WITH_MCP_GATEWAY; then
-  log_info "Step 5: Gateway API CRDs"
-  if kubectl get crd gateways.gateway.networking.k8s.io &>/dev/null; then
-    log_success "Gateway API CRDs already installed"
-  else
-    log_info "Installing Gateway API ${GATEWAY_API_VERSION}..."
-    run_cmd kubectl apply -f \
-      "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml"
-    log_success "Gateway API CRDs installed"
-  fi
-  echo ""
+# Always required: kagenti-deps chart creates HTTPRoute resources (e.g. Keycloak)
+log_info "Step 5: Gateway API CRDs"
+if kubectl get crd gateways.gateway.networking.k8s.io &>/dev/null; then
+  log_success "Gateway API CRDs already installed"
+else
+  log_info "Installing Gateway API ${GATEWAY_API_VERSION}..."
+  run_cmd kubectl apply -f \
+    "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml"
+  log_success "Gateway API CRDs installed"
 fi
+echo ""
 
 # ============================================================================
 # Step 6: Install kagenti-deps chart (core: Keycloak + toggles)
