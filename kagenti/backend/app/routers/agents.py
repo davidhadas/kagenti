@@ -91,6 +91,7 @@ from app.utils.routes import (
     create_route_for_agent_or_tool,
     detect_platform,
     route_exists,
+    sanitize_log,
     select_route_port,
 )
 from app.models.shipwright import (
@@ -822,6 +823,7 @@ async def delete_agent(
     - Legacy: Agent CR (if exists, for backward compatibility)
     """
     messages = []
+    safe_name = sanitize_log(name)
 
     # Delete the Deployment (if exists)
     try:
@@ -829,9 +831,9 @@ async def delete_agent(
         messages.append(f"Deployment '{name}' deleted")
     except ApiException as e:
         if e.status == 404:
-            logger.debug("Deployment '%s' not found (may be other workload type)", name)
+            logger.debug("Deployment '%s' not found (may be other workload type)", safe_name)
         else:
-            logger.warning("Failed to delete Deployment '%s': %s", name, e.reason)
+            logger.warning("Failed to delete Deployment '%s': %s", safe_name, e.reason)
 
     # Delete the StatefulSet (if exists)
     try:
@@ -839,9 +841,9 @@ async def delete_agent(
         messages.append(f"StatefulSet '{name}' deleted")
     except ApiException as e:
         if e.status == 404:
-            logger.debug("StatefulSet '%s' not found", name)
+            logger.debug("StatefulSet '%s' not found", safe_name)
         else:
-            logger.warning("Failed to delete StatefulSet '%s': %s", name, e.reason)
+            logger.warning("Failed to delete StatefulSet '%s': %s", safe_name, e.reason)
 
     # Delete the Job (if exists)
     try:
@@ -849,9 +851,9 @@ async def delete_agent(
         messages.append(f"Job '{name}' deleted")
     except ApiException as e:
         if e.status == 404:
-            logger.debug("Job '%s' not found", name)
+            logger.debug("Job '%s' not found", safe_name)
         else:
-            logger.warning("Failed to delete Job '%s': %s", name, e.reason)
+            logger.warning("Failed to delete Job '%s': %s", safe_name, e.reason)
 
     # Delete the Service
     try:
@@ -862,7 +864,7 @@ async def delete_agent(
             # Service doesn't exist, that's fine
             pass
         else:
-            logger.warning("Failed to delete Service '%s': %s", name, e.reason)
+            logger.warning("Failed to delete Service '%s': %s", safe_name, e.reason)
 
     # Delete the HTTPRoute (if exists)
     try:
@@ -879,7 +881,7 @@ async def delete_agent(
             # HTTPRoute doesn't exist, that's fine
             pass
         else:
-            logger.warning("Failed to delete HTTPRoute '%s': %s", name, e.reason)
+            logger.warning("Failed to delete HTTPRoute '%s': %s", safe_name, e.reason)
 
     # Delete the OpenShift Route (if exists)
     try:
@@ -896,7 +898,7 @@ async def delete_agent(
             # Route doesn't exist, that's fine
             pass
         else:
-            logger.warning("Failed to delete Route '%s': %s", name, e.reason)
+            logger.warning("Failed to delete Route '%s': %s", safe_name, e.reason)
 
     # Delete the AgentRuntime CR (if exists)
     try:
@@ -912,7 +914,7 @@ async def delete_agent(
         if e.status == 404:
             pass
         else:
-            logger.warning("Failed to delete AgentRuntime '%s': %s", name, e.reason)
+            logger.warning("Failed to delete AgentRuntime '%s': %s", safe_name, e.reason)
 
     # Legacy cleanup: Delete the Agent CR if it exists
     try:
@@ -929,7 +931,7 @@ async def delete_agent(
             # Agent CR doesn't exist, that's expected for new deployments
             pass
         else:
-            logger.warning("Failed to delete Agent CR '%s': %s", name, e.reason)
+            logger.warning("Failed to delete Agent CR '%s': %s", safe_name, e.reason)
 
     # Delete Shipwright BuildRuns associated with the build
     try:
@@ -955,11 +957,13 @@ async def delete_agent(
                 except ApiException as e:
                     if e.status != 404:
                         logger.warning(
-                            "Failed to delete BuildRun '%s': %s", buildrun_name, e.reason
+                            "Failed to delete BuildRun '%s': %s",
+                            sanitize_log(buildrun_name),
+                            e.reason,
                         )
     except ApiException as e:
         if e.status != 404:
-            logger.warning("Failed to list BuildRuns for '%s': %s", name, e.reason)
+            logger.warning("Failed to list BuildRuns for '%s': %s", safe_name, e.reason)
 
     # Delete the Shipwright Build CR if it exists
     try:
@@ -976,7 +980,7 @@ async def delete_agent(
             # Shipwright Build doesn't exist, that's fine (might be image-based or Tekton deployment)
             pass
         else:
-            logger.warning("Failed to delete Shipwright Build '%s': %s", name, e.reason)
+            logger.warning("Failed to delete Shipwright Build '%s': %s", safe_name, e.reason)
 
     return DeleteResponse(success=True, message="; ".join(messages))
 
