@@ -22,6 +22,18 @@ echo "=== Weather Service Logs ==="
 kubectl logs -n team1 deployment/weather-service --tail=50 --all-containers=true || true
 
 echo ""
+echo "=== Weather Service Envoy-Proxy Logs (last 50 lines) ==="
+kubectl logs -n team1 deployment/weather-service -c envoy-proxy --tail=50 || true
+
+echo ""
+echo "=== Weather Service Client-Registration Logs (last 30 lines) ==="
+kubectl logs -n team1 deployment/weather-service -c kagenti-client-registration --tail=30 || true
+
+echo ""
+echo "=== AuthBridge Unified ConfigMap ==="
+kubectl get configmap authbridge-unified-config -n team1 -o jsonpath='{.data.config\.yaml}' || true
+
+echo ""
 echo "=== Shipwright Build Status ==="
 kubectl get builds -n team1 || true
 kubectl get buildruns -n team1 || true

@@ -72,6 +72,18 @@ if [ -n "${KUBECONFIG:-}" ] && [ -f "${KUBECONFIG:-}" ]; then
     oc logs -n team1 deployment/weather-service --tail=50 2>/dev/null || echo "(not available)"
 
     echo ""
+    echo "=== Weather Service Envoy-Proxy Logs (last 50 lines) ==="
+    oc logs -n team1 deployment/weather-service -c envoy-proxy --tail=50 2>/dev/null || echo "(not available)"
+
+    echo ""
+    echo "=== Weather Service Client-Registration Logs (last 30 lines) ==="
+    oc logs -n team1 deployment/weather-service -c kagenti-client-registration --tail=30 2>/dev/null || echo "(not available)"
+
+    echo ""
+    echo "=== AuthBridge Unified ConfigMap ==="
+    oc get configmap authbridge-unified-config -n team1 -o jsonpath='{.data.config\.yaml}' 2>/dev/null || echo "(not found)"
+
+    echo ""
     echo "=== Weather Service Agent Env Vars (LLM config) ==="
     oc get deployment weather-service -n team1 -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{.valueFrom.secretKeyRef.name}{"\n"}{end}' 2>/dev/null || echo "(not available)"
 
