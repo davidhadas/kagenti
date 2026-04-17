@@ -269,6 +269,7 @@ spec:
   selector:
     app.kubernetes.io/name: kagenti-backend
 ---
+{{- if .Values.ui.frontend.enabled }}
 # Frontend Deployment
 apiVersion: apps/v1
 kind: Deployment
@@ -348,6 +349,7 @@ spec:
       name: http
   selector:
     app.kubernetes.io/name: kagenti-ui
+{{- end }}
 ---
 # Backend RBAC
 apiVersion: rbac.authorization.k8s.io/v1
@@ -458,6 +460,7 @@ subjects:
     namespace: "{{ .Values.ui.namespace }}"
 ---
 {{- if .Values.openshift }}
+{{- if .Values.ui.frontend.enabled }}
 # OpenShift Route for UI
 apiVersion: route.openshift.io/v1
 kind: Route
@@ -480,6 +483,7 @@ spec:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect
 ---
+{{- end }}
 # OpenShift Route for Backend API (direct external access)
 apiVersion: route.openshift.io/v1
 kind: Route
@@ -502,7 +506,8 @@ spec:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect
 {{- else }}
-# HTTPRoute for Kubernetes Gateway API
+{{- if .Values.ui.frontend.enabled }}
+# HTTPRoute for Kubernetes Gateway API (frontend + backend on UI hostname)
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -535,6 +540,7 @@ spec:
         - name: kagenti-ui
           port: 8080
 ---
+{{- end }}
 # HTTPRoute for Backend API (direct external access)
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

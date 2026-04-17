@@ -116,14 +116,14 @@ deploys Kagenti with composable `--with-*` flags. It requires only `kind`,
 ### Examples
 
 ```bash
-# Core only (cert-manager, Keycloak, operator, webhook)
+# Core only (cert-manager, Gateway API, Istio GW controller, Keycloak, operator, webhook)
 scripts/kind/setup-kagenti.sh
 
 # Everything
 scripts/kind/setup-kagenti.sh --with-all
 
-# Core + Istio + UI (no SPIRE, no builds)
-scripts/kind/setup-kagenti.sh --with-istio --with-backend
+# Core + Istio ambient + UI (no SPIRE, no builds)
+scripts/kind/setup-kagenti.sh --with-istio --with-ui
 
 # Reuse existing cluster
 scripts/kind/setup-kagenti.sh --skip-cluster --with-all
@@ -136,16 +136,16 @@ scripts/kind/setup-kagenti.sh --with-all --secrets-file charts/kagenti/.secrets.
 
 | Flag | Components |
 |------|------------|
-| `--with-istio` | Istio ambient mesh (istiod, CNI, ztunnel) |
+| `--with-istio` | Full Istio ambient mesh (mTLS, waypoints); Gateway API controller always installed as core |
 | `--with-spire` | SPIRE + SPIFFE IdP setup |
-| `--with-backend` | Kagenti backend API + UI |
-| `--with-ui` | Alias for `--with-backend` |
+| `--with-backend` | Kagenti backend API |
+| `--with-ui` | Kagenti UI (auto-enables backend) |
 | `--with-mcp-gateway` | MCP Gateway |
 | `--with-kuadrant` | Kuadrant operator (auto-enables MCP Gateway) |
 | `--with-otel` | OpenTelemetry collector |
-| `--with-mlflow` | MLflow trace backend (auto-enables OTel) |
+| `--with-mlflow` | MLflow trace backend (auto-enables OTel + Istio ambient) |
 | `--with-builds` | Tekton + Shipwright (build agents from source) |
-| `--with-kiali` | Kiali + Prometheus (auto-enables Istio) |
+| `--with-kiali` | Kiali + Prometheus (auto-enables Istio ambient) |
 | `--with-all` | All of the above |
 
 | Option | Description |

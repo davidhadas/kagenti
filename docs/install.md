@@ -80,7 +80,7 @@ The bash installer (`scripts/kind/setup-kagenti.sh`) is a composable, single-fil
 script that creates a Kind cluster and deploys Kagenti. Core components are always
 installed; optional layers are enabled with `--with-*` flags.
 
-**Core (always installed):** cert-manager, Gateway API CRDs, Keycloak, kagenti-operator, kagenti-webhook
+**Core (always installed):** cert-manager, Gateway API CRDs, Istio Gateway controller (istio-base + istiod), Keycloak, kagenti-operator, kagenti-webhook
 
 **Install everything:**
 
@@ -91,8 +91,8 @@ scripts/kind/setup-kagenti.sh --with-all
 **Install only what you need:**
 
 ```bash
-# Core + Istio + UI
-scripts/kind/setup-kagenti.sh --with-istio --with-backend
+# Core + Istio ambient + UI
+scripts/kind/setup-kagenti.sh --with-istio --with-ui
 
 # Core + full service mesh + builds
 scripts/kind/setup-kagenti.sh --with-istio --with-spire --with-builds
@@ -102,16 +102,16 @@ scripts/kind/setup-kagenti.sh --with-istio --with-spire --with-builds
 
 | Flag | Components |
 |------|------------|
-| `--with-istio` | Istio ambient mesh (istiod, CNI, ztunnel) |
+| `--with-istio` | Full Istio ambient mesh (mTLS, waypoints); Gateway API controller always installed as core |
 | `--with-spire` | SPIRE + SPIFFE IdP setup |
-| `--with-backend` | Kagenti backend API + UI |
-| `--with-ui` | Alias for `--with-backend` |
+| `--with-backend` | Kagenti backend API |
+| `--with-ui` | Kagenti UI (auto-enables backend) |
 | `--with-mcp-gateway` | MCP Gateway |
 | `--with-kuadrant` | Kuadrant operator (auto-enables MCP Gateway) |
 | `--with-otel` | OpenTelemetry collector |
-| `--with-mlflow` | MLflow trace backend (auto-enables OTel) |
+| `--with-mlflow` | MLflow trace backend (auto-enables OTel + Istio ambient) |
 | `--with-builds` | Tekton + Shipwright (build agents from source) |
-| `--with-kiali` | Kiali + Prometheus (auto-enables Istio) |
+| `--with-kiali` | Kiali + Prometheus (auto-enables Istio ambient) |
 | `--with-all` | All of the above |
 
 **Other options:**

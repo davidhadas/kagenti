@@ -70,6 +70,7 @@ ui:
   url: http://kagenti-ui.localtest.me:8080
   # Frontend (UI v2) configuration
   frontend:
+    enabled: true
     image: ghcr.io/kagenti/kagenti/ui-v2
     tag: latest
     resources:

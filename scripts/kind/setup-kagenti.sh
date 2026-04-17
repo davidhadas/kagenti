@@ -5,9 +5,10 @@
 # Installs the Kagenti stack on a local Kind cluster. Composable: core
 # components are always installed, optional layers enabled via --with-* flags.
 #
-# Core (always):   cert-manager, Keycloak, kagenti-operator, kagenti-webhook
-# Optional:        --with-istio, --with-spire, --with-backend (UI+API),
-#                  --with-mcp-gateway, --with-kuadrant, --with-otel,
+# Core (always):   cert-manager, Gateway API CRDs, Istio Gateway controller
+#                  (istio-base + istiod), Keycloak, kagenti-operator, kagenti-webhook
+# Optional:        --with-istio (ambient mesh), --with-spire, --with-backend,
+#                  --with-ui, --with-mcp-gateway, --with-kuadrant, --with-otel,
 #                  --with-mlflow, --with-builds, --with-kiali, --with-all
 #
 # Idempotent: safe to re-run. Uses helm upgrade --install and kubectl apply.
@@ -37,6 +38,7 @@ DOMAIN="localtest.me"
 WITH_ISTIO=false
 WITH_SPIRE=false
 WITH_BACKEND=false
+WITH_UI=false
 WITH_MCP_GATEWAY=false
 WITH_OTEL=false
 WITH_MLFLOW=false
@@ -76,7 +78,7 @@ while [[ $# -gt 0 ]]; do
     --with-istio)       WITH_ISTIO=true; shift ;;
     --with-spire)       WITH_SPIRE=true; shift ;;
     --with-backend)     WITH_BACKEND=true; shift ;;
-    --with-ui)          WITH_BACKEND=true; shift ;;
+    --with-ui)          WITH_UI=true; shift ;;
     --with-mcp-gateway) WITH_MCP_GATEWAY=true; shift ;;
     --with-kuadrant)    WITH_KUADRANT=true; shift ;;
     --with-otel)        WITH_OTEL=true; shift ;;
@@ -84,7 +86,7 @@ while [[ $# -gt 0 ]]; do
     --with-builds)      WITH_BUILDS=true; shift ;;
     --with-kiali)       WITH_KIALI=true; shift ;;
     --with-all)
-      WITH_ISTIO=true; WITH_SPIRE=true; WITH_BACKEND=true
+      WITH_ISTIO=true; WITH_SPIRE=true; WITH_BACKEND=true; WITH_UI=true
       WITH_MCP_GATEWAY=true; WITH_KUADRANT=true; WITH_OTEL=true
       WITH_MLFLOW=true; WITH_BUILDS=true; WITH_KIALI=true
       shift ;;
@@ -97,10 +99,11 @@ while [[ $# -gt 0 ]]; do
       echo "Usage: $0 [OPTIONS]"
       echo ""
       echo "Component flags:"
-      echo "  --with-istio        Install Istio ambient mesh"
+      echo "  --with-istio        Enable full Istio ambient mesh (mTLS, waypoints)"
+      echo "                      Gateway API controller is always installed as core"
       echo "  --with-spire        Install SPIRE + SPIFFE IdP setup"
-      echo "  --with-backend      Install Kagenti backend API + UI"
-      echo "  --with-ui           Alias for --with-backend"
+      echo "  --with-backend      Install Kagenti backend API"
+      echo "  --with-ui           Install Kagenti UI (auto-enables backend)"
       echo "  --with-mcp-gateway  Install MCP Gateway"
       echo "  --with-kuadrant     Install Kuadrant operator (auto-enables MCP Gateway)"
       echo "  --with-otel         Install OpenTelemetry collector"
@@ -123,17 +126,25 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── Flag dependencies ──────────────────────────────────────────────────────
-# Kiali requires Istio for service mesh observability
+# UI requires backend API
+if $WITH_UI && ! $WITH_BACKEND; then
+  WITH_BACKEND=true
+fi
+# Kiali requires full ambient mesh for service mesh telemetry
 if $WITH_KIALI && ! $WITH_ISTIO; then
   WITH_ISTIO=true
 fi
-# Kuadrant provides AuthPolicy for MCP Gateway
-if $WITH_KUADRANT && ! $WITH_MCP_GATEWAY; then
-  WITH_MCP_GATEWAY=true
+# MLflow waypoint requires full ambient mesh (gatewayClassName: istio-waypoint)
+if $WITH_MLFLOW && ! $WITH_ISTIO; then
+  WITH_ISTIO=true
 fi
 # MLflow requires OTel collector to export traces
 if $WITH_MLFLOW && ! $WITH_OTEL; then
   WITH_OTEL=true
+fi
+# Kuadrant provides AuthPolicy for MCP Gateway
+if $WITH_KUADRANT && ! $WITH_MCP_GATEWAY; then
+  WITH_MCP_GATEWAY=true
 fi
 
 # ── Pre-flight ──────────────────────────────────────────────────────────────
@@ -147,10 +158,11 @@ echo ""
 echo "  Cluster:       $CLUSTER_NAME"
 echo "  Domain:        $DOMAIN"
 echo "  Components:"
-echo "    Core:          cert-manager, Keycloak, operator, webhook"
-echo "    Istio:         $WITH_ISTIO"
+echo "    Core:          cert-manager, Gateway API, Istio GW controller, Keycloak, operator, webhook"
+echo "    Istio ambient: $WITH_ISTIO"
 echo "    SPIRE:         $WITH_SPIRE"
-echo "    Backend/UI:    $WITH_BACKEND"
+echo "    Backend API:   $WITH_BACKEND"
+echo "    UI:            $WITH_UI"
 echo "    MCP Gateway:   $WITH_MCP_GATEWAY"
 echo "    Kuadrant:      $WITH_KUADRANT"
 echo "    OTel:          $WITH_OTEL"
@@ -242,37 +254,52 @@ fi
 echo ""
 
 # ============================================================================
-# Step 3: Install Istio ambient mesh (optional)
+# Step 3: Install Istio Gateway Controller (core — required for ingress)
 # ============================================================================
-log_info "Step 3: Istio"
+log_info "Step 3: Istio Gateway Controller (core)"
 
+ISTIO_REPO="https://istio-release.storage.googleapis.com/charts/"
+
+log_info "Installing istio-base ${ISTIO_VERSION}..."
+run_cmd helm upgrade --install istio-base base \
+  --repo "$ISTIO_REPO" --version "$ISTIO_VERSION" \
+  -n istio-system --create-namespace --wait
+
+log_info "Installing istiod ${ISTIO_VERSION}..."
+run_cmd helm upgrade --install istiod istiod \
+  --repo "$ISTIO_REPO" --version "$ISTIO_VERSION" \
+  -n istio-system --wait
+
+kubectl label namespace istio-system shared-gateway-access=true --overwrite 2>/dev/null || true
+log_success "Istio Gateway Controller installed"
+echo ""
+
+# ============================================================================
+# Step 3a: Install Istio Ambient Mesh (optional — mTLS, waypoints)
+# ============================================================================
 if $WITH_ISTIO; then
-  log_info "Installing Istio ${ISTIO_VERSION} (ambient)..."
-  ISTIO_REPO="https://istio-release.storage.googleapis.com/charts/"
+  log_info "Step 3a: Istio Ambient Mesh"
 
-  run_cmd helm upgrade --install istio-base base \
-    --repo "$ISTIO_REPO" --version "$ISTIO_VERSION" \
-    -n istio-system --create-namespace --wait
-
+  log_info "Upgrading istiod to ambient profile..."
   run_cmd helm upgrade --install istiod istiod \
     --repo "$ISTIO_REPO" --version "$ISTIO_VERSION" \
     -n istio-system --wait \
     --set profile=ambient
 
+  log_info "Installing istio-cni..."
   run_cmd helm upgrade --install istio-cni cni \
     --repo "$ISTIO_REPO" --version "$ISTIO_VERSION" \
     -n istio-system --wait \
     --set profile=ambient
 
+  log_info "Installing ztunnel..."
   run_cmd helm upgrade --install ztunnel ztunnel \
     --repo "$ISTIO_REPO" --version "$ISTIO_VERSION" \
     -n istio-system --wait
 
-  # Label for shared gateway access
-  kubectl label namespace istio-system shared-gateway-access=true --overwrite 2>/dev/null || true
-  log_success "Istio installed"
+  log_success "Istio Ambient Mesh installed"
 else
-  log_info "Skipped (use --with-istio)"
+  log_info "Ambient mesh skipped (use --with-istio for mTLS + waypoints)"
 fi
 echo ""
 
@@ -363,6 +390,13 @@ else
   log_info "Installing Gateway API ${GATEWAY_API_VERSION}..."
   run_cmd kubectl apply -f \
     "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GATEWAY_API_VERSION}/standard-install.yaml"
+  if ! $DRY_RUN; then
+    log_info "Waiting for Gateway API CRDs to become established..."
+    kubectl wait --for=condition=Established crd \
+      httproutes.gateway.networking.k8s.io \
+      gateways.gateway.networking.k8s.io \
+      --timeout=60s
+  fi
   log_success "Gateway API CRDs installed"
 fi
 echo ""
@@ -388,7 +422,7 @@ DEPS_FLAGS=(
   --set "components.otel.enabled=${WITH_OTEL}"
   --set "components.metricsServer.enabled=${WITH_BACKEND}"
   --set "components.containerRegistry.enabled=${WITH_BUILDS}"
-  --set "components.ingressGateway.enabled=${WITH_ISTIO}"
+  --set "components.ingressGateway.enabled=true"
   --set "components.mcpInspector.enabled=${WITH_MCP_GATEWAY}"
   --set "components.tekton.enabled=false"
   --set "components.shipwright.enabled=false"
@@ -844,7 +878,7 @@ log_info "Step 8: kagenti"
 
 # Detect latest release tag for UI images
 KAGENTI_TAG="latest"
-if $WITH_BACKEND; then
+if $WITH_UI; then
   log_info "Detecting latest kagenti release tag..."
   DETECTED_TAG=$(git ls-remote --tags --sort="v:refname" https://github.com/kagenti/kagenti.git 2>/dev/null | \
     tail -n1 | sed 's|.*refs/tags/||; s/\^{}//' || echo "")
@@ -895,6 +929,7 @@ KAGENTI_FLAGS=(
   --set "components.agentNamespaces.enabled=true"
   --set "components.agentOperator.enabled=true"
   --set "components.ui.enabled=${WITH_BACKEND}"
+  --set "ui.frontend.enabled=${WITH_UI}"
   --set "components.istio.enabled=${WITH_ISTIO}"
   --set "components.mcpGateway.enabled=${WITH_MCP_GATEWAY}"
   --set "components.phoenix.enabled=false"
@@ -975,9 +1010,9 @@ log_info "Step 10: Verification"
 echo ""
 
 # Build list of expected Helm releases based on flags
-EXPECTED_RELEASES=("kagenti-deps:kagenti-system" "kagenti:kagenti-system")
+EXPECTED_RELEASES=("istio-base:istio-system" "istiod:istio-system" "kagenti-deps:kagenti-system" "kagenti:kagenti-system")
 if $WITH_ISTIO; then
-  EXPECTED_RELEASES+=("istio-base:istio-system" "istiod:istio-system" "istio-cni:istio-system" "ztunnel:istio-system")
+  EXPECTED_RELEASES+=("istio-cni:istio-system" "ztunnel:istio-system")
 fi
 if $WITH_SPIRE; then
   EXPECTED_RELEASES+=("spire-crds:spire-mgmt" "spire:spire-mgmt")
@@ -1027,6 +1062,9 @@ if $WITH_MLFLOW; then
   _check_deploy mlflow kagenti-system
 fi
 if $WITH_BACKEND; then
+  _check_deploy kagenti-backend kagenti-system
+fi
+if $WITH_UI; then
   _check_deploy kagenti-ui kagenti-system
 fi
 
@@ -1037,8 +1075,11 @@ fi
 echo ""
 log_info "Access info:"
 echo ""
-if $WITH_BACKEND; then
+if $WITH_UI; then
   echo "  Kagenti UI:   http://kagenti-ui.${DOMAIN}:8080"
+fi
+if $WITH_BACKEND; then
+  echo "  Kagenti API:  http://kagenti-api.${DOMAIN}:8080"
 fi
 echo "  Keycloak:     http://keycloak.${DOMAIN}:8080"
 if $WITH_MLFLOW; then
