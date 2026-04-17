@@ -1778,6 +1778,7 @@
       retries: 3
       delay: 15
       until: kuadrant_operator_ready.rc == 0
+      changed_when: false
 
     - name: Create Kuadrant CR to instantiate Authorino
       kubernetes.core.k8s:
