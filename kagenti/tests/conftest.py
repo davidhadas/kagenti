@@ -243,6 +243,27 @@ def keycloak_agent_token(k8s_client) -> Optional[str]:
     password = base64.b64decode(secret.data["password"]).decode("utf-8")
     realm = base64.b64decode(secret.data["realm"]).decode("utf-8")
 
+    # Use the confidential kagenti-e2e-tests client when available.
+    # This client inherits realm default scopes (including agent audience scopes
+    # created by client-registration), so the token will contain the aud claim
+    # that AuthBridge requires for inbound JWT validation.
+    # Falls back to admin-cli (public client) when client credentials are absent.
+    client_id = "admin-cli"
+    token_data: dict = {
+        "grant_type": "password",
+        "username": username,
+        "password": password,
+    }
+    if "client_id" in secret.data and "client_secret" in secret.data:
+        client_id = base64.b64decode(secret.data["client_id"]).decode("utf-8")
+        client_secret = base64.b64decode(secret.data["client_secret"]).decode("utf-8")
+        token_data["client_id"] = client_id
+        token_data["client_secret"] = client_secret
+        print(f"\n[keycloak_agent_token] Using confidential client '{client_id}'")
+    else:
+        token_data["client_id"] = client_id
+        print(f"\n[keycloak_agent_token] Using public client '{client_id}' (no client credentials in secret)")
+
     keycloak_base_url = os.environ.get("KEYCLOAK_URL", "http://localhost:8081")
     token_url = f"{keycloak_base_url}/realms/{realm}/protocol/openid-connect/token"
     verify_ssl = _keycloak_ssl_verify()
@@ -250,12 +271,7 @@ def keycloak_agent_token(k8s_client) -> Optional[str]:
     try:
         response = requests.post(
             token_url,
-            data={
-                "grant_type": "password",
-                "client_id": "admin-cli",
-                "username": username,
-                "password": password,
-            },
+            data=token_data,
             timeout=10,
             verify=verify_ssl,
         )
@@ -263,7 +279,7 @@ def keycloak_agent_token(k8s_client) -> Optional[str]:
             token = response.json()["access_token"]
             print(
                 f"\n[keycloak_agent_token] Acquired token for realm={realm} "
-                f"user={username} (token length={len(token)})"
+                f"user={username} client={client_id} (token length={len(token)})"
             )
             return token
         print(

@@ -225,6 +225,8 @@ kubectl create secret generic kagenti-test-user \
     --from-literal=username="$TEST_USER" \
     --from-literal=password="$TEST_PASS" \
     --from-literal=realm="$REALM" \
+    --from-literal=client_id="$E2E_CLIENT_ID" \
+    --from-literal=client_secret="$E2E_CLIENT_SECRET" \
     --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1
 
 # ============================================================================
