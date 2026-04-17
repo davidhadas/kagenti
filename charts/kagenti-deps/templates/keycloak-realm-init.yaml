@@ -109,7 +109,7 @@ spec:
         serviceAccountsEnabled: true
         standardFlowEnabled: true
         redirectUris:
-          - "*"
+          - "*/callback"
         webOrigins:
           - "+"
 {{- else }}
@@ -175,7 +175,7 @@ data:
           "clientAuthenticatorType": "client-secret",
           "serviceAccountsEnabled": true,
           "standardFlowEnabled": true,
-          "redirectUris": ["*"],
+          "redirectUris": ["*/callback"],
           "webOrigins": ["+"]
         }
       ]

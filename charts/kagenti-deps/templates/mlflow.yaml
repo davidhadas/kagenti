@@ -193,6 +193,12 @@ spec:
           from mlflow_oidc_auth.middleware.auth_middleware import AuthMiddleware
           import mlflow_oidc_auth.middleware.fastapi_permission_middleware as fpm
 
+          # Assert patched APIs exist — fail fast on mlflow-oidc-auth upgrades
+          assert hasattr(AuthMiddleware, "_is_unprotected_route"), \
+              "mlflow-oidc-auth API changed: AuthMiddleware._is_unprotected_route not found"
+          assert hasattr(fpm, "_find_fastapi_validator"), \
+              "mlflow-oidc-auth API changed: _find_fastapi_validator not found"
+
           # Patch 1: Exclude /v1/traces from OIDC auth
           # The OTel collector authenticates via OAuth2 client credentials (Bearer token)
           # but may not have a user profile in the MLflow users table.

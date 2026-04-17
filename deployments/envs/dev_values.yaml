@@ -74,7 +74,7 @@ charts:
       ui:
         auth:
           enabled: true
-      # Disable MLflow auth job since MLflow component is disabled in kagenti-deps
+      # MLflow auth disabled for Kind (no Keycloak OAuth needed locally)
       mlflow:
         auth:
           enabled: false

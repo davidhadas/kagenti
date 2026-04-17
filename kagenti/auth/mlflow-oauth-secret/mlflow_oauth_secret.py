@@ -193,6 +193,9 @@ def read_client_secret(
     secret_value = oidc_creds.get("value", "") if oidc_creds else ""
 
     if not secret_value:
+        # Keycloak may not auto-generate a secret during realm import in all
+        # versions. Regenerate as a defensive measure — this is a Keycloak API
+        # write, but it's idempotent and only triggers when the secret is empty.
         logger.info("Regenerating secret for client '%s'", client_id)
         new_creds = keycloak_admin.generate_client_secrets(internal_id)
         secret_value = new_creds.get("value", "")
