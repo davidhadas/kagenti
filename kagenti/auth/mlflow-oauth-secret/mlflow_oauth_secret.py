@@ -575,9 +575,12 @@ def main() -> None:
         )
 
         # Construct OIDC discovery URL (well-known endpoint)
+        # Use the internal Keycloak URL so MLflow can fetch the document
+        # server-side.  The discovery response itself contains the public
+        # authorization_endpoint (set by KC_HOSTNAME) which the browser
+        # will be redirected to.
         oidc_discovery_url = (
-            f"{keycloak_public_url}/realms/{keycloak_realm}/"
-            ".well-known/openid-configuration"
+            f"{keycloak_url}/realms/{keycloak_realm}/.well-known/openid-configuration"
         )
 
         # Construct OIDC token URL for OAuth2 client credentials flow
