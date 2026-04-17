@@ -1207,8 +1207,7 @@
   when: >
     charts['kagenti-deps']['enabled'] | default(false) and
     charts['kagenti-deps']['values']['components']['spire']['enabled'] | default(false) and
-    charts['kagenti-deps']['values']['components']['keycloak']['enabled'] | default(false) and
-    (charts['kagenti'] | default({})).get('values', {}).get('authBridge', {}).get('clientAuthType', 'client-secret') == 'federated-jwt'
+    charts['kagenti-deps']['values']['components']['keycloak']['enabled'] | default(false)
 
 #  RHOAI (Red Hat OpenShift AI) - wait for operator and create DataScienceCluster
 #  The operator subscription is created by the kagenti-deps Helm chart.
