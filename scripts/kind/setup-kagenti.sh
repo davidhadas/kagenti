@@ -970,34 +970,64 @@ echo ""
 log_info "Step 10: Verification"
 echo ""
 
-# Helm release check
+# Build list of expected Helm releases based on flags
+EXPECTED_RELEASES=("kagenti-deps:kagenti-system" "kagenti:kagenti-system")
+if $WITH_ISTIO; then
+  EXPECTED_RELEASES+=("istio-base:istio-system" "istiod:istio-system" "istio-cni:istio-system" "ztunnel:istio-system")
+fi
+if $WITH_SPIRE; then
+  EXPECTED_RELEASES+=("spire-crds:spire-mgmt" "spire:spire-mgmt")
+fi
+if $WITH_KUADRANT; then
+  EXPECTED_RELEASES+=("kuadrant-operator:kuadrant-system")
+fi
+if $WITH_MCP_GATEWAY; then
+  EXPECTED_RELEASES+=("mcp-gateway:mcp-system")
+fi
+
 VERIFY_FAILED=false
-for release_info in "kagenti-deps:kagenti-system" "kagenti:kagenti-system"; do
+for release_info in "${EXPECTED_RELEASES[@]}"; do
   release="${release_info%%:*}"
   ns="${release_info##*:}"
   STATUS=$(helm status "$release" -n "$ns" -o json 2>/dev/null | \
     python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('status',''))" 2>/dev/null || echo "")
   if [ "$STATUS" = "deployed" ]; then
-    log_success "$release: deployed"
+    log_success "$release ($ns): deployed"
   else
-    log_error "$release: status '$STATUS'"
+    log_error "$release ($ns): status '${STATUS:-not found}'"
     VERIFY_FAILED=true
   fi
 done
 
-if $WITH_MCP_GATEWAY; then
-  STATUS=$(helm status mcp-gateway -n mcp-system -o json 2>/dev/null | \
-    python3 -c "import sys,json; print(json.load(sys.stdin).get('info',{}).get('status',''))" 2>/dev/null || echo "")
-  if [ "$STATUS" = "deployed" ]; then
-    log_success "mcp-gateway: deployed"
+# Verify key deployments/pods for non-Helm components
+_check_deploy() {
+  local name="$1" ns="$2"
+  if kubectl get deployment "$name" -n "$ns" &>/dev/null; then
+    READY=$(kubectl get deployment "$name" -n "$ns" -o jsonpath='{.status.readyReplicas}' 2>/dev/null || echo "0")
+    if [ "${READY:-0}" -gt 0 ]; then
+      log_success "$name ($ns): ready"
+    else
+      log_warn "$name ($ns): not ready yet"
+    fi
   else
-    log_error "mcp-gateway: status '$STATUS'"
+    log_error "$name ($ns): deployment not found"
     VERIFY_FAILED=true
   fi
+}
+
+if $WITH_KIALI; then
+  _check_deploy kiali istio-system
+  _check_deploy prometheus istio-system
+fi
+if $WITH_MLFLOW; then
+  _check_deploy mlflow kagenti-system
+fi
+if $WITH_BACKEND; then
+  _check_deploy kagenti-ui kagenti-system
 fi
 
 if $VERIFY_FAILED; then
-  log_error "One or more Helm releases failed verification"
+  log_error "One or more releases failed verification"
 fi
 
 echo ""
