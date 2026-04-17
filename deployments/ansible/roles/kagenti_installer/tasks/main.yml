@@ -1896,6 +1896,38 @@
         kagenti_openshift_overrides: "{{ kagenti_openshift_overrides | combine({'keycloak': {'publicUrl': 'https://' + keycloak_route_host.stdout}}, recursive=True) }}"
       when: keycloak_route_host.rc == 0 and keycloak_route_host.stdout | trim | length > 0
 
+    # Read the actual Keycloak master admin credentials on OpenShift.
+    # The RHBK operator creates keycloak-initial-admin with a random password.
+    # The Helm chart creates keycloak-admin-secret in agent namespaces for the
+    # client-registration sidecar. These must match — client-registration
+    # authenticates to the master realm to register OAuth clients.
+    - name: Read Keycloak initial admin username
+      command: >-
+        kubectl get secret {{ (charts['kagenti'] | default({})).get('values', {}).get('keycloak', {}).get('adminSecretName', 'keycloak-initial-admin') }}
+        -n {{ (charts['kagenti'] | default({})).get('values', {}).get('keycloak', {}).get('namespace', 'keycloak') }}
+        -o jsonpath='{.data.username}'
+      register: keycloak_admin_username_b64
+      failed_when: false
+      changed_when: false
+
+    - name: Read Keycloak initial admin password
+      command: >-
+        kubectl get secret {{ (charts['kagenti'] | default({})).get('values', {}).get('keycloak', {}).get('adminSecretName', 'keycloak-initial-admin') }}
+        -n {{ (charts['kagenti'] | default({})).get('values', {}).get('keycloak', {}).get('namespace', 'keycloak') }}
+        -o jsonpath='{.data.password}'
+      register: keycloak_admin_password_b64
+      failed_when: false
+      changed_when: false
+
+    - name: Override keycloak admin credentials from initial-admin secret
+      set_fact:
+        kagenti_openshift_overrides: "{{ kagenti_openshift_overrides | combine({'keycloak': {'adminUsername': (keycloak_admin_username_b64.stdout | b64decode), 'adminPassword': (keycloak_admin_password_b64.stdout | b64decode)}}, recursive=True) }}"
+      when:
+        - keycloak_admin_username_b64.rc == 0
+        - keycloak_admin_password_b64.rc == 0
+        - keycloak_admin_username_b64.stdout | trim | length > 0
+        - keycloak_admin_password_b64.stdout | trim | length > 0
+
     - name: Debug kagenti OpenShift overrides
       debug:
         msg: "Kagenti OpenShift overrides: {{ kagenti_openshift_overrides }}"
