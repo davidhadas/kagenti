@@ -262,7 +262,9 @@ def keycloak_agent_token(k8s_client) -> Optional[str]:
         print(f"\n[keycloak_agent_token] Using confidential client '{client_id}'")
     else:
         token_data["client_id"] = client_id
-        print(f"\n[keycloak_agent_token] Using public client '{client_id}' (no client credentials in secret)")
+        print(
+            f"\n[keycloak_agent_token] Using public client '{client_id}' (no client credentials in secret)"
+        )
 
     keycloak_base_url = os.environ.get("KEYCLOAK_URL", "http://localhost:8081")
     token_url = f"{keycloak_base_url}/realms/{realm}/protocol/openid-connect/token"
