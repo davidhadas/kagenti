@@ -673,7 +673,7 @@ spec:
                 -n ${SPIRE_SERVER_NS} --timeout=300s
               echo "Waiting for SPIRE OIDC discovery provider..."
               kubectl wait --for=condition=ready pod \
-                -l app.kubernetes.io/name=spire-spiffe-oidc-discovery-provider \
+                -l app.kubernetes.io/name=spiffe-oidc-discovery-provider \
                 -n ${SPIRE_SERVER_NS} --timeout=300s
       containers:
         - name: setup-spiffe-idp
