@@ -105,6 +105,17 @@ if [ -n "${KUBECONFIG:-}" ] && [ -f "${KUBECONFIG:-}" ]; then
     oc get deployment weather-service -n team1 -o jsonpath='{range .spec.template.spec.containers[0].env[*]}{.name}={.value}{.valueFrom.secretKeyRef.name}{"\n"}{end}' 2>/dev/null || echo "(not available)"
 
     echo ""
+    echo "=== SPIFFE IdP Setup Job Logs ==="
+    SPIFFE_POD=$(oc get pods -n kagenti-system -l app=kagenti-spiffe-idp-setup --no-headers 2>/dev/null | head -1 | awk '{print $1}')
+    if [ -n "$SPIFFE_POD" ]; then
+        oc logs "$SPIFFE_POD" -n kagenti-system -c setup-spiffe-idp --tail=50 2>/dev/null || echo "(logs not available)"
+        echo "Previous logs:"
+        oc logs "$SPIFFE_POD" -n kagenti-system -c setup-spiffe-idp --previous --tail=30 2>/dev/null || echo "(no previous logs)"
+    else
+        echo "(spiffe-idp-setup pod not found)"
+    fi
+
+    echo ""
     echo "=== Kagenti Operator Logs (injection decisions, last 50 lines) ==="
     oc logs -n kagenti-system deployment/kagenti-controller-manager --tail=50 2>/dev/null | grep -E 'injection decision|inject|client-registration|credential|error|ERROR' | tail -30 || echo "(not available)"
 
