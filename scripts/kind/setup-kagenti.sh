@@ -43,6 +43,7 @@ WITH_BUILDS=false
 WITH_KIALI=false
 SKIP_CLUSTER=false
 DRY_RUN=false
+SECRETS_FILE_ARG=""
 CONTAINER_ENGINE="${CONTAINER_ENGINE:-docker}"
 
 # Versions — keep in sync with deployments/ansible/default_values.yaml
@@ -84,6 +85,7 @@ while [[ $# -gt 0 ]]; do
       WITH_KIALI=true
       shift ;;
     --skip-cluster)     SKIP_CLUSTER=true; shift ;;
+    --secrets-file)     SECRETS_FILE_ARG="$2"; shift 2 ;;
     --cluster-name)     CLUSTER_NAME="$2"; shift 2 ;;
     --domain)           DOMAIN="$2"; shift 2 ;;
     --dry-run)          DRY_RUN=true; shift ;;
@@ -104,6 +106,8 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "Other options:"
       echo "  --skip-cluster      Don't create Kind cluster (reuse existing)"
+      echo "  --secrets-file FILE YAML file with secrets (keys: githubUser, githubToken,"
+      echo "                      openaiApiKey, slackBotToken, etc.)"
       echo "  --cluster-name NAME Kind cluster name (default: kagenti)"
       echo "  --domain DOMAIN     Domain for services (default: localtest.me)"
       echo "  --dry-run           Show commands without executing"
@@ -834,16 +838,28 @@ if $WITH_BACKEND; then
   fi
 fi
 
-# Secrets file
-SECRETS_FILE="$REPO_ROOT/charts/kagenti/.secrets.yaml"
-SECRETS_TEMPLATE="$REPO_ROOT/charts/kagenti/.secrets_template.yaml"
+# Secrets file resolution (checked in order of precedence):
+#   1. --secrets-file CLI argument
+#   2. deployments/envs/.secret_values.yaml (created by CI or user)
+#   3. charts/kagenti/.secrets.yaml (legacy location)
+#   4. Fall back to copying .secrets_template.yaml (empty defaults)
 SECRETS_FLAGS=()
-if [ -f "$SECRETS_FILE" ]; then
-  SECRETS_FLAGS=(-f "$SECRETS_FILE")
-elif [ -f "$SECRETS_TEMPLATE" ]; then
-  log_info "Creating .secrets.yaml from template"
-  cp "$SECRETS_TEMPLATE" "$SECRETS_FILE"
-  SECRETS_FLAGS=(-f "$SECRETS_FILE")
+if [ -n "$SECRETS_FILE_ARG" ]; then
+  if [ ! -f "$SECRETS_FILE_ARG" ]; then
+    log_error "Secrets file not found: $SECRETS_FILE_ARG"
+    exit 1
+  fi
+  log_info "Using secrets from $SECRETS_FILE_ARG"
+  SECRETS_FLAGS=(-f "$SECRETS_FILE_ARG")
+elif [ -f "$REPO_ROOT/deployments/envs/.secret_values.yaml" ]; then
+  log_info "Using secrets from deployments/envs/.secret_values.yaml"
+  SECRETS_FLAGS=(-f "$REPO_ROOT/deployments/envs/.secret_values.yaml")
+elif [ -f "$REPO_ROOT/charts/kagenti/.secrets.yaml" ]; then
+  SECRETS_FLAGS=(-f "$REPO_ROOT/charts/kagenti/.secrets.yaml")
+elif [ -f "$REPO_ROOT/charts/kagenti/.secrets_template.yaml" ]; then
+  log_info "No secrets file found — using empty defaults from template"
+  cp "$REPO_ROOT/charts/kagenti/.secrets_template.yaml" "$REPO_ROOT/charts/kagenti/.secrets.yaml"
+  SECRETS_FLAGS=(-f "$REPO_ROOT/charts/kagenti/.secrets.yaml")
 fi
 
 log_info "Updating kagenti chart dependencies..."
