@@ -48,15 +48,29 @@
     - name: Wait for DataScienceCluster CRD to be available
       command: kubectl wait --for=condition=Established crd/datascienceclusters.datasciencecluster.opendatahub.io --timeout=120s
 
+    - name: Check if a DataScienceCluster already exists
+      command: kubectl get datasciencecluster -o name
+      register: existing_dsc
+      failed_when: false
+      changed_when: false
+
     - name: Validate RHOAI profile
       fail:
         msg: "Invalid rhoai.profile '{{ rhoai.profile }}'. Must be 'minimal' or 'full'."
-      when: rhoai.profile | default('minimal') not in ['minimal', 'full']
+      when:
+        - existing_dsc.stdout | default('') | length == 0
+        - rhoai.profile | default('minimal') not in ['minimal', 'full']
 
     - name: "Create DataScienceCluster ({{ rhoai.profile | default('minimal') }} profile)"
       kubernetes.core.k8s:
         state: present
         template: "rhoai/dsc-{{ rhoai.profile | default('minimal') }}.yaml.j2"
+      when: existing_dsc.stdout | default('') | length == 0
+
+    - name: Skip DataScienceCluster creation (already exists)
+      debug:
+        msg: "Existing DataScienceCluster found ({{ existing_dsc.stdout_lines | join(', ') }}) — skipping creation to preserve existing configuration"
+      when: existing_dsc.stdout | default('') | length > 0
 
     # Right-size RHOAI for test/dev clusters.
     # The RHOAI dashboard requests 2.5 CPU / 5Gi RAM per replica (4 sidecars including
