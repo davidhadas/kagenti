@@ -102,11 +102,11 @@ while [[ $# -gt 0 ]]; do
       echo "  --with-backend      Install Kagenti backend API + UI"
       echo "  --with-ui           Alias for --with-backend"
       echo "  --with-mcp-gateway  Install MCP Gateway"
-      echo "  --with-kuadrant     Install Kuadrant operator (AuthPolicy for MCP Gateway)"
+      echo "  --with-kuadrant     Install Kuadrant operator (auto-enables MCP Gateway)"
       echo "  --with-otel         Install OpenTelemetry collector"
       echo "  --with-mlflow       Install MLflow trace backend (auto-enables OTel)"
       echo "  --with-builds       Install Tekton + Shipwright"
-      echo "  --with-kiali        Install Kiali + Prometheus (requires Istio)"
+      echo "  --with-kiali        Install Kiali + Prometheus (auto-enables Istio)"
       echo "  --with-all          Enable all optional components"
       echo ""
       echo "Other options:"
@@ -123,6 +123,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ── Flag dependencies ──────────────────────────────────────────────────────
+# Kiali requires Istio for service mesh observability
+if $WITH_KIALI && ! $WITH_ISTIO; then
+  WITH_ISTIO=true
+fi
+# Kuadrant provides AuthPolicy for MCP Gateway
+if $WITH_KUADRANT && ! $WITH_MCP_GATEWAY; then
+  WITH_MCP_GATEWAY=true
+fi
 # MLflow requires OTel collector to export traces
 if $WITH_MLFLOW && ! $WITH_OTEL; then
   WITH_OTEL=true
@@ -272,20 +280,16 @@ echo ""
 # Step 3b: Install Kiali + Prometheus (optional, --with-kiali, requires Istio)
 # ============================================================================
 if $WITH_KIALI; then
-  if ! $WITH_ISTIO; then
-    log_warn "Kiali requires Istio — skipping (add --with-istio)"
-  else
-    log_info "Step 3b: Kiali + Prometheus"
-    ISTIO_BRANCH="release-${ISTIO_VERSION%.*}"
-    log_info "Installing Prometheus (from Istio ${ISTIO_BRANCH} samples)..."
-    run_cmd kubectl apply -f \
-      "https://raw.githubusercontent.com/istio/istio/${ISTIO_BRANCH}/samples/addons/prometheus.yaml"
-    log_info "Installing Kiali (from Istio ${ISTIO_BRANCH} samples)..."
-    run_cmd kubectl apply -f \
-      "https://raw.githubusercontent.com/istio/istio/${ISTIO_BRANCH}/samples/addons/kiali.yaml"
-    log_success "Kiali + Prometheus installed"
-    echo ""
-  fi
+  log_info "Step 3b: Kiali + Prometheus"
+  ISTIO_BRANCH="release-${ISTIO_VERSION%.*}"
+  log_info "Installing Prometheus (from Istio ${ISTIO_BRANCH} samples)..."
+  run_cmd kubectl apply -f \
+    "https://raw.githubusercontent.com/istio/istio/${ISTIO_BRANCH}/samples/addons/prometheus.yaml"
+  log_info "Installing Kiali (from Istio ${ISTIO_BRANCH} samples)..."
+  run_cmd kubectl apply -f \
+    "https://raw.githubusercontent.com/istio/istio/${ISTIO_BRANCH}/samples/addons/kiali.yaml"
+  log_success "Kiali + Prometheus installed"
+  echo ""
 fi
 
 # ============================================================================
