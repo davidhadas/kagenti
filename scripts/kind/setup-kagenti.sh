@@ -278,7 +278,7 @@ if $WITH_SPIRE; then
     --set global.spire.namespaces.create=true \
     --set global.spire.namespaces.server.name=zero-trust-workload-identity-manager \
     --set global.spire.namespaces.server.create=true \
-    --set "global.spire.namespaces.server.labels.shared-gateway-access=true" \
+    --set-string "global.spire.namespaces.server.labels.shared-gateway-access=true" \
     --set global.spire.ingressControllerType="" \
     --set global.spire.clusterName=agent-platform \
     --set "global.spire.trustDomain=${DOMAIN}" \
