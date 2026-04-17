@@ -93,7 +93,10 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ## Quick Start
 
 ```bash
-# One command to deploy everything and run tests
+# Direct install — composable, no extra dependencies
+scripts/kind/setup-kagenti.sh --with-all
+
+# Or full CI-style run (create → deploy → test → keep cluster)
 ./.github/scripts/local-setup/kind-full-test.sh --skip-cluster-destroy
 
 # Show service URLs and credentials
@@ -103,6 +106,64 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 Access the UI at: **http://kagenti-ui.localtest.me:8080**
 
 Login with Keycloak admin credentials shown by `show-services.sh`.
+
+## Direct Installation
+
+The `scripts/kind/setup-kagenti.sh` bash installer creates a Kind cluster and
+deploys Kagenti with composable `--with-*` flags. It requires only `kind`,
+`helm` (v3), and `kubectl` — no Python, Ansible, or `uv` needed.
+
+### Examples
+
+```bash
+# Core only (cert-manager, Keycloak, operator, webhook)
+scripts/kind/setup-kagenti.sh
+
+# Everything
+scripts/kind/setup-kagenti.sh --with-all
+
+# Core + Istio + UI (no SPIRE, no builds)
+scripts/kind/setup-kagenti.sh --with-istio --with-backend
+
+# Reuse existing cluster
+scripts/kind/setup-kagenti.sh --skip-cluster --with-all
+
+# With secrets
+scripts/kind/setup-kagenti.sh --with-all --secrets-file charts/kagenti/.secrets.yaml
+```
+
+### Flag Reference
+
+| Flag | Components |
+|------|------------|
+| `--with-istio` | Istio ambient mesh (istiod, CNI, ztunnel) |
+| `--with-spire` | SPIRE + SPIFFE IdP setup |
+| `--with-backend` | Kagenti backend API + UI |
+| `--with-ui` | Alias for `--with-backend` |
+| `--with-mcp-gateway` | MCP Gateway |
+| `--with-kuadrant` | Kuadrant operator (AuthPolicy for MCP Gateway) |
+| `--with-otel` | OpenTelemetry collector |
+| `--with-builds` | Tekton + Shipwright (build agents from source) |
+| `--with-kiali` | Kiali + Prometheus (requires Istio) |
+| `--with-all` | All of the above |
+
+| Option | Description |
+|--------|-------------|
+| `--skip-cluster` | Reuse existing Kind cluster |
+| `--secrets-file FILE` | YAML file with secrets for the Kagenti Helm chart |
+| `--cluster-name NAME` | Kind cluster name (default: `kagenti`) |
+| `--domain DOMAIN` | Domain for services (default: `localtest.me`) |
+| `--dry-run` | Show commands without executing |
+
+### Cleanup
+
+```bash
+# Uninstall platform, keep cluster
+scripts/kind/cleanup-kagenti.sh
+
+# Uninstall and destroy cluster
+scripts/kind/cleanup-kagenti.sh --destroy-cluster
+```
 
 ## Credentials Setup
 
@@ -351,24 +412,23 @@ kubectl rollout status deployment/weather-service -n team1
 
 ## Script Reference
 
-### Entry Point Scripts
+### Platform Scripts (`scripts/kind/`)
 
 | Script | Purpose |
 |--------|---------|
-| `kind-full-test.sh` | Unified Kind test runner with phase control |
-| `show-services.sh` | Display all services, URLs, and credentials |
+| `setup-kagenti.sh` | **Composable installer** — create cluster + deploy platform |
+| `cleanup-kagenti.sh` | Uninstall platform (optionally destroy cluster) |
 
-### Kind Scripts (`.github/scripts/kind/`)
+### CI / Test Scripts (`.github/scripts/`)
 
 | Script | Purpose |
 |--------|---------|
-| `create-cluster.sh` | Create Kind cluster |
-| `destroy-cluster.sh` | Delete Kind cluster |
-| `deploy-platform.sh` | Full Kagenti deployment |
-| `run-e2e-tests.sh` | Run E2E test suite |
-| `access-ui.sh` | Show service URLs and port-forward commands |
+| `local-setup/kind-full-test.sh` | Unified Kind test runner with phase control |
+| `local-setup/show-services.sh` | Display all services, URLs, and credentials |
+| `kind/create-cluster.sh` | Create Kind cluster |
+| `kind/destroy-cluster.sh` | Delete Kind cluster |
 
-### Phase Options
+### Phase Options (`kind-full-test.sh`)
 
 | Option | Effect | Use Case |
 |--------|--------|----------|

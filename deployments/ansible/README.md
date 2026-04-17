@@ -1,4 +1,10 @@
 
+> **Deprecated for Kind:** The Ansible-based installer for Kind is deprecated.
+> Use `scripts/kind/setup-kagenti.sh` instead — it requires only `kind`, `helm`,
+> and `kubectl` (no Python/Ansible). See the [Installation Guide](../../docs/install.md#bash-installer-recommended)
+> for details. The Ansible installer remains supported for **OpenShift** deployments.
+> See [migration epic #1266](https://github.com/kagenti/kagenti/issues/1266).
+
 # Kagenti Ansible installer
 
 This directory contains an Ansible playbook and role to install Kagenti components

@@ -19,8 +19,6 @@ This guide covers installation on both local Kind clusters and OpenShift environ
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| Python | ≥3.9 | Running the installer |
-| [uv](https://docs.astral.sh/uv/getting-started/installation) | Latest | Python package manager |
 | kubectl | ≥1.32.1 | Kubernetes CLI |
 | [Helm](https://helm.sh/docs/intro/install/) | ≥3.18.0, <4 | Package manager for Kubernetes |
 | git | ≥2.48.0 | Cloning repositories |
@@ -34,7 +32,7 @@ If you're setting up a brand-new Mac, install all prerequisites at once with [Ho
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Install required tools
-brew install git kind kubectl helm@3 ansible uv python
+brew install git kind kubectl helm@3
 
 # Verify Helm version meets the ≥3.18.0 requirement above
 helm version
@@ -47,19 +45,6 @@ brew install podman    # recommended for macOS
 podman machine init --memory 18432 --cpus 4
 podman machine start
 ```
-
-Then set up a Python virtual environment for the installer:
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-> **Tip:** After configuring your secrets (see [Quick Start](#quick-start) below), you can
-> run the full installation in one command:
-> ```bash
-> deployments/ansible/run-install.sh --env dev --preload --extra-vars '{"container_engine": "podman"}'
-> ```
 
 ### Kind-Specific Requirements
 
@@ -89,62 +74,111 @@ git clone https://github.com/kagenti/kagenti.git
 cd kagenti
 ```
 
-#### Ansible-based Installer (Recommended)
+#### Bash Installer (Recommended)
 
-Run the newer, Helm-based Ansible installer:
+The bash installer (`scripts/kind/setup-kagenti.sh`) is a composable, single-file
+script that creates a Kind cluster and deploys Kagenti. Core components are always
+installed; optional layers are enabled with `--with-*` flags.
 
-Setup the environment:
+**Core (always installed):** cert-manager, Gateway API CRDs, Keycloak, kagenti-operator, kagenti-webhook
 
-```bash
-# From repository root
-cp deployments/envs/secret_values.yaml.example deployments/envs/.secret_values.yaml
-# component-specific secrets
-charts:
-  kagenti:
-    values:
-      secrets:
-        githubUser: <(Optional) Your GitHub username — only needed for private repos/registries>
-        githubToken: <(Optional) Your GitHub token — only needed for private repos/registries (scopes: repo for private repos, read:packages for GHCR)>
-        openaiApiKey: <(Optional) Your OpenAI API key>
-        slackBotToken: <(Optional) Token for Slack Bot>
-        adminSlackBotToken: <(Optional) Admin Token for Slack Bot>
-        quayUser: <(Optional) Your Quay user for build-from-source>
-        quayToken: <(Optional) Your Quay token for building and pushing images (build-from-source)>
-```
-
-Run the Ansible install script:
+**Install everything:**
 
 ```bash
-deployments/ansible/run-install.sh --env dev
+scripts/kind/setup-kagenti.sh --with-all
 ```
 
-> **Tip:** Add `--preload` to pre-pull and load container images into Kind before deploying. This avoids slow in-cluster registry pulls and can significantly speed up deployment:
-> ```bash
-> deployments/ansible/run-install.sh --env dev --preload
-> ```
-
-#### Podman Users
-
-If you use **Podman** (or have `docker` aliased to `podman`, which is common on macOS), set `container_engine` to `podman` so the installer pulls images sequentially and avoids SSH connection failures through the Podman VM:
+**Install only what you need:**
 
 ```bash
-deployments/ansible/run-install.sh --env dev --preload --extra-vars '{"container_engine": "podman"}'
+# Core + Istio + UI
+scripts/kind/setup-kagenti.sh --with-istio --with-backend
+
+# Core + full service mesh + builds
+scripts/kind/setup-kagenti.sh --with-istio --with-spire --with-builds
 ```
 
-Alternatively, edit your environment values file (`deployments/envs/dev_values.yaml`) and change:
+**Available `--with-*` flags:**
 
-```yaml
-container_engine: podman
+| Flag | Components |
+|------|------------|
+| `--with-istio` | Istio ambient mesh (istiod, CNI, ztunnel) |
+| `--with-spire` | SPIRE + SPIFFE IdP setup |
+| `--with-backend` | Kagenti backend API + UI |
+| `--with-ui` | Alias for `--with-backend` |
+| `--with-mcp-gateway` | MCP Gateway |
+| `--with-kuadrant` | Kuadrant operator (AuthPolicy for MCP Gateway) |
+| `--with-otel` | OpenTelemetry collector |
+| `--with-builds` | Tekton + Shipwright (build agents from source) |
+| `--with-kiali` | Kiali + Prometheus (requires Istio) |
+| `--with-all` | All of the above |
+
+**Other options:**
+
+| Flag | Description |
+|------|-------------|
+| `--skip-cluster` | Reuse an existing Kind cluster |
+| `--secrets-file FILE` | YAML file with secrets (see below) |
+| `--cluster-name NAME` | Kind cluster name (default: `kagenti`) |
+| `--domain DOMAIN` | Domain for services (default: `localtest.me`) |
+| `--dry-run` | Show commands without executing |
+
+#### Providing Secrets
+
+Create a secrets file from the template:
+
+```bash
+cp charts/kagenti/.secrets_template.yaml charts/kagenti/.secrets.yaml
+# Edit .secrets.yaml with your values
 ```
 
-The Ansible-based installer will create a Kind cluster (when appropriate) and deploy platform components.
+Pass it to the installer:
+
+```bash
+scripts/kind/setup-kagenti.sh --with-all --secrets-file charts/kagenti/.secrets.yaml
+```
+
+If `--secrets-file` is not specified, the installer automatically uses
+`charts/kagenti/.secrets.yaml` when it exists.
+
+#### Cleanup
+
+To uninstall Kagenti from a Kind cluster:
+
+```bash
+# Uninstall platform, keep cluster
+scripts/kind/cleanup-kagenti.sh
+
+# Uninstall platform and destroy cluster
+scripts/kind/cleanup-kagenti.sh --destroy-cluster
+```
 
 ### Using an Existing Kubernetes Cluster
 
-If you have an existing cluster and want to install Kagenti there,
-use the Ansible-based installer:
+If you have an existing Kind cluster:
 
 ```bash
+scripts/kind/setup-kagenti.sh --skip-cluster --with-all
+```
+
+For non-Kind clusters, use the [Ansible-based installer](#legacy-ansible-based-installer-deprecated) or the
+[OpenShift installation](#openshift-installation) instructions.
+
+### Legacy: Ansible-based Installer (Deprecated)
+
+> **Deprecated:** The Ansible-based installer for Kind is deprecated and will be
+> removed in a future release. Use the [Bash Installer](#bash-installer-recommended)
+> above instead. The Ansible installer remains supported for
+> [OpenShift installations](#openshift-installation).
+> See [migration epic #1266](https://github.com/kagenti/kagenti/issues/1266) for details.
+
+<details>
+<summary>Ansible-based installer instructions (click to expand)</summary>
+
+```bash
+# Install additional prerequisites
+brew install ansible uv python@3.11  # macOS
+
 # Copy and configure secrets
 cp deployments/envs/secret_values.yaml.example deployments/envs/.secret_values.yaml
 # Edit .secret_values.yaml with your values
@@ -153,18 +187,10 @@ cp deployments/envs/secret_values.yaml.example deployments/envs/.secret_values.y
 deployments/ansible/run-install.sh --env dev
 ```
 
-See [Ansible README](../deployments/ansible/README.md) for details and [override files](../deployments/ansible/README.md#using-override-files).
+See [Ansible README](../deployments/ansible/README.md) for details and
+[override files](../deployments/ansible/README.md#using-override-files).
 
-For Rancher Desktop on macOS, follow [these setup steps](../deployments/ansible/README.md#installation-using-rancher-desktop-on-macos).
-
-**Advanced users:** you may invoke the Ansible playbook directly instead of using the `run-install.sh` wrapper. This can be useful if you prefer to run `ansible-playbook` from a specific Python environment or CI runner. Example:
-
-```bash
-ansible-playbook -i localhost, -c local deployments/ansible/installer-playbook.yml \
-  -e '{"global_value_files":["../envs/dev_values.yaml"], "secret_values_file": "../envs/.secret_values.yaml"}'
-```
-
-Note: The wrapper provides convenience features (path resolution for env/secret files, a `uv`-based venv runner, and a Helm v4 compatibility check). When running Ansible directly, ensure `helm` is v3.x since Helm v4 is incompatible with the Ansible Helm integration used by the playbook.
+</details>
 
 ---
 
