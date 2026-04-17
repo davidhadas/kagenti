@@ -840,9 +840,8 @@ fi
 
 # Secrets file resolution (checked in order of precedence):
 #   1. --secrets-file CLI argument
-#   2. deployments/envs/.secret_values.yaml (created by CI or user)
-#   3. charts/kagenti/.secrets.yaml (legacy location)
-#   4. Fall back to copying .secrets_template.yaml (empty defaults)
+#   2. charts/kagenti/.secrets.yaml (user-created)
+#   3. Fall back to copying .secrets_template.yaml (empty defaults)
 SECRETS_FLAGS=()
 if [ -n "$SECRETS_FILE_ARG" ]; then
   if [ ! -f "$SECRETS_FILE_ARG" ]; then
@@ -851,9 +850,6 @@ if [ -n "$SECRETS_FILE_ARG" ]; then
   fi
   log_info "Using secrets from $SECRETS_FILE_ARG"
   SECRETS_FLAGS=(-f "$SECRETS_FILE_ARG")
-elif [ -f "$REPO_ROOT/deployments/envs/.secret_values.yaml" ]; then
-  log_info "Using secrets from deployments/envs/.secret_values.yaml"
-  SECRETS_FLAGS=(-f "$REPO_ROOT/deployments/envs/.secret_values.yaml")
 elif [ -f "$REPO_ROOT/charts/kagenti/.secrets.yaml" ]; then
   SECRETS_FLAGS=(-f "$REPO_ROOT/charts/kagenti/.secrets.yaml")
 elif [ -f "$REPO_ROOT/charts/kagenti/.secrets_template.yaml" ]; then
