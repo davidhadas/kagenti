@@ -109,6 +109,7 @@ scripts/kind/setup-kagenti.sh --with-istio --with-spire --with-builds
 | `--with-mcp-gateway` | MCP Gateway |
 | `--with-kuadrant` | Kuadrant operator (AuthPolicy for MCP Gateway) |
 | `--with-otel` | OpenTelemetry collector |
+| `--with-mlflow` | MLflow trace backend (auto-enables OTel) |
 | `--with-builds` | Tekton + Shipwright (build agents from source) |
 | `--with-kiali` | Kiali + Prometheus (requires Istio) |
 | `--with-all` | All of the above |

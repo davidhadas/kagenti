@@ -8,7 +8,7 @@
 # Core (always):   cert-manager, Keycloak, kagenti-operator, kagenti-webhook
 # Optional:        --with-istio, --with-spire, --with-backend (UI+API),
 #                  --with-mcp-gateway, --with-kuadrant, --with-otel,
-#                  --with-builds, --with-kiali, --with-all
+#                  --with-mlflow, --with-builds, --with-kiali, --with-all
 #
 # Idempotent: safe to re-run. Uses helm upgrade --install and kubectl apply.
 # Re-running with additional --with-* flags adds components incrementally.
@@ -39,6 +39,7 @@ WITH_SPIRE=false
 WITH_BACKEND=false
 WITH_MCP_GATEWAY=false
 WITH_OTEL=false
+WITH_MLFLOW=false
 WITH_BUILDS=false
 WITH_KIALI=false
 WITH_KUADRANT=false
@@ -79,12 +80,13 @@ while [[ $# -gt 0 ]]; do
     --with-mcp-gateway) WITH_MCP_GATEWAY=true; shift ;;
     --with-kuadrant)    WITH_KUADRANT=true; shift ;;
     --with-otel)        WITH_OTEL=true; shift ;;
+    --with-mlflow)      WITH_MLFLOW=true; shift ;;
     --with-builds)      WITH_BUILDS=true; shift ;;
     --with-kiali)       WITH_KIALI=true; shift ;;
     --with-all)
       WITH_ISTIO=true; WITH_SPIRE=true; WITH_BACKEND=true
       WITH_MCP_GATEWAY=true; WITH_KUADRANT=true; WITH_OTEL=true
-      WITH_BUILDS=true; WITH_KIALI=true
+      WITH_MLFLOW=true; WITH_BUILDS=true; WITH_KIALI=true
       shift ;;
     --skip-cluster)     SKIP_CLUSTER=true; shift ;;
     --secrets-file)     SECRETS_FILE_ARG="$2"; shift 2 ;;
@@ -102,6 +104,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --with-mcp-gateway  Install MCP Gateway"
       echo "  --with-kuadrant     Install Kuadrant operator (AuthPolicy for MCP Gateway)"
       echo "  --with-otel         Install OpenTelemetry collector"
+      echo "  --with-mlflow       Install MLflow trace backend (auto-enables OTel)"
       echo "  --with-builds       Install Tekton + Shipwright"
       echo "  --with-kiali        Install Kiali + Prometheus (requires Istio)"
       echo "  --with-all          Enable all optional components"
@@ -118,6 +121,12 @@ while [[ $# -gt 0 ]]; do
     *) log_error "Unknown option: $1"; exit 1 ;;
   esac
 done
+
+# ── Flag dependencies ──────────────────────────────────────────────────────
+# MLflow requires OTel collector to export traces
+if $WITH_MLFLOW && ! $WITH_OTEL; then
+  WITH_OTEL=true
+fi
 
 # ── Pre-flight ──────────────────────────────────────────────────────────────
 START_SECONDS=$SECONDS
@@ -137,6 +146,7 @@ echo "    Backend/UI:    $WITH_BACKEND"
 echo "    MCP Gateway:   $WITH_MCP_GATEWAY"
 echo "    Kuadrant:      $WITH_KUADRANT"
 echo "    OTel:          $WITH_OTEL"
+echo "    MLflow:        $WITH_MLFLOW"
 echo "    Builds:        $WITH_BUILDS"
 echo "    Kiali:         $WITH_KIALI"
 echo "    Skip cluster:  $SKIP_CLUSTER"
@@ -380,7 +390,8 @@ DEPS_FLAGS=(
   --set "components.shipwright.enabled=false"
   --set "components.kiali.enabled=${WITH_KIALI}"
   --set "components.phoenix.enabled=false"
-  --set "components.mlflow.enabled=false"
+  --set "components.mlflow.enabled=${WITH_MLFLOW}"
+  --set "mlflow.auth.enabled=${WITH_MLFLOW}"
   --set "components.rhoai.enabled=false"
 )
 
@@ -867,6 +878,7 @@ run_cmd helm dependency update "$REPO_ROOT/charts/kagenti/"
 # Delete old OAuth secret jobs (immutable — must delete before helm upgrade)
 kubectl delete job kagenti-ui-oauth-secret-job -n kagenti-system --ignore-not-found 2>/dev/null || true
 kubectl delete job kagenti-agent-oauth-secret-job -n kagenti-system --ignore-not-found 2>/dev/null || true
+kubectl delete job mlflow-oauth-secret-job -n kagenti-system --ignore-not-found 2>/dev/null || true
 
 # Pre-create mcp-system namespace (kagenti chart creates resources there when mcpGateway is enabled)
 if $WITH_MCP_GATEWAY; then
@@ -882,11 +894,11 @@ KAGENTI_FLAGS=(
   --set "components.istio.enabled=${WITH_ISTIO}"
   --set "components.mcpGateway.enabled=${WITH_MCP_GATEWAY}"
   --set "components.phoenix.enabled=false"
-  --set "components.mlflow.enabled=false"
+  --set "components.mlflow.enabled=${WITH_MLFLOW}"
   --set "ui.frontend.tag=${KAGENTI_TAG}"
   --set "ui.backend.tag=${KAGENTI_TAG}"
   --set "ui.auth.enabled=$($WITH_SPIRE && echo true || echo false)"
-  --set "mlflow.auth.enabled=false"
+  --set "mlflow.auth.enabled=${WITH_MLFLOW}"
 )
 
 log_info "Installing kagenti..."
@@ -995,6 +1007,9 @@ if $WITH_BACKEND; then
   echo "  Kagenti UI:   http://kagenti-ui.${DOMAIN}:8080"
 fi
 echo "  Keycloak:     http://keycloak.${DOMAIN}:8080"
+if $WITH_MLFLOW; then
+  echo "  MLflow:       http://mlflow.${DOMAIN}:8080"
+fi
 if $WITH_SPIRE; then
   echo "  Tornjak:      http://spire-tornjak-api.${DOMAIN}:8080"
 fi
