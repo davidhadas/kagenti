@@ -216,6 +216,33 @@ E2E_CLIENT_SECRET=$(kc_api GET "$KEYCLOAK_URL/admin/realms/$REALM/clients/$CLIEN
 log_success "Service account client ready (client_id=$E2E_CLIENT_ID)"
 
 # ============================================================================
+# 4b. Attach agent audience scopes to the E2E test client
+#     Client-registration creates agent-*-aud scopes as realm defaults, but
+#     realm defaults don't retroactively apply to existing clients. We need
+#     to explicitly add them so the E2E test token contains the aud claim
+#     that AuthBridge requires for inbound JWT validation.
+# ============================================================================
+
+log_info "Attaching agent audience scopes to $E2E_CLIENT_ID..."
+REALM_DEFAULT_SCOPES=$(kc_api GET "$KEYCLOAK_URL/admin/realms/$REALM/default-default-client-scopes")
+AGENT_SCOPE_IDS=$(echo "$REALM_DEFAULT_SCOPES" | python3 -c "
+import sys, json
+scopes = json.load(sys.stdin)
+for s in scopes:
+    if s['name'].startswith('agent-') and s['name'].endswith('-aud'):
+        print(s['id'], s['name'])
+" 2>/dev/null || echo "")
+
+if [ -n "$AGENT_SCOPE_IDS" ]; then
+    while IFS=' ' read -r scope_id scope_name; do
+        kc_api PUT "$KEYCLOAK_URL/admin/realms/$REALM/clients/$CLIENT_INTERNAL_ID/default-client-scopes/$scope_id" >/dev/null
+        log_info "  Added scope '$scope_name' to $E2E_CLIENT_ID"
+    done <<< "$AGENT_SCOPE_IDS"
+else
+    log_info "  No agent audience scopes found (agents may not be deployed yet)"
+fi
+
+# ============================================================================
 # 5. Update kagenti-test-user secret with verified credentials
 # ============================================================================
 
