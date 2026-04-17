@@ -148,13 +148,24 @@ def wait_for_spire(max_attempts: int = 30, delay_seconds: int = 10) -> bool:
                     continue
 
                 # Check if keys have "use" field (required for Keycloak)
+                # Retry instead of failing immediately — the OIDC provider may
+                # still be reloading after a ConfigMap patch + rollout restart.
                 first_key = keys[0]
                 if "use" not in first_key:
-                    logger.error(f"  ❌ JWKS keys missing 'use' field!")
-                    logger.error(f"  SPIRE must be configured with set_key_use: true")
-                    logger.error(
-                        f"  Configure SPIRE OIDC provider with setKeyUse: true in Helm values"
+                    logger.warning(
+                        f"  JWKS keys missing 'use' field (attempt {attempt}/{max_attempts})"
                     )
+                    logger.warning(
+                        f"  SPIRE OIDC provider may still be reloading config"
+                    )
+                    if attempt < max_attempts:
+                        logger.info(f"  Retrying in {delay_seconds} seconds...")
+                        time.sleep(delay_seconds)
+                        continue
+                    logger.error(
+                        f"  ❌ JWKS keys still missing 'use' field after {max_attempts} attempts"
+                    )
+                    logger.error(f"  Ensure SPIRE is configured with set_key_use: true")
                     return False
 
                 logger.info(f"  ✅ SPIRE OIDC Discovery Provider is ready")
