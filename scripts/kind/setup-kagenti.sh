@@ -7,7 +7,8 @@
 #
 # Core (always):   cert-manager, Keycloak, kagenti-operator, kagenti-webhook
 # Optional:        --with-istio, --with-spire, --with-backend (UI+API),
-#                  --with-mcp-gateway, --with-otel, --with-builds, --with-all
+#                  --with-mcp-gateway, --with-otel, --with-builds,
+#                  --with-kiali, --with-all
 #
 # Idempotent: safe to re-run. Uses helm upgrade --install and kubectl apply.
 # Re-running with additional --with-* flags adds components incrementally.
@@ -39,6 +40,7 @@ WITH_BACKEND=false
 WITH_MCP_GATEWAY=false
 WITH_OTEL=false
 WITH_BUILDS=false
+WITH_KIALI=false
 SKIP_CLUSTER=false
 DRY_RUN=false
 CONTAINER_ENGINE="${CONTAINER_ENGINE:-docker}"
@@ -75,9 +77,11 @@ while [[ $# -gt 0 ]]; do
     --with-kuadrant)    WITH_MCP_GATEWAY=true; shift ;;
     --with-otel)        WITH_OTEL=true; shift ;;
     --with-builds)      WITH_BUILDS=true; shift ;;
+    --with-kiali)       WITH_KIALI=true; shift ;;
     --with-all)
       WITH_ISTIO=true; WITH_SPIRE=true; WITH_BACKEND=true
       WITH_MCP_GATEWAY=true; WITH_OTEL=true; WITH_BUILDS=true
+      WITH_KIALI=true
       shift ;;
     --skip-cluster)     SKIP_CLUSTER=true; shift ;;
     --cluster-name)     CLUSTER_NAME="$2"; shift 2 ;;
@@ -95,6 +99,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --with-kuadrant     Alias for --with-mcp-gateway"
       echo "  --with-otel         Install OpenTelemetry collector"
       echo "  --with-builds       Install Tekton + Shipwright"
+      echo "  --with-kiali        Install Kiali + Prometheus (requires Istio)"
       echo "  --with-all          Enable all optional components"
       echo ""
       echo "Other options:"
@@ -126,6 +131,7 @@ echo "    Backend/UI:    $WITH_BACKEND"
 echo "    MCP Gateway:   $WITH_MCP_GATEWAY"
 echo "    OTel:          $WITH_OTEL"
 echo "    Builds:        $WITH_BUILDS"
+echo "    Kiali:         $WITH_KIALI"
 echo "    Skip cluster:  $SKIP_CLUSTER"
 echo ""
 
@@ -246,7 +252,27 @@ fi
 echo ""
 
 # ============================================================================
-# Step 3b: Install Tekton (optional, --with-builds)
+# Step 3b: Install Kiali + Prometheus (optional, --with-kiali, requires Istio)
+# ============================================================================
+if $WITH_KIALI; then
+  if ! $WITH_ISTIO; then
+    log_warn "Kiali requires Istio — skipping (add --with-istio)"
+  else
+    log_info "Step 3b: Kiali + Prometheus"
+    ISTIO_BRANCH="release-${ISTIO_VERSION%.*}"
+    log_info "Installing Prometheus (from Istio ${ISTIO_BRANCH} samples)..."
+    run_cmd kubectl apply -f \
+      "https://raw.githubusercontent.com/istio/istio/${ISTIO_BRANCH}/samples/addons/prometheus.yaml"
+    log_info "Installing Kiali (from Istio ${ISTIO_BRANCH} samples)..."
+    run_cmd kubectl apply -f \
+      "https://raw.githubusercontent.com/istio/istio/${ISTIO_BRANCH}/samples/addons/kiali.yaml"
+    log_success "Kiali + Prometheus installed"
+    echo ""
+  fi
+fi
+
+# ============================================================================
+# Step 3c: Install Tekton (optional, --with-builds)
 # ============================================================================
 if $WITH_BUILDS; then
   log_info "Step 3b: Tekton"
@@ -345,7 +371,7 @@ DEPS_FLAGS=(
   --set "components.mcpInspector.enabled=${WITH_MCP_GATEWAY}"
   --set "components.tekton.enabled=false"
   --set "components.shipwright.enabled=false"
-  --set "components.kiali.enabled=false"
+  --set "components.kiali.enabled=${WITH_KIALI}"
   --set "components.phoenix.enabled=false"
   --set "components.mlflow.enabled=false"
   --set "components.rhoai.enabled=false"
