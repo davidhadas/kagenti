@@ -756,6 +756,11 @@ run_cmd helm dependency update "$REPO_ROOT/charts/kagenti/"
 kubectl delete job kagenti-ui-oauth-secret-job -n kagenti-system --ignore-not-found 2>/dev/null || true
 kubectl delete job kagenti-agent-oauth-secret-job -n kagenti-system --ignore-not-found 2>/dev/null || true
 
+# Pre-create mcp-system namespace (kagenti chart creates resources there when mcpGateway is enabled)
+if $WITH_MCP_GATEWAY; then
+  kubectl create namespace mcp-system --dry-run=client -o yaml | kubectl apply -f - 2>/dev/null || true
+fi
+
 KAGENTI_FLAGS=(
   --set "openshift=false"
   --set "domain=${DOMAIN}"
