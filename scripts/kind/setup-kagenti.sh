@@ -7,8 +7,8 @@
 #
 # Core (always):   cert-manager, Keycloak, kagenti-operator, kagenti-webhook
 # Optional:        --with-istio, --with-spire, --with-backend (UI+API),
-#                  --with-mcp-gateway, --with-otel, --with-builds,
-#                  --with-kiali, --with-all
+#                  --with-mcp-gateway, --with-kuadrant, --with-otel,
+#                  --with-builds, --with-kiali, --with-all
 #
 # Idempotent: safe to re-run. Uses helm upgrade --install and kubectl apply.
 # Re-running with additional --with-* flags adds components incrementally.
@@ -41,6 +41,7 @@ WITH_MCP_GATEWAY=false
 WITH_OTEL=false
 WITH_BUILDS=false
 WITH_KIALI=false
+WITH_KUADRANT=false
 SKIP_CLUSTER=false
 DRY_RUN=false
 SECRETS_FILE_ARG=""
@@ -55,6 +56,7 @@ GATEWAY_API_VERSION="v1.4.0"
 TEKTON_VERSION="v0.66.0"
 SHIPWRIGHT_VERSION="v0.14.0"
 MCP_GATEWAY_VERSION="0.5.0"
+KUADRANT_VERSION="1.4.2"
 
 # ── Colors & logging ────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -75,14 +77,14 @@ while [[ $# -gt 0 ]]; do
     --with-backend)     WITH_BACKEND=true; shift ;;
     --with-ui)          WITH_BACKEND=true; shift ;;
     --with-mcp-gateway) WITH_MCP_GATEWAY=true; shift ;;
-    --with-kuadrant)    WITH_MCP_GATEWAY=true; shift ;;
+    --with-kuadrant)    WITH_KUADRANT=true; shift ;;
     --with-otel)        WITH_OTEL=true; shift ;;
     --with-builds)      WITH_BUILDS=true; shift ;;
     --with-kiali)       WITH_KIALI=true; shift ;;
     --with-all)
       WITH_ISTIO=true; WITH_SPIRE=true; WITH_BACKEND=true
-      WITH_MCP_GATEWAY=true; WITH_OTEL=true; WITH_BUILDS=true
-      WITH_KIALI=true
+      WITH_MCP_GATEWAY=true; WITH_KUADRANT=true; WITH_OTEL=true
+      WITH_BUILDS=true; WITH_KIALI=true
       shift ;;
     --skip-cluster)     SKIP_CLUSTER=true; shift ;;
     --secrets-file)     SECRETS_FILE_ARG="$2"; shift 2 ;;
@@ -97,8 +99,8 @@ while [[ $# -gt 0 ]]; do
       echo "  --with-spire        Install SPIRE + SPIFFE IdP setup"
       echo "  --with-backend      Install Kagenti backend API + UI"
       echo "  --with-ui           Alias for --with-backend"
-      echo "  --with-mcp-gateway  Install MCP Gateway (Kuadrant)"
-      echo "  --with-kuadrant     Alias for --with-mcp-gateway"
+      echo "  --with-mcp-gateway  Install MCP Gateway"
+      echo "  --with-kuadrant     Install Kuadrant operator (AuthPolicy for MCP Gateway)"
       echo "  --with-otel         Install OpenTelemetry collector"
       echo "  --with-builds       Install Tekton + Shipwright"
       echo "  --with-kiali        Install Kiali + Prometheus (requires Istio)"
@@ -133,6 +135,7 @@ echo "    Istio:         $WITH_ISTIO"
 echo "    SPIRE:         $WITH_SPIRE"
 echo "    Backend/UI:    $WITH_BACKEND"
 echo "    MCP Gateway:   $WITH_MCP_GATEWAY"
+echo "    Kuadrant:      $WITH_KUADRANT"
 echo "    OTel:          $WITH_OTEL"
 echo "    Builds:        $WITH_BUILDS"
 echo "    Kiali:         $WITH_KIALI"
@@ -893,6 +896,40 @@ run_cmd helm upgrade --install kagenti "$REPO_ROOT/charts/kagenti/" \
   "${KAGENTI_FLAGS[@]}"
 
 log_success "kagenti installed"
+echo ""
+
+# ============================================================================
+# Step 8b: Install Kuadrant operator (optional, --with-kuadrant)
+# ============================================================================
+log_info "Step 8b: Kuadrant"
+
+if $WITH_KUADRANT; then
+  KUADRANT_NS="kuadrant-system"
+
+  log_info "Installing Kuadrant operator v${KUADRANT_VERSION}..."
+  run_cmd helm upgrade --install kuadrant-operator kuadrant-operator \
+    --repo "https://kuadrant.io/helm-charts/" \
+    --version "$KUADRANT_VERSION" \
+    -n "$KUADRANT_NS" --create-namespace --wait --timeout 5m
+
+  if ! $DRY_RUN; then
+    _wait_deployment_ready kuadrant-operator-controller-manager "$KUADRANT_NS" "Kuadrant operator"
+
+    # Create Kuadrant CR to instantiate Authorino
+    log_info "Creating Kuadrant CR..."
+    kubectl apply -f - <<EOF
+apiVersion: kuadrant.io/v1beta1
+kind: Kuadrant
+metadata:
+  name: kuadrant
+  namespace: ${KUADRANT_NS}
+EOF
+  fi
+
+  log_success "Kuadrant installed"
+else
+  log_info "Skipped (use --with-kuadrant)"
+fi
 echo ""
 
 # ============================================================================

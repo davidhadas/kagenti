@@ -50,12 +50,18 @@ for ns in "${TEAM_NAMESPACES[@]}"; do
   fi
 done
 
+# ── 1b. Delete Kuadrant CR (before operator uninstall) ─────────────────────
+if kubectl get ns kuadrant-system &>/dev/null; then
+  kubectl delete kuadrant kuadrant -n kuadrant-system --ignore-not-found 2>/dev/null || true
+fi
+
 # ── 2. Uninstall Helm releases (reverse install order) ──────────────────────
 log_info "Uninstalling Helm releases..."
 
 HELM_RELEASES=(
   "kagenti:kagenti-system"
   "mcp-gateway:mcp-system"
+  "kuadrant-operator:kuadrant-system"
   "kagenti-deps:kagenti-system"
   "spire:spire-mgmt"
   "spire-crds:spire-mgmt"
@@ -107,6 +113,7 @@ log_info "Deleting namespaces..."
 ALL_NAMESPACES=(
   "${TEAM_NAMESPACES[@]}"
   kagenti-system kagenti-webhook-system mcp-system gateway-system
+  kuadrant-system
   spire-mgmt zero-trust-workload-identity-manager spire-system
   shipwright-build
 )
