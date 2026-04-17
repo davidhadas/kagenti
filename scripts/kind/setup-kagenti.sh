@@ -487,6 +487,77 @@ EOF
     kubectl apply --server-side \
       -f "https://github.com/shipwright-io/build/releases/download/${SHIPWRIGHT_VERSION}/sample-strategies.yaml" \
       2>/dev/null || true
+
+    # Install buildah-insecure-push strategy for in-cluster registry (no TLS)
+    log_info "Installing buildah-insecure-push ClusterBuildStrategy..."
+    kubectl apply -f - <<'STRATEGY_EOF'
+apiVersion: shipwright.io/v1beta1
+kind: ClusterBuildStrategy
+metadata:
+  name: buildah-insecure-push
+spec:
+  parameters:
+    - name: dockerfile
+      description: Path to the Dockerfile
+      type: string
+      default: Dockerfile
+    - name: build-args
+      description: Build arguments in KEY=VALUE format
+      type: array
+      defaults: []
+    - name: storage-driver
+      description: The storage driver to use (overlay or vfs)
+      type: string
+      default: vfs
+  securityContext:
+    runAsUser: 0
+    runAsGroup: 0
+  steps:
+    - name: build-and-push
+      image: quay.io/containers/buildah:v1.37.5
+      workingDir: $(params.shp-source-root)
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
+      command:
+        - /bin/bash
+      args:
+        - -c
+        - |
+          set -euo pipefail
+
+          BUILD_ARGS=()
+          for arg in "$@"; do
+            if [[ "$arg" == "--build-arg="* ]]; then
+              BUILD_ARGS+=("--build-arg" "${arg#--build-arg=}")
+            fi
+          done
+
+          echo "Building image..."
+          buildah --storage-driver=$(params.storage-driver) bud \
+            "${BUILD_ARGS[@]}" \
+            -f "$(params.shp-source-context)/$(params.dockerfile)" \
+            -t "$(params.shp-output-image)" \
+            "$(params.shp-source-context)"
+
+          echo "Pushing image to $(params.shp-output-image)..."
+          buildah --storage-driver=$(params.storage-driver) push \
+            --tls-verify=false \
+            "$(params.shp-output-image)" \
+            "docker://$(params.shp-output-image)"
+
+          echo "Build and push completed successfully!"
+        - --
+        - $(params.build-args[*])
+      resources:
+        limits:
+          cpu: "1"
+          memory: 2Gi
+        requests:
+          cpu: 250m
+          memory: 256Mi
+STRATEGY_EOF
   fi
 
   log_success "Shipwright installed"
