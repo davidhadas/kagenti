@@ -418,7 +418,7 @@ DEPS_FLAGS=(
   --set "components.certManager.enabled=false"
   # Components toggled by flags
   --set "components.istio.enabled=false"
-  --set "components.spire.enabled=false"
+  --set "components.spire.enabled=${WITH_SPIRE}"
   --set "components.otel.enabled=${WITH_OTEL}"
   --set "components.metricsServer.enabled=${WITH_BACKEND}"
   --set "components.containerRegistry.enabled=${WITH_BUILDS}"
