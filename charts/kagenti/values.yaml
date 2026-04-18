@@ -226,7 +226,7 @@ kagenti-operator-chart:
     container:
       cmd: /manager
       image:
-        tag: 0.2.0-alpha.26
+        tag: 0.2.0-alpha.28
       args:
       - "--leader-elect"
       - "--metrics-bind-address=:8443"
@@ -245,10 +245,11 @@ kagenti-operator-chart:
   # Pin sidecar image tags injected by the AuthBridge webhook.
   defaults:
     images:
-      envoyProxy: ghcr.io/kagenti/kagenti-extensions/authbridge-unified:v0.5.0-alpha.3
-      proxyInit: ghcr.io/kagenti/kagenti-extensions/proxy-init:v0.5.0-alpha.3
-      spiffeHelper: ghcr.io/kagenti/kagenti-extensions/spiffe-helper:v0.5.0-alpha.3
-      clientRegistration: ghcr.io/kagenti/kagenti-extensions/client-registration:v0.5.0-alpha.3
+      envoyProxy: ghcr.io/kagenti/kagenti-extensions/authbridge-envoy:v0.5.0-alpha.4
+      authbridgeLight: ghcr.io/kagenti/kagenti-extensions/authbridge-light:v0.5.0-alpha.4
+      proxyInit: ghcr.io/kagenti/kagenti-extensions/proxy-init:v0.5.0-alpha.4
+      spiffeHelper: ghcr.io/kagenti/kagenti-extensions/spiffe-helper:v0.5.0-alpha.4
+      clientRegistration: ghcr.io/kagenti/kagenti-extensions/client-registration:v0.5.0-alpha.4
 
 # ------------------------------------------------------------------
 #  MCP Gateway Configuration
