@@ -1086,7 +1086,7 @@ if $WITH_MLFLOW; then
   echo "  MLflow:       http://mlflow.${DOMAIN}:8080"
 fi
 if $WITH_SPIRE; then
-  echo "  Tornjak:      http://spire-tornjak-api.${DOMAIN}:8080"
+  echo "  Tornjak:      http://spire-tornjak-ui.${DOMAIN}:8080"
 fi
 echo ""
 echo "  Keycloak credentials:"
