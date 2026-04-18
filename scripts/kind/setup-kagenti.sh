@@ -369,7 +369,7 @@ if $WITH_SPIRE; then
     --set tornjak-frontend.enabled=true \
     --set tornjak-frontend.image.tag=v2.0.0 \
     --set tornjak-frontend.ingress.enabled=true \
-    --set "tornjak-frontend.apiServerURL=http://spire-tornjak-api.${DOMAIN}:8080" \
+    --set "tornjak-frontend.apiServerURL=http://spire-tornjak-ui.${DOMAIN}:8080" \
     --set tornjak-frontend.service.type=ClusterIP \
     --set tornjak-frontend.service.port=3000
 

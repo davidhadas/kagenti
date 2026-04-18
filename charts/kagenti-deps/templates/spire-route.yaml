@@ -44,6 +44,13 @@ spec:
     - matches:
         - path:
             type: PathPrefix
+            value: /api/
+      backendRefs:
+        - name: spire-tornjak-backend
+          port: 10000
+    - matches:
+        - path:
+            type: PathPrefix
             value: /
       backendRefs:
         - name: spire-tornjak-frontend
