@@ -115,7 +115,7 @@ ALL_NAMESPACES=(
   kagenti-system kagenti-webhook-system mcp-system gateway-system
   kuadrant-system
   spire-mgmt zero-trust-workload-identity-manager spire-system
-  shipwright-build
+  shipwright-build tekton-pipelines cr-system
 )
 for ns in "${ALL_NAMESPACES[@]}"; do
   if kubectl get ns "$ns" &>/dev/null; then
