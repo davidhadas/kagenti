@@ -46,6 +46,7 @@ WITH_BUILDS=false
 WITH_KIALI=false
 WITH_KUADRANT=false
 SKIP_CLUSTER=false
+BUILD_IMAGES=false
 DRY_RUN=false
 SECRETS_FILE_ARG=""
 CONTAINER_ENGINE="${CONTAINER_ENGINE:-docker}"
@@ -91,6 +92,7 @@ while [[ $# -gt 0 ]]; do
       WITH_MLFLOW=true; WITH_BUILDS=true; WITH_KIALI=true
       shift ;;
     --skip-cluster)     SKIP_CLUSTER=true; shift ;;
+    --build-images)     BUILD_IMAGES=true; shift ;;
     --secrets-file)     SECRETS_FILE_ARG="$2"; shift 2 ;;
     --cluster-name)     CLUSTER_NAME="$2"; shift 2 ;;
     --domain)           DOMAIN="$2"; shift 2 ;;
@@ -114,6 +116,8 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "Other options:"
       echo "  --skip-cluster      Don't create Kind cluster (reuse existing)"
+      echo "  --build-images      Build platform images from source and load into Kind"
+      echo "                      (backend, ui-v2, agent-oauth-secret, mlflow-oauth-secret)"
       echo "  --secrets-file FILE YAML file with secrets (keys: githubUser, githubToken,"
       echo "                      openaiApiKey, slackBotToken, etc.)"
       echo "  --cluster-name NAME Kind cluster name (default: kagenti)"
@@ -170,6 +174,7 @@ echo "    MLflow:        $WITH_MLFLOW"
 echo "    Builds:        $WITH_BUILDS"
 echo "    Kiali:         $WITH_KIALI"
 echo "    Skip cluster:  $SKIP_CLUSTER"
+echo "    Build images:  $BUILD_IMAGES"
 echo ""
 
 for cmd in helm kubectl; do
@@ -876,9 +881,9 @@ fi
 # ============================================================================
 log_info "Step 8: kagenti"
 
-# Detect latest release tag for UI images
+# Detect latest release tag for UI images (skip when building from source)
 KAGENTI_TAG="latest"
-if $WITH_UI; then
+if $WITH_UI && ! $BUILD_IMAGES; then
   log_info "Detecting latest kagenti release tag..."
   DETECTED_TAG=$(git ls-remote --tags --sort="v:refname" https://github.com/kagenti/kagenti.git 2>/dev/null | \
     tail -n1 | sed 's|.*refs/tags/||; s/\^{}//' || echo "")
@@ -917,6 +922,34 @@ run_cmd helm dependency update "$REPO_ROOT/charts/kagenti/"
 kubectl delete job kagenti-ui-oauth-secret-job -n kagenti-system --ignore-not-found 2>/dev/null || true
 kubectl delete job kagenti-agent-oauth-secret-job -n kagenti-system --ignore-not-found 2>/dev/null || true
 kubectl delete job mlflow-oauth-secret-job -n kagenti-system --ignore-not-found 2>/dev/null || true
+
+# ── Build platform images from source (--build-images) ──
+if $BUILD_IMAGES && ! $DRY_RUN; then
+  log_info "Building platform images from source..."
+  BUILD_CONTEXT="$REPO_ROOT/kagenti"
+
+  # Always build agent-oauth-secret (kagenti chart always creates this job)
+  _BUILD_IMAGES=(
+    "ghcr.io/kagenti/kagenti/agent-oauth-secret:latest|auth/agent-oauth-secret/Dockerfile"
+  )
+  if $WITH_BACKEND; then
+    _BUILD_IMAGES+=("ghcr.io/kagenti/kagenti/backend:latest|backend/Dockerfile")
+  fi
+  if $WITH_UI; then
+    _BUILD_IMAGES+=("ghcr.io/kagenti/kagenti/ui-v2:latest|ui-v2/Dockerfile")
+  fi
+  if $WITH_MLFLOW; then
+    _BUILD_IMAGES+=("ghcr.io/kagenti/kagenti/mlflow-oauth-secret:latest|auth/mlflow-oauth-secret/Dockerfile")
+  fi
+
+  for spec in "${_BUILD_IMAGES[@]}"; do
+    IFS='|' read -r img dockerfile <<< "$spec"
+    log_info "  Building ${img}..."
+    $CONTAINER_ENGINE build --load -t "$img" -f "$BUILD_CONTEXT/$dockerfile" "$BUILD_CONTEXT"
+    kind load docker-image "$img" --name "$CLUSTER_NAME"
+  done
+  log_success "Platform images built and loaded into Kind"
+fi
 
 # Pre-create mcp-system namespace (kagenti chart creates resources there when mcpGateway is enabled)
 if $WITH_MCP_GATEWAY; then
