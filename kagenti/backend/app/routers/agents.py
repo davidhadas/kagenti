@@ -1907,12 +1907,56 @@ async def get_shipwright_build_info(
         raise HTTPException(status_code=e.status, detail=str(e.reason))
 
 
+def _build_authbridge_runtime_yaml(
+    keycloak_url: str,
+    realm: str,
+    issuer: str,
+    spire_enabled: bool,
+) -> str:
+    """Build the YAML config for the unified authbridge binary.
+
+    Matches the structure created by the Helm chart in
+    charts/kagenti/templates/agent-namespaces.yaml. The operator reads
+    this as the base for per-agent ConfigMap generation, merging in mode
+    and listener addresses at injection time.
+    """
+    import yaml as _yaml
+
+    identity_type = "spiffe" if spire_enabled else "client-secret"
+    config = {
+        "mode": "envoy-sidecar",
+        "inbound": {"issuer": issuer},
+        "outbound": {
+            "keycloak_url": keycloak_url,
+            "keycloak_realm": realm,
+            "default_policy": "passthrough",
+        },
+        "identity": {
+            "type": identity_type,
+            "client_id_file": "/shared/client-id.txt",
+            "client_secret_file": "/shared/client-secret.txt",
+        },
+        "bypass": {
+            "inbound_paths": [
+                "/.well-known/*",
+                "/healthz",
+                "/readyz",
+                "/livez",
+            ]
+        },
+    }
+    if spire_enabled:
+        config["identity"]["jwt_svid_path"] = "/opt/jwt_svid.token"
+
+    return _yaml.dump(config, default_flow_style=False)
+
+
 def _ensure_authbridge_configmaps(
     kube: KubernetesService,
     namespace: str,
     spire_enabled: bool = False,
 ) -> None:
-    """Ensure the 3 ConfigMaps required by AuthBridge sidecars exist.
+    """Ensure the 4 ConfigMaps required by AuthBridge sidecars exist.
 
     Creates each ConfigMap only if it does not already exist, so user
     customizations (e.g. pointing at a different Keycloak server) are
@@ -1920,7 +1964,8 @@ def _ensure_authbridge_configmaps(
 
     The ConfigMaps match what the Helm chart creates in
     charts/kagenti/templates/agent-namespaces.yaml:
-      - authbridge-config: Keycloak URLs for go-processor / client-registration
+      - authbridge-config: Keycloak URLs for client-registration
+      - authbridge-runtime-config: YAML config for the unified authbridge binary
       - envoy-config: Envoy proxy listeners and ext-proc integration
       - spiffe-helper-config: SPIFFE workload API socket paths and SVID output
     """
@@ -1930,7 +1975,7 @@ def _ensure_authbridge_configmaps(
     # "iss" claim in JWT tokens issued by Keycloak (split-horizon DNS).
     issuer = f"{settings.effective_keycloak_url}/realms/{realm}"
 
-    # 1. authbridge-config
+    # 1. authbridge-config (flat key-value for client-registration and legacy go-processor)
     kube.ensure_configmap(
         namespace=namespace,
         name="authbridge-config",
@@ -1942,14 +1987,30 @@ def _ensure_authbridge_configmaps(
         },
     )
 
-    # 2. envoy-config
+    # 2. authbridge-runtime-config (YAML config for the unified authbridge binary)
+    # The operator reads this at admission time and creates a per-agent ConfigMap
+    # with mode and listener addresses merged in.
+    kube.ensure_configmap(
+        namespace=namespace,
+        name="authbridge-runtime-config",
+        data={
+            "config.yaml": _build_authbridge_runtime_yaml(
+                keycloak_url=keycloak_url,
+                realm=realm,
+                issuer=issuer,
+                spire_enabled=spire_enabled,
+            )
+        },
+    )
+
+    # 3. envoy-config
     kube.ensure_configmap(
         namespace=namespace,
         name="envoy-config",
         data={"envoy.yaml": DEFAULT_ENVOY_YAML},
     )
 
-    # 3. spiffe-helper-config
+    # 4. spiffe-helper-config
     kube.ensure_configmap(
         namespace=namespace,
         name="spiffe-helper-config",
