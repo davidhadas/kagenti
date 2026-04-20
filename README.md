@@ -7,7 +7,7 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/kagenti/kagenti/badge)](https://scorecard.dev/viewer/?uri=github.com/kagenti/kagenti)
 [![GitHub Release](https://img.shields.io/github/v/release/kagenti/kagenti)](https://github.com/kagenti/kagenti/releases/latest)
 [![License](https://img.shields.io/github/license/kagenti/kagenti)](LICENSE)
-[![Slack](https://img.shields.io/badge/Slack-Join%20us-5865F2?logo=slack&logoColor=white)](https://ibm.biz/kagenti-slack)
+[![Slack](https://img.shields.io/badge/Slack-Join%20us-4A154B?logo=slack&logoColor=white)](https://ibm.biz/kagenti-slack)
 
 **Kagenti** is a cloud-native middleware providing a *framework-neutral*, *scalable*, and *secure* platform for deploying and orchestrating AI agents through standardized agent communication protocols (A2A, MCP).
 
