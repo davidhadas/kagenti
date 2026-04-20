@@ -192,7 +192,7 @@ helm upgrade kagenti "$REPO_ROOT/charts/kagenti" -n "$NS" \
     --reuse-values --no-hooks \
     --set "agentOAuthSecret.image=${REGISTRY}/${AGENT_OAUTH_NAME}" \
     --set "agentOAuthSecret.tag=worktree" \
-    --set "agentOAuthSecret.imagePullPolicy=Always" || true
+    --set "agentOAuthSecret.imagePullPolicy=Always" || { log_error "Helm upgrade failed"; exit 1; }
 
 kubectl wait --for=condition=complete "job/$AGENT_OAUTH_JOB" \
     -n "$NS" --timeout=120s || {

@@ -89,7 +89,7 @@ fi
 
 # Re-trigger Jobs via Helm upgrade (recreates deleted jobs)
 helm upgrade kagenti "$REPO_ROOT/charts/kagenti" -n "$NAMESPACE" \
-    --reuse-values --no-hooks || true
+    --reuse-values --no-hooks || { log_error "Helm upgrade failed"; exit 1; }
 
 # Wait for agent-oauth-secret job to complete
 JOB_NAME="kagenti-agent-oauth-secret-job"
