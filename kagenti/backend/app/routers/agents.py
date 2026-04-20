@@ -1916,10 +1916,9 @@ def _build_authbridge_runtime_yaml(
 ) -> str:
     """Build the YAML config for the unified authbridge binary.
 
-    Matches the structure created by the Helm chart in
-    charts/kagenti/templates/agent-namespaces.yaml. The operator reads
-    this as the base for per-agent ConfigMap generation, merging in mode
-    and listener addresses at injection time.
+    The operator reads this as the base for per-agent ConfigMap generation,
+    merging in mode and listener addresses at injection time. The Helm chart
+    creates an equivalent ConfigMap for pre-declared namespaces (see PR #1278).
     """
     identity_type = "spiffe" if spire_enabled else "client-secret"
     config = {
@@ -1961,12 +1960,14 @@ def _ensure_authbridge_configmaps(
     customizations (e.g. pointing at a different Keycloak server) are
     preserved on subsequent agent deploys.
 
-    The ConfigMaps match what the Helm chart creates in
-    charts/kagenti/templates/agent-namespaces.yaml:
-      - authbridge-config: Keycloak URLs for client-registration
+    ConfigMaps created:
+      - authbridge-config: flat key-value Keycloak URLs for client-registration
       - authbridge-runtime-config: YAML config for the unified authbridge binary
       - envoy-config: Envoy proxy listeners and ext-proc integration
       - spiffe-helper-config: SPIFFE workload API socket paths and SVID output
+
+    For Helm-managed namespaces, the Helm chart creates equivalent
+    ConfigMaps at install time (see agent-namespaces.yaml).
     """
     keycloak_url = settings.keycloak_url or DEFAULT_KEYCLOAK_INTERNAL_URL
     realm = settings.effective_keycloak_realm or DEFAULT_KEYCLOAK_REALM
