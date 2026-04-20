@@ -95,7 +95,7 @@ charts:
   # kuadrant operator - AuthPolicy for MCP Gateway
   ####################################################################
   kuadrant:
-    enabled: false
+    enabled: true
 
   ####################################################################
   # spire
