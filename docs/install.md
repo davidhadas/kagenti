@@ -433,7 +433,7 @@ open http://spire-tornjak-ui.localtest.me:8080/
 
 ```bash
 open http://keycloak.localtest.me:8080/
-# Login: see show-services.sh output for credentials
+# Login: see .github/scripts/local-setup/show-services.sh output for credentials
 ```
 
 ### UI Functionality
