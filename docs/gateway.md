@@ -122,7 +122,7 @@ Make sure to run `kagenti/demo-setup/keycloak-config/slack/set_up_slack_demo.py`
 
 Now, we need to obtain an access token the MCP Broker can use to initialize with the Slack MCP server to list available tools.
 
-In the Kagenti UI, login to Keycloak admin console as `admin/admin`, and then perform the following steps:
+In the Kagenti UI, login to Keycloak admin console with credentials from `show-services.sh`, and then perform the following steps:
 - Go to Clients
 - Go to `kagenti` client which should open settings
 - Under Settings > Capability Config and enable Direct access grants

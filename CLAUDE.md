@@ -13,7 +13,7 @@
 # Show service URLs
 ./.github/scripts/local-setup/show-services.sh
 
-# Access UI at http://kagenti-ui.localtest.me:8080 (admin/admin)
+# Access UI at http://kagenti-ui.localtest.me:8080 (see show-services.sh for credentials)
 ```
 
 ## Repository Structure

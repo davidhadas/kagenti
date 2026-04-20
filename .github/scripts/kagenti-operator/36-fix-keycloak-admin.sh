@@ -6,9 +6,9 @@
 # password. This script:
 #   1. Reads the operator-generated credentials from the secret
 #   2. Logs in with those credentials
-#   3. Creates a permanent admin/admin user (if not exists)
+#   3. Creates a permanent admin user with generated password (if not exists)
 #   4. Creates the demo realm (if not exists)
-#   5. Updates the keycloak-initial-admin secret to admin/admin
+#   5. Updates the keycloak-initial-admin secret to generated credentials
 #
 # Idempotent — safe to run multiple times.
 #
