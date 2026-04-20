@@ -405,6 +405,6 @@ The Kagenti platform serves **10 core personas** across eight specialized reposi
 **Get Involved**:
 
 - 🌐 **Website**: [kagenti.io](http://kagenti.io)
-- 💬 **Discord**: [Join our community](https://discord.gg/aJ92dNDzqB)
+- 💬 **Slack**: [Join our community](https://ibm.biz/kagenti-slack)
 - 📖 **Blog**: [Kagenti Medium Publication](https://medium.com/kagenti-the-agentic-platform)
 - 🐙 **GitHub**: [github.com/kagenti](https://github.com/kagenti)

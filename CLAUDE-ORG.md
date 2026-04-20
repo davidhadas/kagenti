@@ -8,7 +8,7 @@ This document provides context for AI assistants working across the Kagenti orga
 
 **Website**: [kagenti.io](http://kagenti.io)
 **GitHub Organization**: [github.com/kagenti](https://github.com/kagenti)
-**Discord**: [Kagenti Discord](https://discord.gg/aJ92dNDzqB)
+**Slack**: [Kagenti Slack](https://ibm.biz/kagenti-slack)
 
 ## Repository Structure
 

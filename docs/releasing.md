@@ -301,7 +301,7 @@ A GA release is the final, stable, production-ready version.
    - [ ] Installation guide version references are up to date
 
 7. **Announce** the release:
-   - [Discord](https://discord.gg/aJ92dNDzqB)
+   - [Slack](https://ibm.biz/kagenti-slack)
    - [Mailing list](mailto:kagenti-maintainers@googlegroups.com)
    - Consider a blog post for major releases
 
@@ -409,7 +409,7 @@ The skill will:
 2. Pin all image and chart versions to GA tags
 3. Tag all repos in order and verify artifacts
 4. Generate full release notes with a component compatibility table
-5. Draft an announcement for Discord and the mailing list
+5. Draft an announcement for Slack and the mailing list
 
 **Cut a patch release:**
 

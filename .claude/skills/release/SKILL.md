@@ -397,7 +397,7 @@ For GA and significant RC releases:
 
 ```bash
 echo "Announce the release on:"
-echo "  - Discord: https://discord.gg/aJ92dNDzqB"
+echo "  - Slack: https://ibm.biz/kagenti-slack"
 echo "  - Mailing list: kagenti-maintainers@googlegroups.com"
 echo "  - Blog post (major releases)"
 ```
