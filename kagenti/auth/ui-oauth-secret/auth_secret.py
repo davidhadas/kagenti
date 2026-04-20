@@ -395,14 +395,11 @@ def main() -> None:
                             {
                                 "name": "admin",
                                 "description": (
-                                    "Admin realm role for Kagenti "
-                                    "backend RBAC mapping"
+                                    "Admin realm role for Kagenti backend RBAC mapping"
                                 ),
                             }
                         )
-                        logger.info(
-                            f"Created 'admin' realm role in '{keycloak_realm}'"
-                        )
+                        logger.info(f"Created 'admin' realm role in '{keycloak_realm}'")
                     except Exception:
                         logger.info(
                             "'admin' realm role already exists, skipping creation"
