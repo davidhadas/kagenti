@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import urlparse
 
 import httpx
+import yaml
 from fastapi import APIRouter, Depends, HTTPException, Query
 import kubernetes.client
 from kubernetes.client import ApiException
@@ -1920,8 +1921,6 @@ def _build_authbridge_runtime_yaml(
     this as the base for per-agent ConfigMap generation, merging in mode
     and listener addresses at injection time.
     """
-    import yaml as _yaml
-
     identity_type = "spiffe" if spire_enabled else "client-secret"
     config = {
         "mode": "envoy-sidecar",
@@ -1948,7 +1947,7 @@ def _build_authbridge_runtime_yaml(
     if spire_enabled:
         config["identity"]["jwt_svid_path"] = "/opt/jwt_svid.token"
 
-    return _yaml.dump(config, default_flow_style=False)
+    return yaml.dump(config, default_flow_style=False)
 
 
 def _ensure_authbridge_configmaps(
