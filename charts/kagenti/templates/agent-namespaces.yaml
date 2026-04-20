@@ -336,12 +336,6 @@ data:
       keycloak_url: "http://keycloak-service.{{ $root.Values.keycloak.namespace }}.svc:8080"
       keycloak_realm: {{ $root.Values.keycloak.realm | quote }}
       default_policy: "passthrough"
-    listener:
-      # Proxy-sidecar mode: the operator injects these env vars with
-      # dynamically assigned ports. Envoy-sidecar mode ignores them.
-      reverse_proxy_addr: "${REVERSE_PROXY_ADDR}"
-      reverse_proxy_backend: "${REVERSE_PROXY_BACKEND}"
-      forward_proxy_addr: "${FORWARD_PROXY_ADDR}"
     identity:
       # Map Helm clientAuthType to authbridge identity.type:
       #   "client-secret"  → "client-secret" (traditional)

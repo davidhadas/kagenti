@@ -31,7 +31,7 @@ kubectl logs -n team1 deployment/weather-service -c kagenti-client-registration 
 
 echo ""
 echo "=== AuthBridge Unified ConfigMap ==="
-kubectl get configmap authbridge-unified-config -n team1 -o jsonpath='{.data.config\.yaml}' || true
+kubectl get configmap authbridge-runtime-config -n team1 -o jsonpath='{.data.config\.yaml}' || true
 
 echo ""
 echo "=== Weather Service Pod Details (containers, labels, annotations) ==="

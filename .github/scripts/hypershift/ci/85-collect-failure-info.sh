@@ -81,7 +81,7 @@ if [ -n "${KUBECONFIG:-}" ] && [ -f "${KUBECONFIG:-}" ]; then
 
     echo ""
     echo "=== AuthBridge Unified ConfigMap ==="
-    oc get configmap authbridge-unified-config -n team1 -o jsonpath='{.data.config\.yaml}' 2>/dev/null || echo "(not found)"
+    oc get configmap authbridge-runtime-config -n team1 -o jsonpath='{.data.config\.yaml}' 2>/dev/null || echo "(not found)"
 
     echo ""
     echo "=== Weather Service Pod Details (containers, labels, annotations) ==="
