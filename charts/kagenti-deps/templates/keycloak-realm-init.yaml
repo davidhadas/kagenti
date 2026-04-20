@@ -64,6 +64,11 @@ spec:
           description: "Developer with namespace-scoped access"
         - name: ns-admin
           description: "Namespace administrator"
+    groups:
+      - name: mlflow-admin
+        path: /mlflow-admin
+      - name: mlflow
+        path: /mlflow
     users:
       - username: admin
         enabled: true
@@ -77,6 +82,9 @@ spec:
             temporary: false
         realmRoles:
           - admin
+        groups:
+          - mlflow-admin
+          - mlflow
       - username: dev-user
         enabled: true
         emailVerified: true
@@ -89,6 +97,8 @@ spec:
             temporary: false
         realmRoles:
           - developer
+        groups:
+          - mlflow
       - username: ns-admin
         enabled: true
         emailVerified: true
@@ -101,6 +111,26 @@ spec:
             temporary: false
         realmRoles:
           - ns-admin
+        groups:
+          - mlflow
+    clientScopes:
+      - name: kagenti-platform-audience
+        description: "Adds the realm issuer URL as an audience claim so AuthBridge ext-proc accepts the token"
+        protocol: openid-connect
+        attributes:
+          include.in.token.scope: "false"
+          display.on.consent.screen: "false"
+        protocolMappers:
+          - name: kagenti-platform-audience-mapper
+            protocol: openid-connect
+            protocolMapper: oidc-audience-mapper
+            config:
+              included.custom.audience: "{{ .Values.keycloak.publicUrl }}/realms/{{ $realm }}"
+              id.token.claim: "false"
+              access.token.claim: "true"
+              introspection.token.claim: "true"
+    defaultDefaultClientScopes:
+      - kagenti-platform-audience
     clients:
       - clientId: mlflow
         enabled: true
@@ -109,9 +139,19 @@ spec:
         serviceAccountsEnabled: true
         standardFlowEnabled: true
         redirectUris:
-          - "*/callback"
+          - "*"
         webOrigins:
           - "+"
+        protocolMappers:
+          - name: groups
+            protocol: openid-connect
+            protocolMapper: oidc-group-membership-mapper
+            config:
+              full.path: "false"
+              id.token.claim: "true"
+              access.token.claim: "true"
+              userinfo.token.claim: "true"
+              claim.name: groups
 {{- else }}
 ---
 apiVersion: v1
@@ -135,6 +175,10 @@ data:
           { "name": "ns-admin", "description": "Namespace administrator" }
         ]
       },
+      "groups": [
+        { "name": "mlflow-admin", "path": "/mlflow-admin" },
+        { "name": "mlflow", "path": "/mlflow" }
+      ],
       "users": [
         {
           "username": "admin",
@@ -144,7 +188,8 @@ data:
           "lastName": "User",
           "email": "admin@kagenti.local",
           "credentials": [{ "type": "password", "value": "admin", "temporary": false }],
-          "realmRoles": ["admin"]
+          "realmRoles": ["admin"],
+          "groups": ["mlflow-admin", "mlflow"]
         },
         {
           "username": "dev-user",
@@ -154,7 +199,8 @@ data:
           "lastName": "User",
           "email": "dev-user@kagenti.local",
           "credentials": [{ "type": "password", "value": "dev-user", "temporary": false }],
-          "realmRoles": ["developer"]
+          "realmRoles": ["developer"],
+          "groups": ["mlflow"]
         },
         {
           "username": "ns-admin",
@@ -164,9 +210,35 @@ data:
           "lastName": "Admin",
           "email": "ns-admin@kagenti.local",
           "credentials": [{ "type": "password", "value": "ns-admin", "temporary": false }],
-          "realmRoles": ["ns-admin"]
+          "realmRoles": ["ns-admin"],
+          "groups": ["mlflow"]
         }
       ],
+      "clientScopes": [
+        {
+          "name": "kagenti-platform-audience",
+          "description": "Adds the realm issuer URL as an audience claim so AuthBridge ext-proc accepts the token",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "false",
+            "display.on.consent.screen": "false"
+          },
+          "protocolMappers": [
+            {
+              "name": "kagenti-platform-audience-mapper",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-audience-mapper",
+              "config": {
+                "included.custom.audience": {{ printf "%s/realms/%s" .Values.keycloak.publicUrl $realm | quote }},
+                "id.token.claim": "false",
+                "access.token.claim": "true",
+                "introspection.token.claim": "true"
+              }
+            }
+          ]
+        }
+      ],
+      "defaultDefaultClientScopes": ["kagenti-platform-audience"],
       "clients": [
         {
           "clientId": "mlflow",
@@ -175,8 +247,22 @@ data:
           "clientAuthenticatorType": "client-secret",
           "serviceAccountsEnabled": true,
           "standardFlowEnabled": true,
-          "redirectUris": ["*/callback"],
-          "webOrigins": ["+"]
+          "redirectUris": ["*"],
+          "webOrigins": ["+"],
+          "protocolMappers": [
+            {
+              "name": "groups",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-group-membership-mapper",
+              "config": {
+                "full.path": "false",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "userinfo.token.claim": "true",
+                "claim.name": "groups"
+              }
+            }
+          ]
         }
       ]
     }

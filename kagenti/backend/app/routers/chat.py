@@ -490,7 +490,12 @@ async def _stream_a2a_response(
 
     except httpx.HTTPStatusError as e:
         error_msg = f"Agent error: {e.response.status_code}"
-        logger.error(f"{error_msg}: {e.response.text[:500]}")
+        try:
+            await e.response.aread()
+            detail = e.response.text[:500]
+        except Exception:
+            detail = str(e)
+        logger.error(f"{error_msg}: {detail}")
         yield f"data: {json.dumps({'error': error_msg, 'session_id': session_id})}\n\n"
     except httpx.RequestError as e:
         error_msg = f"Connection error: {str(e)}"
