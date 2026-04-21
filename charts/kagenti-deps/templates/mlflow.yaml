@@ -152,14 +152,20 @@ spec:
           ALLOWED_HOSTS="mlflow,mlflow:5000,mlflow.{{ .Release.Namespace }},mlflow.{{ .Release.Namespace }}:5000,mlflow.{{ .Release.Namespace }}.svc.cluster.local,mlflow.{{ .Release.Namespace }}.svc.cluster.local:5000,localhost,127.0.0.1"
           if [ -n "$ROUTE_HOST" ]; then
             ALLOWED_HOSTS="$ROUTE_HOST,$ALLOWED_HOSTS"
+            CORS_ORIGIN="https://$ROUTE_HOST"
+          else
+            CORS_ORIGIN="https://mlflow-{{ .Release.Namespace }}.apps.{{ .Values.domain | default "cluster.local" }}"
           fi
           {{- else }}
           ALLOWED_HOSTS="mlflow.{{ .Values.domain | default "localtest.me" }}:*,mlflow:*,mlflow.{{ .Release.Namespace }}:5000,mlflow.{{ .Release.Namespace }}.svc.cluster.local:5000,localhost:*,127.0.0.1:*"
           ALLOWED_HOSTS="$ALLOWED_HOSTS,mlflow.{{ .Values.domain | default "localtest.me" }},mlflow,mlflow.{{ .Release.Namespace }},mlflow.{{ .Release.Namespace }}.svc.cluster.local,localhost,127.0.0.1"
+          CORS_ORIGIN="{{ .Values.mlflow.corsOrigin | default (printf "http://mlflow.%s:%s" (.Values.domain | default "localtest.me") (toString (.Values.ingressPort | default 8080))) }}"
           {{- end }}
           export MLFLOW_SERVER_ALLOWED_HOSTS="$ALLOWED_HOSTS" && \
           {{- if .Values.mlflow.auth.enabled }}
           export MLFLOW_SERVER_ALLOWED_HOSTS="$ALLOWED_HOSTS" && \
+          export MLFLOW_SERVER_CORS_ALLOWED_ORIGINS="$CORS_ORIGIN" && \
+          export MLFLOW_CORS_ALLOWED_ORIGINS="$CORS_ORIGIN" && \
           # Set MLflow config via environment variables (used by mlflow_oidc_auth.app)
           # Both BACKEND_STORE_URI and TRACKING_URI needed for otel_router to use PostgreSQL
           export MLFLOW_BACKEND_STORE_URI="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/mlflow" && \
@@ -241,6 +247,25 @@ spec:
 
           # NOW import the app (which will use our patched functions)
           from mlflow_oidc_auth.app import app
+
+          # CORS: the stock MLflow UI fetch() requires Access-Control-Allow-Origin
+          # when mlflow-oidc-auth is enabled (the auth redirect on expired sessions
+          # triggers opaque-redirect handling in the browser Fetch spec).
+          from starlette.middleware.cors import CORSMiddleware
+          import os as _os
+          _allowed_origins = [
+              o.strip() for o in
+              _os.environ.get("MLFLOW_CORS_ALLOWED_ORIGINS", "").split(",")
+              if o.strip()
+          ] or ["*"]
+          app.add_middleware(
+              CORSMiddleware,
+              allow_origins=_allowed_origins,
+              allow_credentials=True,
+              allow_methods=["*"],
+              allow_headers=["*"],
+          )
+          print(f"Added CORS middleware (origins={_allowed_origins})")
 
           # Gate /v1/traces with 503 until database init completes
           # This prevents OTEL collector from permanently dropping traces
