@@ -159,6 +159,7 @@ spec:
           {{- end }}
           export MLFLOW_SERVER_ALLOWED_HOSTS="$ALLOWED_HOSTS" && \
           {{- if .Values.mlflow.auth.enabled }}
+          export MLFLOW_SERVER_ALLOWED_HOSTS="$ALLOWED_HOSTS" && \
           # Set MLflow config via environment variables (used by mlflow_oidc_auth.app)
           # Both BACKEND_STORE_URI and TRACKING_URI needed for otel_router to use PostgreSQL
           export MLFLOW_BACKEND_STORE_URI="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/mlflow" && \
