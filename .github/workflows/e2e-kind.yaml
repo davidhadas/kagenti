@@ -125,6 +125,9 @@ jobs:
         if: success()
         run: bash .github/scripts/common/86-print-version-matrix.sh
 
+      - name: Setup test credentials
+        run: bash .github/scripts/common/87-setup-test-credentials.sh
+
       - name: Pre-flight checks
         if: success()
         run: bash .github/scripts/common/90-preflight-checks.sh
