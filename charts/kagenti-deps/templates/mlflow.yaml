@@ -157,6 +157,7 @@ spec:
           ALLOWED_HOSTS="mlflow.{{ .Values.domain | default "localtest.me" }}:*,mlflow:*,mlflow.{{ .Release.Namespace }}:5000,mlflow.{{ .Release.Namespace }}.svc.cluster.local:5000,localhost:*,127.0.0.1:*"
           ALLOWED_HOSTS="$ALLOWED_HOSTS,mlflow.{{ .Values.domain | default "localtest.me" }},mlflow,mlflow.{{ .Release.Namespace }},mlflow.{{ .Release.Namespace }}.svc.cluster.local,localhost,127.0.0.1"
           {{- end }}
+          export MLFLOW_SERVER_ALLOWED_HOSTS="$ALLOWED_HOSTS" && \
           {{- if .Values.mlflow.auth.enabled }}
           # Set MLflow config via environment variables (used by mlflow_oidc_auth.app)
           # Both BACKEND_STORE_URI and TRACKING_URI needed for otel_router to use PostgreSQL
