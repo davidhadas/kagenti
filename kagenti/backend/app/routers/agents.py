@@ -1918,7 +1918,8 @@ def _build_authbridge_runtime_yaml(
 
     The operator reads this as the base for per-agent ConfigMap generation,
     merging in mode and listener addresses at injection time. The Helm chart
-    creates an equivalent ConfigMap for pre-declared namespaces (see PR #1278).
+    creates an equivalent ConfigMap for pre-declared namespaces
+    (see charts/kagenti/templates/agent-namespaces.yaml).
     """
     identity_type = "spiffe" if spire_enabled else "client-secret"
     config = {

@@ -27,7 +27,10 @@ def test_build_authbridge_runtime_yaml_client_secret():
     assert cfg["identity"]["client_id_file"] == "/shared/client-id.txt"
     assert cfg["identity"]["client_secret_file"] == "/shared/client-secret.txt"
     assert "jwt_svid_path" not in cfg["identity"]
-    assert len(cfg["bypass"]["inbound_paths"]) == 4
+    bypass_paths = cfg["bypass"]["inbound_paths"]
+    assert len(bypass_paths) == 4
+    assert "/.well-known/*" in bypass_paths
+    assert "/healthz" in bypass_paths
 
 
 def test_build_authbridge_runtime_yaml_spire_enabled():
