@@ -126,7 +126,7 @@ stringData:
 #  Consolidated config consumed by injected sidecars:
 #  - kagenti-webhook (injects CLIENT_AUTH_TYPE, SPIFFE_IDP_ALIAS, JWT_AUDIENCE into client-registration)
 #  - client-registration sidecar (reads KEYCLOAK_URL, KEYCLOAK_REALM, CLIENT_AUTH_TYPE, SPIFFE_IDP_ALIAS, JWT_AUDIENCE)
-#  - envoy-proxy go-processor (reads ISSUER for inbound JWT validation)
+#  - envoy-proxy go-processor (reads ISSUER, EXPECTED_AUDIENCE for inbound JWT validation)
 #
 #  NOTE: KEYCLOAK_NAMESPACE is NOT used by injected sidecars (credentials come from
 #  local keycloak-admin-secret, replicated to this namespace by agent-oauth-secret Job).
@@ -155,6 +155,10 @@ data:
   CLIENT_AUTH_TYPE: "{{ $root.Values.authBridge.clientAuthType }}"
   SPIFFE_IDP_ALIAS: "{{ $root.Values.authBridge.spiffeIdpAlias }}"
   JWT_AUDIENCE: "{{ $root.Values.keycloak.publicUrl }}/realms/{{ $root.Values.keycloak.realm }}"
+  # EXPECTED_AUDIENCE: Read by authbridge-unified ext_proc (envoy-proxy sidecar)
+  # for inbound JWT "aud" claim validation. Must match the audience mapper value
+  # configured in Keycloak (kagenti-platform-audience scope).
+  EXPECTED_AUDIENCE: "{{ $root.Values.keycloak.publicUrl }}/realms/{{ $root.Values.keycloak.realm }}"
 ---
 # ——————————————————————————————————————————————————————————————————————————————
 #  ConfigMap for Envoy in Namespace: {{ . }}
