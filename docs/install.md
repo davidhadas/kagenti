@@ -361,12 +361,13 @@ echo "https://$(kubectl get route mcp-proxy -n kagenti-system -o jsonpath='{.sta
 
 ### Default Credentials
 
-```
-Username: admin
-Password: admin
+Run the following script to display all service URLs and credentials:
+
+```bash
+./.github/scripts/local-setup/show-services.sh
 ```
 
-Keycloak admin credentials (OpenShift):
+For OpenShift, Keycloak admin credentials can also be retrieved directly:
 
 ```bash
 kubectl get secret keycloak-initial-admin -n keycloak \

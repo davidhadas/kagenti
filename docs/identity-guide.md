@@ -988,9 +988,7 @@ http://mcp-gateway.localtest.me:8080/mcp
 
 ### Default Credentials
 ```yaml
-# Keycloak Admin
-username: admin
-password: admin
+# Keycloak Admin — run ./.github/scripts/local-setup/show-services.sh for actual credentials
 
 # Demo Users
 slack-full-access-user: password
