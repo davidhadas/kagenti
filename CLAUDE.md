@@ -1,4 +1,6 @@
-# CLAUDE.md - Kagenti Repository
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -41,9 +43,46 @@ kagenti/
 |------|---------|
 | Deploy to Kind | `./.github/scripts/local-setup/kind-full-test.sh --skip-cluster-destroy` |
 | Deploy to OpenShift | `./deployments/ansible/run-install.sh --env ocp` |
+| Run backend unit tests | `cd kagenti/backend && uv run pytest tests/ -v` |
+| Run single backend test | `cd kagenti/backend && uv run pytest tests/test_auth.py::TestClassName::test_name -v` |
 | Run E2E tests | `uv run pytest kagenti/tests/e2e/ -v` |
 | Run linter | `make lint` |
 | Pre-commit | `pre-commit run --all-files` |
+| Frontend dev server | `cd kagenti/ui-v2 && npm run dev` (port 3000, proxies `/api` to `:8000`) |
+| Frontend build | `cd kagenti/ui-v2 && npm run build` |
+| Frontend lint | `cd kagenti/ui-v2 && npm run lint` (strict, max-warnings=0) |
+| Frontend unit tests | `cd kagenti/ui-v2 && npm run test:unit` |
+| Frontend E2E tests | `cd kagenti/ui-v2 && npm run test:e2e` (Playwright) |
+| Build UI images | `make build-load-ui` (frontend + backend Docker images for Kind) |
+
+## Architecture
+
+### Backend (kagenti/backend/)
+
+FastAPI app (`app/main.py`) with routers mounted at `/api/v1`. Core routers (agents, tools, chat, auth, namespaces, config, shipwright) are always loaded; feature-flagged routers (sandbox, triggers, integrations) are conditionally imported via try/except.
+
+- **Config**: Pydantic `BaseSettings` in `app/core/config.py` — environment-first with computed fallback properties (e.g., `effective_keycloak_url`). Auto-detects in-cluster vs local via `KUBERNETES_SERVICE_HOST`.
+- **K8s integration**: `KubernetesService` (`app/services/kubernetes.py`) manages agents/tools as CRDs plus Deployments/StatefulSets/Jobs.
+- **Protocols**: A2A agent communication via `a2a-sdk` (agent card discovery at `/.well-known/agent-card.json`, streaming responses). MCP tool integration via `mcp` library with HTTP transport.
+- **Persistence**: asyncpg connection pools (`app/services/session_db.py`), dynamically discovered per namespace from K8s secrets. SSL disabled at app level (Istio ambient mesh provides mTLS).
+- **Auth**: Keycloak OAuth2/OIDC token validation with role-based access decorators.
+
+### Frontend (kagenti/ui-v2/)
+
+React 18 + TypeScript + Vite. PatternFly 5 for UI components. TanStack React Query v5 for server state. React Router v7 for routing.
+
+- **Auth flow**: Keycloak JS adapter wrapped in `AuthContext` → injects token getter into `api.ts` → auto-refreshes on 401.
+- **API client**: `services/api.ts` with `/api/v1` base URL. Vite dev server proxies `/api` to backend on port 8000.
+- **Structure**: `pages/` (route-based), `components/`, `hooks/` (useFeatureFlags, useSessionLoader), `contexts/` (Auth, Theme).
+
+### Helm Charts (charts/)
+
+- `kagenti/` — main platform chart (UI, backend, operator, RBAC, Istio config)
+- `kagenti-deps/` — dependency chart (Keycloak, SPIRE, Istio, Phoenix, etc.)
+
+### Container Builds
+
+Dockerfiles at `kagenti/backend/Dockerfile`, `kagenti/ui-v2/Dockerfile`, `kagenti/llm-budget-proxy/Dockerfile`. Shipwright handles in-cluster builds for agent/tool images.
 
 ## Claude Code Skills
 
@@ -205,8 +244,9 @@ values, operator). Track this in a dedicated issue.
 
 ## Code Style
 
-- Python 3.11+, `uv` package manager
-- Pre-commit hooks: `pre-commit install`
+- **Python**: 3.11+, `uv` package manager, ruff for formatting, pylint for linting
+- **Frontend**: TypeScript strict mode, ESLint (zero warnings allowed), npm
+- **Pre-commit hooks**: `pre-commit install --hook-type pre-commit --hook-type commit-msg` (runs lint, ruff-format, gitleaks secret detection, commit-msg attribution check)
 
 ## DCO Sign-Off (Mandatory)
 

@@ -1,0 +1,66 @@
+Create a new demo named "mcp_elicitation" based on the Kagenti ecosystem. The demo must run on Kubernetes using Kind and must deploy the following components:
+
+Kagenti with an AuthBridge sidecar.
+
+An MCP server.
+
+A Token Broker.
+
+A Backend service that users interact with.
+
+Use the following container images exactly as listed:
+
+Kagenti extension images (use these instead of the upstream kagenti/kagenti-extensions images):
+ghcr.io/davidhadas/kagenti-extensions/authbridge:latest
+This image originate from:
+github.com:davidhadas/kagenti-extensions.git, branch mcp_elicitation
+
+MCP server, token broker, and backend images:
+ghcr.io/davidhadas/kagenti-mcp-server:latest
+ghcr.io/davidhadas/kagenti-token-broker:latest
+ghcr.io/davidhadas/kagenti-backend:latest
+These images originate from:
+github.com:davidhadas/github-mcp-server.git, branch authbridge_sidecar
+
+You must create a complete "mcp_elicitation" demo that follows the deployment patterns and configuration found in:
+github.com:davidhadas/github-mcp-server.git, branch authbridge_sidecar, directory k8s/envoy-demo
+
+Replicate the structure of the envoy-demo for the MCP server, Token Broker, and Backend, including Deployments, Services, ConfigMaps, Envoy sidecar configuration, and any required RBAC or Secrets.
+
+The demo must allow an admin to import an agent and a tool, as is done in Kagenti. The imported agent must use the AuthBridge sidecar image:
+ghcr.io/davidhadas/kagenti-extensions/authbridge:latest
+
+The imported tool must be configured to use the MCP server service deployed inside the Kind cluster.
+
+Later, the GitHub Issue Agent and GitHub Tool will be deployed. The GitHub Tool must be configured to communicate with the MCP server service deployed in Kind using a broker action. The backend service must route user interactions to the Kagenti GitHub Issue Agent.
+
+Your output must include:
+
+A complete directory named "mcp_elicitation" containing:
+
+kind-config.yaml
+
+a k8s/ directory with subdirectories for:
+kagenti/
+mcp-server/
+token-broker/
+backend/
+
+all required Kubernetes manifests:
+Deployments, Services, ConfigMaps, Secrets, Envoy configs, RBAC, Namespaces
+
+a README.md explaining:
+how to create the Kind cluster
+how to deploy the demo
+how to import an agent and tool
+how to test the backend
+
+All manifests must be fully generated and runnable with:
+kind create cluster --config kind-config.yaml
+kubectl apply -f k8s/
+
+All references to Kagenti extensions must use the davidhadas images listed above. All MCP-related services must use the davidhadas images listed above.
+
+The demo must be self-contained and consistent with the architecture and configuration patterns in k8s/envoy-demo.
+
+Produce the full directory structure, all YAML files, and the README.

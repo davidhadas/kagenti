@@ -1,0 +1,64 @@
+# ============================================================================
+# Kagenti Deployment Configuration for MCP Elicitation Demo
+# ============================================================================
+# This configuration deploys kagenti with a custom authbridge sidecar that
+# communicates with the Token Broker service for OAuth token acquisition.
+#
+# Usage:
+#   helm install kagenti ./charts/kagenti -f docs/demos/mcp-elicitation/kagenti-values.yaml
+# ============================================================================
+
+# ------------------------------------------------------------------
+# Custom AuthBridge Configuration
+# ------------------------------------------------------------------
+# Override the default authbridge image to use the Token Broker-enabled version.
+# This custom authbridge will consult with the Token Broker service to obtain
+# OAuth tokens for MCP server authentication.
+kagenti-operator-chart:
+  defaults:
+    images:
+      # Custom authbridge image with Token Broker integration
+      # This image includes the logic to communicate with the Token Broker
+      # for OAuth token acquisition instead of using traditional client secrets
+      authbridgeLight: ghcr.io/davidhadas/kagenti-extensions/authbridge:latest
+
+# ------------------------------------------------------------------
+# AuthBridge Runtime Configuration
+# ------------------------------------------------------------------
+# Configure the authbridge sidecar to communicate with the Token Broker service.
+# The Token Broker service is deployed in the kagenti-mcp-elicitation namespace
+# and provides OAuth tokens for MCP server authentication.
+authBridge:
+  # Use client-secret authentication type (the custom authbridge will handle
+  # the Token Broker communication internally)
+  clientAuthType: "client-secret"
+  
+  # Token Broker service URL
+  # The authbridge sidecar will connect to this service to obtain OAuth tokens.
+  # This URL points to the Token Broker ClusterIP service on port 8190.
+  tokenBrokerUrl: "http://token-broker.kagenti-mcp-elicitation.svc.cluster.local:8190"
+
+# ------------------------------------------------------------------
+# Additional Configuration Notes
+# ------------------------------------------------------------------
+# 
+# How it works:
+# 1. The MCP server pod has the label: kagenti.io/client-registration-inject: "true"
+# 2. The kagenti operator injects the authbridge sidecar into the MCP server pod
+# 3. The authbridge sidecar uses the custom image with Token Broker support
+# 4. When authentication is needed, the authbridge contacts the Token Broker
+#    at the configured URL to obtain OAuth tokens
+# 5. The Token Broker validates the request and returns appropriate tokens
+# 6. The authbridge uses these tokens to authenticate API requests
+#
+# Token Broker Service Details:
+# - Namespace: kagenti-mcp-elicitation
+# - Service Name: token-broker
+# - Port: 8190
+# - Type: ClusterIP
+# - Full URL: http://token-broker.kagenti-mcp-elicitation.svc.cluster.local:8190
+#
+# The authbridge sidecar will be automatically injected into any pod with the
+# kagenti.io/client-registration-inject: "true" label in agent namespaces.
+
+# Made with Bob

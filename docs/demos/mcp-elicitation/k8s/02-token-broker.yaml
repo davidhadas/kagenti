@@ -1,0 +1,123 @@
+---
+# Token Broker Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: token-broker
+  namespace: kagenti-mcp-elicitation
+  labels:
+    app.kubernetes.io/name: token-broker
+    app.kubernetes.io/component: auth
+    app.kubernetes.io/part-of: kagenti
+
+---
+# Token Broker Deployment
+# This service manages authentication tokens and credentials for the demo
+# It is an internal service (ClusterIP) and does NOT require authbridge sidecar injection
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: token-broker
+  namespace: kagenti-mcp-elicitation
+  labels:
+    app.kubernetes.io/name: token-broker
+    app.kubernetes.io/component: auth
+    app.kubernetes.io/part-of: kagenti
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: token-broker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: token-broker
+        app.kubernetes.io/component: auth
+      annotations:
+        # Explicitly disable authbridge injection for internal service
+        kagenti.io/client-registration-inject: "false"
+    spec:
+      serviceAccountName: token-broker
+      containers:
+      - name: token-broker
+        image: ghcr.io/davidhadas/kagenti-token-broker:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8190
+          protocol: TCP
+        env:
+        # OAuth configuration from secret
+        - name: CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: mcp-elicitation-oauth-secret
+              key: CLIENT_ID
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: mcp-elicitation-oauth-secret
+              key: CLIENT_SECRET
+        - name: AUTH_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: mcp-elicitation-oauth-secret
+              key: AUTH_ENDPOINT
+              optional: true
+        - name: TOKEN_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: mcp-elicitation-oauth-secret
+              key: TOKEN_ENDPOINT
+              optional: true
+        # Service configuration
+        - name: PORT
+          value: "8190"
+        - name: LOG_LEVEL
+          value: "info"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        livenessProbe:
+          tcpSocket:
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      restartPolicy: Always
+
+---
+# Token Broker Service
+# Internal ClusterIP service - not exposed outside the cluster
+apiVersion: v1
+kind: Service
+metadata:
+  name: token-broker
+  namespace: kagenti-mcp-elicitation
+  labels:
+    app.kubernetes.io/name: token-broker
+    app.kubernetes.io/component: auth
+    app.kubernetes.io/part-of: kagenti
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: token-broker
+  ports:
+  - name: http
+    port: 8190
+    targetPort: http
+    protocol: TCP
+
+# Made with Bob

@@ -1,0 +1,11 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kagenti-mcp-elicitation
+  labels:
+    app.kubernetes.io/name: kagenti-mcp-elicitation
+    app.kubernetes.io/component: demo
+    app.kubernetes.io/part-of: kagenti
+
+# Made with Bob
