@@ -1,0 +1,96 @@
+---
+# github-elicitation-tool
+#
+# Reference manifest for the dedicated demo tool. This file is no longer intended
+# to be applied directly by deploy.sh. The preferred flow is to import the tool
+# through Kagenti UI from source, pointing at this repository with contextDir `.`
+# and creating the runtime workload in namespace `team1`.
+#
+# This example manifest is kept as documentation for the expected runtime shape:
+# - same general Deployment/Service pattern as github-tool
+# - simple tool pod with no AuthBridge injection
+# - service name follows the {tool-name}-mcp convention
+# - tool listens on port 8000 and forwards /mcp to the upstream demo MCP server
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: github-elicitation-tool
+  namespace: team1
+  labels:
+    kagenti.io/type: tool
+    protocol.kagenti.io/mcp: ""
+    kagenti.io/transport: streamable_http
+    kagenti.io/framework: Python
+    kagenti.io/workload-type: deployment
+    app.kubernetes.io/name: github-elicitation-tool
+    app.kubernetes.io/component: mcp-tool
+    app.kubernetes.io/managed-by: demo-manifest
+  annotations:
+    kagenti.io/description: "Dedicated demo MCP wrapper tool for URL-based GitHub elicitation without PAT input"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: github-elicitation-tool
+  template:
+    metadata:
+      labels:
+        kagenti.io/type: tool
+        protocol.kagenti.io/mcp: ""
+        kagenti.io/transport: streamable_http
+        kagenti.io/framework: Python
+        app.kubernetes.io/name: github-elicitation-tool
+        app.kubernetes.io/component: mcp-tool
+      annotations:
+        kagenti.io/client-registration-inject: "false"
+    spec:
+      containers:
+        - name: github-elicitation-tool
+          image: ghcr.io/davidhadas/github-elicitation-tool:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: UPSTREAM_MCP_URL
+              value: "http://mcp-server.kagenti-mcp-elicitation.svc.cluster.local:8184"
+            - name: PORT
+              value: "8000"
+            - name: LOG_LEVEL
+              value: "info"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: github-elicitation-tool-mcp
+  namespace: team1
+  labels:
+    kagenti.io/type: tool
+    protocol.kagenti.io/mcp: ""
+    kagenti.io/transport: streamable_http
+    app.kubernetes.io/name: github-elicitation-tool
+    app.kubernetes.io/component: mcp-tool
+    app.kubernetes.io/managed-by: demo-manifest
+  annotations:
+    kagenti.io/description: "Service endpoint for github-elicitation-tool MCP traffic"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: github-elicitation-tool
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP
+
+# Made with Bob

@@ -2,166 +2,185 @@
 
 ## Overview
 
-This document describes the architecture of the MCP Elicitation demo, which demonstrates Kagenti's integration with Model Context Protocol (MCP) servers. The demo showcases how agents imported via the Kagenti dashboard automatically receive authbridge sidecar injection for secure communication with MCP servers.
+This demo introduces a dedicated MCP tool named `github-elicitation-tool`,
+separate from the existing `github-tool`.
+
+Target behavior:
+
+- agents use it like a normal MCP tool
+- the tool is imported into `team1`
+- the tool is built from source via Kagenti UI
+- the tool itself stays simple
+- the tool forwards MCP traffic to the demo MCP server
+- PAT-based demo complexity is avoided in the tool import path
+
+The wrapper implementation lives at:
+
+- `kagenti/tools/github-elicitation-tool/`
 
 ## Architecture Diagram
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                     kagenti-mcp-elicitation                          │
-│                            Namespace                                 │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                      │
-│  ┌────────────┐                                                     │
-│  │   User     │                                                     │
-│  └─────┬──────┘                                                     │
-│        │                                                             │
-│        ▼                                                             │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │              Backend Service                                  │  │
-│  │  (User Interface & Request Handling)                          │  │
-│  └────────────────────────────┬─────────────────────────────────┘  │
-│                               │                                     │
-│                               ▼                                     │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │              Kagenti Agent Pod                                │  │
-│  │              (Imported via Dashboard)                         │  │
-│  │  ┌────────────────┐  ┌──────────────────────────────────┐   │  │
-│  │  │  Agent         │  │  Authbridge Sidecar              │   │  │
-│  │  │  Container     │◄─┤  (Auto-injected by Kagenti)     │   │  │
-│  │  │                │  │  - Intercepts outbound calls     │   │  │
-│  │  │                │  │  - Adds OAuth tokens             │   │  │
-│  │  └────────────────┘  └──────────┬───────────────────────┘   │  │
-│  └─────────────────────────────────┼───────────────────────────┘  │
-│                                     │                               │
-│                                     │ Consults for tokens           │
-│                                     ▼                               │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │              Token Broker                                     │  │
-│  │  (OAuth Token Management)                                     │  │
-│  │  - Stores OAuth credentials                                   │  │
-│  │  - Issues tokens to authbridge                                │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│                                     │                               │
-│                                     │ Agent calls with OAuth token  │
-│                                     ▼                               │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │              MCP Server                                       │  │
-│  │  (Standalone Service - NO authbridge)                         │  │
-│  │  - Receives authenticated requests from agents                │  │
-│  │  - Implements Model Context Protocol                          │  │
-│  └──────────────────────────────────────────────────────────────┘  │
-│                                                                      │
-└─────────────────────────────────────────────────────────────────────┘
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                             Demo Infrastructure                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  User ──► Backend / UI ──► Agent Pod in team1 ──► github-elicitation-tool  │
+│                            (with AuthBridge)      service:                  │
+│                                                        github-elicitation-  │
+│                                                        tool-mcp:8000        │
+│                                                                             │
+│                                        │                                    │
+│                                        ▼                                    │
+│                 mcp-server.kagenti-mcp-elicitation.svc.cluster.local        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Components
+## Main Components
 
-### Kagenti Agent (Imported via Dashboard)
+### Agent
 
-- **Deployment Method**: Imported dynamically through the Kagenti dashboard UI
-- **Authbridge Sidecar**: Automatically injected by the kagenti-operator webhook when the agent is imported
-- **Sidecar Image**: `ghcr.io/davidhadas/kagenti-extensions/authbridge:latest`
-- **Purpose**: The agent executes AI tasks, while the authbridge sidecar handles authentication
-- **Key Feature**: The authbridge sidecar intercepts all outbound HTTP calls from the agent and adds OAuth tokens
+- imported through Kagenti UI
+- deployed in namespace `team1`
+- uses AuthBridge sidecar injection
+- calls the tool using:
+  - `http://github-elicitation-tool-mcp.team1.svc.cluster.local:8000/mcp`
 
-### MCP Server (Standalone Service)
+### github-elicitation-tool
 
-- **Image**: `ghcr.io/davidhadas/kagenti-mcp-server:latest`
-- **Purpose**: Implements the Model Context Protocol for tool integration
-- **Deployment**: Deployed as a standard Kubernetes service (no authbridge injection needed)
-- **Communication**: Receives authenticated requests from agents that have authbridge sidecars
-- **Role**: Acts as a service endpoint that processes MCP protocol requests
+- separate tool identity from `github-tool`
+- lightweight wrapper built from source by Kagenti
+- imported through Kagenti UI
+- no AuthBridge injection
+- no PAT-based tool credential wiring
+- listens on port `8000`
+- forwards `/mcp` requests to the upstream demo MCP server
 
-### Token Broker
+### Upstream MCP Server
 
-- **Image**: `ghcr.io/davidhadas/kagenti-token-broker:latest`
-- **Purpose**: Centralized OAuth token management service
-- **Role**:
-  - Stores OAuth client credentials (CLIENT_ID, CLIENT_SECRET)
-  - Issues OAuth tokens to authbridge sidecars upon request
-  - Manages token lifecycle and refresh
-- **Integration**: Consulted by authbridge sidecars when they need to authenticate outbound calls
+- namespace: `kagenti-mcp-elicitation`
+- image: `ghcr.io/davidhadas/kagenti-mcp-server:latest`
+- receives forwarded requests from `github-elicitation-tool`
 
-### Backend Service
+### Token Broker / Demo Auth Infrastructure
 
-- **Image**: `ghcr.io/davidhadas/kagenti-backend:latest`
-- **Purpose**: Provides the user interface and handles user requests
-- **Integration**: Routes user requests to appropriate agents
-- **Role**: Entry point for user interactions with the system
+- supports the demo authentication flow
+- remains outside the simple tool wrapper
+- keeps auth concerns out of the tool implementation itself
 
-## Authentication Flow
+### Backend
 
-1. **User Request**: User interacts with the Backend Service
-2. **Agent Invocation**: Backend routes the request to a Kagenti Agent
-3. **Agent Import**: Agent is imported via Kagenti dashboard (if not already present)
-4. **Automatic Injection**: Kagenti-operator webhook automatically injects the authbridge sidecar into the agent pod
-5. **Outbound Call Interception**: When the agent makes a call to the MCP Server, the authbridge sidecar intercepts it
-6. **Token Acquisition**: Authbridge sidecar consults the Token Broker to obtain an OAuth token
-7. **Token Addition**: Authbridge adds the OAuth token to the outbound request
-8. **Authenticated Request**: MCP Server receives the authenticated request and processes it
-9. **Response**: Response flows back through the authbridge to the agent, then to the backend, and finally to the user
+- user-facing demo frontend/backend
+- helps exercise the end-to-end demo flow
 
-## Agent Import Process
+## Request Flow
 
-Agents are **not** deployed as static Kubernetes manifests. Instead, they are imported dynamically through the Kagenti dashboard:
+1. User interacts with the demo backend or an imported agent
+2. Agent runs in `team1` with AuthBridge sidecar
+3. Agent sends MCP traffic to:
+   - `github-elicitation-tool-mcp.team1.svc.cluster.local:8000/mcp`
+4. `github-elicitation-tool` receives the request
+5. The wrapper forwards the MCP request to:
+   - `http://mcp-server.kagenti-mcp-elicitation.svc.cluster.local:8184`
+6. The upstream MCP server processes the request
+7. Response returns back through the wrapper to the agent
 
-1. **Access Dashboard**: Navigate to the Kagenti dashboard UI
-2. **Import Agent**: Use the agent import feature to add a new agent
-3. **Automatic Configuration**: The kagenti-operator automatically:
-   - Creates the agent pod
-   - Injects the authbridge sidecar
-   - Configures the sidecar to use the Token Broker
-4. **Ready to Use**: The agent is immediately available with full authentication capabilities
+## Why This Design
 
-## Security Considerations
+This design keeps the demo simple and clear:
 
-### Authbridge Sidecar Injection
+- the tool is visible as its own resource in Kagenti
+- the tool behaves like the existing `github-tool` from the agent perspective
+- the tool import path matches the existing github demo: source import through UI
+- the wrapper is small and easy to explain
+- auth and upstream complexity stay outside the wrapper implementation
 
-- **Automatic Injection**: When agents are imported via the Kagenti dashboard, the kagenti-operator webhook automatically injects the authbridge sidecar
-- **No Manual Configuration**: Developers don't need to manually add authbridge labels or configurations
-- **Consistent Security**: All imported agents automatically get the same security posture
+## Deployment Model
 
-### Authentication Architecture
+### Infrastructure deployed by script
 
-- **Token Broker Centralization**: OAuth credentials are stored centrally in the Token Broker, not in individual agent pods
-- **Sidecar Interception**: The authbridge sidecar intercepts all outbound HTTP calls from the agent container
-- **Automatic Token Addition**: OAuth tokens are automatically added to requests without agent code changes
-- **MCP Server Simplicity**: The MCP Server is a simple service endpoint that receives authenticated requests
+`./scripts/deploy.sh` deploys:
 
-### Security Best Practices
+1. namespace and infrastructure manifests
+2. token broker
+3. MCP server
+4. backend
+5. port-forwarding support
 
-- **Credential Isolation**: OAuth credentials are stored in Kubernetes secrets and accessed only by the Token Broker
-- **Least Privilege**: Agents don't have direct access to OAuth credentials; they rely on the authbridge sidecar
-- **Service Separation**: MCP Server is a standalone service without authentication responsibilities
-- **Transparent Security**: Authentication is handled transparently by the authbridge sidecar
+It does **not** apply a live `github-elicitation-tool` workload.
 
-## Network Policies
+### Tool deployment model
 
-(TODO: Define network policies for component communication)
+Preferred flow:
 
-## Deployment Order
+1. import the tool through Kagenti UI into `team1`
+2. choose source-based deployment
+3. point to this repository
+4. use `contextDir: .`
+5. let Kagenti build the wrapper image through Shipwright
 
-The deployment follows this sequence:
+Reference manifest:
 
-1. **Namespace creation** (`00-namespace.yaml`)
-2. **OAuth Secret** (`01-oauth-secret.yaml`) - Contains OAuth credentials for the Token Broker
-3. **Token Broker** (`02-token-broker.yaml`) - Must be deployed before agents need tokens
-4. **MCP Server** (`03-mcp-server.yaml`) - Standalone service endpoint
-5. **Backend Service** (`04-backend.yaml`) - User interface and request handler
-6. **Agent Import** - Agents are imported via the Kagenti dashboard (not deployed as manifests)
+- `docs/demos/mcp-elicitation/k8s/05-github-elicitation-tool.yaml`
 
-**Important**: Agents are NOT deployed using static manifests. They are imported dynamically through the Kagenti dashboard, which triggers automatic authbridge sidecar injection.
+That manifest documents the expected runtime shape but is no longer the primary
+deployment path.
 
-## Future Enhancements
+## Source Build Expectations
 
-- Add monitoring and observability
-- Implement rate limiting
-- Add circuit breakers for resilience
-- Enhance logging and tracing
+The wrapper Dockerfile currently uses repo-root-relative `COPY` instructions:
 
-## References
+- `COPY kagenti/tools/github-elicitation-tool/pyproject.toml ./pyproject.toml`
+- `COPY kagenti/tools/github-elicitation-tool/app.py ./app.py`
 
-- [Model Context Protocol Specification](https://modelcontextprotocol.io/)
-- [Kagenti Authentication Guide](../../identity-guide.md)
-- [Authbridge Documentation](../../authbridge-combined-sidecar.md)
+Because of that, the expected Kagenti source import values are:
+
+- `gitUrl`: repository URL
+- `gitRevision`: desired branch/tag
+- `contextDir`: `.`
+
+## Tool Runtime Shape
+
+Expected characteristics of `github-elicitation-tool`:
+
+- `Deployment`
+- namespace: `team1`
+- service: `github-elicitation-tool-mcp`
+- transport: `streamable_http`
+- protocol label: MCP
+- service port: `8000`
+- MCP endpoint: `/mcp`
+- environment:
+  - `UPSTREAM_MCP_URL=http://mcp-server.kagenti-mcp-elicitation.svc.cluster.local:8184`
+
+## Agent Configuration
+
+Recommended outbound route:
+
+- host pattern: `github-elicitation-tool-mcp`
+- target audience: `github-elicitation-tool`
+- token scopes: `openid`
+
+Recommended environment variable:
+
+```bash
+MCP_URL=http://github-elicitation-tool-mcp.team1.svc.cluster.local:8000/mcp
+```
+
+## Files
+
+Key files for this implementation:
+
+- `kagenti/tools/github-elicitation-tool/app.py`
+- `kagenti/tools/github-elicitation-tool/pyproject.toml`
+- `kagenti/tools/github-elicitation-tool/Dockerfile`
+- `kagenti/tools/github-elicitation-tool/README.md`
+- `docs/demos/mcp-elicitation/k8s/05-github-elicitation-tool.yaml`
+- `docs/demos/mcp-elicitation/scripts/deploy.sh`
+- `docs/demos/mcp-elicitation/README.md`
+
+## Remaining Alignment Work
+
+Operational validation now centers on confirming the source-import flow and the
+required `UPSTREAM_MCP_URL` configuration in the UI-created tool workload.

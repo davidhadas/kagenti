@@ -41,7 +41,7 @@ spec:
       containers:
       - name: token-broker
         image: ghcr.io/davidhadas/kagenti-token-broker:latest
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         ports:
         - name: http
           containerPort: 8190
