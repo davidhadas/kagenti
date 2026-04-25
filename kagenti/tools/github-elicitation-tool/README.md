@@ -1,6 +1,6 @@
 # github-elicitation-tool
 
-Small image-backed MCP proxy used by the MCP elicitation demo.
+Small MCP proxy used by the MCP elicitation demo.
 
 ## Purpose
 
@@ -31,10 +31,10 @@ Environment variables:
 
 ## Build
 
-From the repository root:
+For local manual testing from the repository root:
 
 ```bash
-docker build -t localhost/kagenti/github-elicitation-tool:latest -f kagenti/tools/github-elicitation-tool/Dockerfile .
+docker build -t localhost/kagenti/github-elicitation-tool:latest -f kagenti/tools/github-elicitation-tool/Dockerfile kagenti/tools/github-elicitation-tool
 ```
 
 ## Local run
@@ -47,14 +47,24 @@ docker run --rm -p 8000:8000 \
 
 ## Kagenti UI import
 
+Primary demo flow: import from source.
+
 Use Kagenti **Import Tool** with:
 
 - Namespace: `team1`
 - Tool name: `github-elicitation-tool`
-- Deployment method: `Deploy from existing image`
-- Image: `localhost/kagenti/github-elicitation-tool:latest`
+- Git Repository URL: `https://github.com/davidhadas/kagenti.git`
+- Git Branch or Tag: `mcp_elicitation`
+- Select Tool: leave as `Select an example...`
+- Source Subfolder: `kagenti/tools/github-elicitation-tool`
 - Workload type: `Deployment`
 - Protocol: `streamable_http`
+
+Set this environment variable during import if the UI allows it:
+
+```bash
+UPSTREAM_MCP_URL=http://mcp-server.kagenti-mcp-elicitation.svc.cluster.local:8184
+```
 
 The service created by Kagenti should be:
 

@@ -339,7 +339,7 @@ data:
     outbound:
       keycloak_url: "http://keycloak-service.{{ $root.Values.keycloak.namespace }}.svc:8080"
       keycloak_realm: {{ $root.Values.keycloak.realm | quote }}
-      default_policy: "passthrough"
+      default_policy: {{ $root.Values.authBridge.defaultPolicy | quote }}
     identity:
       # Map Helm clientAuthType to authbridge identity.type:
       #   "client-secret"  → "client-secret" (traditional)

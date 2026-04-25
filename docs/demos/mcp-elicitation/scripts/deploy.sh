@@ -116,13 +116,34 @@ if [ -z "$GITHUB_OAUTH_CLIENT_ID" ] || [ -z "$GITHUB_OAUTH_CLIENT_SECRET" ]; the
     exit 1
 fi
 
+if [ -z "$GITHUB_TOKEN" ]; then
+    echo "❌ Error: GITHUB_TOKEN not set in .env"
+    echo "   A GitHub PAT is required to pull private container images from ghcr.io"
+    exit 1
+fi
+
 echo "   Using CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID:0:3}..."
 echo "   Using CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET:0:3}..."
-echo "✓ OAuth credentials loaded from .env"
+echo "   Using GITHUB_TOKEN: ${GITHUB_TOKEN:0:7}..."
+echo "✓ Credentials loaded from .env"
 
 echo ""
 echo "All preflight checks passed!"
 echo ""
+
+# ============================================================================
+# Build Backend Image
+# ============================================================================
+echo "=============================================="
+echo "Building Backend from Local Source"
+echo "=============================================="
+echo ""
+echo "Building backend image with Keycloak authentication..."
+cd "${DEMO_DIR}"
+docker build -t localhost/kagenti-backend-local:latest -f Dockerfile .
+echo "✓ Backend image built successfully"
+echo ""
+cd "${SCRIPT_DIR}"
 
 # ============================================================================
 # Kind Cluster Detection and Image Preloading
@@ -132,80 +153,84 @@ echo "Checking for Kind Cluster"
 echo "=============================================="
 echo ""
 
-# Detect if running on Kind cluster
-IS_KIND=false
-if kubectl get nodes -o jsonpath='{.items[0].metadata.name}' 2>/dev/null | grep -q "kind"; then
-    IS_KIND=true
-    echo "✓ Kind cluster detected"
-    echo ""
-    
-    # Check if kind CLI is available
+# Always assume Kind cluster for this demo
+IS_KIND=true
+echo "✓ Assuming Kind cluster (always load images)"
+echo ""
+
     if ! command -v kind &> /dev/null; then
-        echo "⚠️  Warning: kind CLI not found in PATH"
-        echo "   Image preloading will be skipped"
-        echo "   Install kind CLI or manually load images using:"
-        echo "   kind load docker-image <image-name>"
-        echo ""
-    else
-        echo "=============================================="
-        echo "Preloading Images into Kind Cluster"
-        echo "=============================================="
-        echo ""
-        echo "Kind clusters require the demo infrastructure images to be preloaded."
-        echo "This will load the following images:"
-        echo "  - ghcr.io/davidhadas/kagenti-mcp-server:latest"
-        echo "  - ghcr.io/davidhadas/kagenti-token-broker:latest"
-        echo "  - ghcr.io/davidhadas/kagenti-backend:latest"
-        echo "  - ghcr.io/davidhadas/kagenti-extensions/authbridge:latest"
-        echo ""
-        echo "The github-elicitation-tool is now imported from source via Kagenti UI,"
-        echo "so no separate local tool image build/load is required for the primary flow."
-        echo ""
-        
-        read -p "Do you want to preload infrastructure images now? (yes/no/skip): " -r
-        echo ""
-        
-        if [[ $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
-            KIND_CLUSTER=$(kubectl config current-context | sed 's/kind-//')
-            echo "Loading images into Kind cluster: ${KIND_CLUSTER}"
-            echo ""
-            
-            IMAGES=(
-                "ghcr.io/davidhadas/kagenti-mcp-server:latest"
-                "ghcr.io/davidhadas/kagenti-token-broker:latest"
-                "ghcr.io/davidhadas/kagenti-backend:latest"
-                "ghcr.io/davidhadas/kagenti-extensions/authbridge:latest"
-            )
-            
-            for IMAGE in "${IMAGES[@]}"; do
-                echo "Loading ${IMAGE}..."
-                if kind load docker-image "${IMAGE}" --name "${KIND_CLUSTER}"; then
-                    echo "✓ ${IMAGE} loaded successfully"
-                else
-                    echo "⚠️  Warning: Failed to load ${IMAGE}"
-                    echo "   Make sure the image exists locally (docker pull ${IMAGE})"
-                fi
-                echo ""
-            done
-            
-            echo "✓ Infrastructure image preloading complete"
-            echo ""
-        elif [[ $REPLY =~ ^[Ss][Kk][Ii][Pp]$ ]]; then
-            echo "⚠️  Skipping image preloading"
-            echo "   If you encounter ErrImagePull errors for demo infrastructure, run:"
-            echo "   ${SCRIPT_DIR}/load-images.sh"
-            echo ""
-        else
-            echo "❌ Image preloading is required for Kind clusters"
-            echo "   Please run this script again and choose 'yes' to preload images"
-            echo "   Or manually load images using: ${SCRIPT_DIR}/load-images.sh"
+        echo "❌ Error: kind CLI not found in PATH (required for image loading)"
+        exit 1
+    fi
+
+    KIND_CLUSTER=$(kubectl config current-context | sed 's/kind-//')
+
+    echo "=============================================="
+    echo "Pulling and Loading Images into Kind Cluster"
+    echo "=============================================="
+    echo ""
+
+    # Authenticate with GHCR using the PAT from .env
+    echo "Authenticating with GitHub Container Registry..."
+    echo "$GITHUB_TOKEN" | docker login ghcr.io -u davidhadas --password-stdin 2>&1
+    if [ $? -ne 0 ]; then
+        echo "❌ Error: Failed to authenticate with GHCR"
+        echo "   Check that GITHUB_TOKEN in .env is a valid PAT with packages:read scope"
+        exit 1
+    fi
+    echo "✓ Authenticated with GHCR"
+    echo ""
+
+    IMAGES=(
+        "ghcr.io/davidhadas/kagenti-mcp-server:latest"
+        "ghcr.io/davidhadas/kagenti-token-broker:latest"
+        "ghcr.io/davidhadas/kagenti-extensions/authbridge:latest"
+    )
+
+    for IMAGE in "${IMAGES[@]}"; do
+        echo "Pulling ${IMAGE}..."
+        if ! docker pull "${IMAGE}"; then
+            echo "❌ Error: Failed to pull ${IMAGE}"
             exit 1
         fi
+        echo "Loading ${IMAGE} into Kind cluster..."
+        if ! kind load docker-image "${IMAGE}" --name "${KIND_CLUSTER}"; then
+            echo "❌ Error: Failed to load ${IMAGE} into Kind"
+            exit 1
+        fi
+        echo "✓ ${IMAGE} ready"
+        echo ""
+    done
+
+    # Load locally-built backend image
+    echo "Loading localhost/kagenti-backend-local:latest into Kind cluster..."
+    if ! kind load docker-image localhost/kagenti-backend-local:latest --name "${KIND_CLUSTER}"; then
+        echo "❌ Error: Failed to load backend image into Kind"
+        exit 1
     fi
-else
-    echo "ℹ️  Not a Kind cluster - skipping image preloading"
+    echo "✓ Backend image loaded"
     echo ""
-fi
+
+    # Verify critical images are present in the Kind node
+    echo "Verifying images are available inside Kind node..."
+    REQUIRED_IMAGES=(
+        "ghcr.io/davidhadas/kagenti-mcp-server:latest"
+        "ghcr.io/davidhadas/kagenti-token-broker:latest"
+        "ghcr.io/davidhadas/kagenti-extensions/authbridge:latest"
+        "localhost/kagenti-backend-local:latest"
+    )
+    for IMG in "${REQUIRED_IMAGES[@]}"; do
+        if docker exec "${KIND_CLUSTER}-control-plane" crictl images 2>/dev/null | grep -q "$(echo $IMG | cut -d: -f1)"; then
+            echo "  ✓ $IMG found on Kind node"
+        else
+            echo "  ⚠️  $IMG may not be on Kind node — pod may fail to start"
+        fi
+    done
+    echo ""
+
+    echo "✓ All images pulled and loaded into Kind"
+    echo ""
+
 
 # ============================================================================
 # Step 1: Install Kagenti with Custom AuthBridge Configuration
@@ -217,18 +242,8 @@ echo ""
 
 # Check if Kagenti is already installed
 if helm list -n ${KAGENTI_NAMESPACE} | grep -q "^${HELM_RELEASE}"; then
-    echo "⚠️  Kagenti is already installed in namespace ${KAGENTI_NAMESPACE}"
-    read -p "Do you want to upgrade the existing installation? (yes/no): " -r
-    echo ""
-    if [[ $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
-        echo "Upgrading Kagenti..."
-        helm upgrade ${HELM_RELEASE} ${CHARTS_DIR} \
-            -f ${VALUES_FILE} \
-            -n ${KAGENTI_NAMESPACE}
-        echo "✓ Kagenti upgraded successfully"
-    else
-        echo "Skipping Kagenti installation"
-    fi
+    echo "✓ Kagenti is already installed in namespace ${KAGENTI_NAMESPACE}"
+    echo "  Skipping Kagenti installation (use cleanup.sh to reinstall)"
 else
     echo "Installing Kagenti with custom authbridge configuration..."
     echo "  Release: ${HELM_RELEASE}"
@@ -290,7 +305,12 @@ fi
 ' || echo "⚠️  Note: Keycloak client configuration will be set up on first UI access"
 
 echo ""
-echo "✓ Keycloak client configuration complete"
+echo "✓ Keycloak client redirect URIs configured"
+echo ""
+
+# Configure backend Keycloak client
+echo "Configuring Keycloak client for backend service..."
+bash "${SCRIPT_DIR}/configure-keycloak-client.sh"
 echo ""
 
 # ============================================================================
@@ -328,7 +348,7 @@ echo ""
 # Delete existing secret if it exists
 kubectl delete secret mcp-elicitation-oauth-secret -n ${NAMESPACE} 2>/dev/null || true
 
-# Create secret from environment variables
+# Create secret with keys matching 03-mcp-server.yaml (the only consumer)
 kubectl create secret generic mcp-elicitation-oauth-secret \
   --from-literal=client-id="$GITHUB_OAUTH_CLIENT_ID" \
   --from-literal=client-secret="$GITHUB_OAUTH_CLIENT_SECRET" \
@@ -338,7 +358,7 @@ echo "✓ OAuth secret created successfully"
 echo ""
 
 # ============================================================================
-# Step 4: Deploy Token Broker Service
+# Step 4: Deploy Token Broker, MCP Server, and Backend
 # ============================================================================
 echo "=============================================="
 echo "Step 4: Deploying Token Broker"
@@ -347,58 +367,48 @@ echo ""
 
 echo "Deploying Token Broker service..."
 kubectl apply -f "${K8S_DIR}/02-token-broker.yaml"
-
-echo ""
-echo "Waiting for Token Broker to be ready..."
-kubectl wait --for=condition=available --timeout=120s \
-    deployment/token-broker -n ${NAMESPACE}
-
-echo "✓ Token Broker is ready"
-echo ""
-
-# ============================================================================
-# Step 5: Deploy MCP Server
-# ============================================================================
-echo "=============================================="
-echo "Step 5: Deploying MCP Server"
-echo "=============================================="
-echo ""
+kubectl rollout restart deployment/token-broker -n ${NAMESPACE} 
 
 echo "Deploying MCP Server..."
 kubectl apply -f "${K8S_DIR}/03-mcp-server.yaml"
+kubectl rollout restart deployment/mcp-server -n ${NAMESPACE} 
 
-echo ""
-echo "Waiting for MCP Server to be ready..."
-kubectl wait --for=condition=available --timeout=120s \
-    deployment/mcp-server -n ${NAMESPACE}
-
-echo "✓ MCP Server is ready"
-echo ""
-
-# ============================================================================
-# Step 6: Deploy Backend Service
-# ============================================================================
-echo "=============================================="
-echo "Step 6: Deploying Backend Service"
-echo "=============================================="
-echo ""
 
 echo "Deploying Backend service..."
 kubectl apply -f "${K8S_DIR}/04-backend.yaml"
+kubectl rollout restart deployment/backend -n ${NAMESPACE} 
+
+
+# ============================================================================
+# Step 5: Verify Deployments
+# ============================================================================
 
 echo ""
-echo "Waiting for Backend to be ready..."
-kubectl wait --for=condition=available --timeout=120s \
-    deployment/backend -n ${NAMESPACE}
+echo "Waiting for Token Broker to be ready..."
+kubectl rollout status deployment/token-broker -n ${NAMESPACE} --timeout=120s
+echo "✓ Token Broker is ready"
+echo ""
 
+echo "Waiting for MCP Server to be ready..."
+kubectl rollout status deployment/mcp-server -n ${NAMESPACE} --timeout=120s
+echo "✓ MCP Server is ready"
+echo ""
+
+echo "Waiting for Backend rollout to complete..."
+kubectl rollout status deployment/backend -n ${NAMESPACE} --timeout=120s
+
+echo ""
+echo "Waiting for Backend pod to pass readiness probe..."
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=backend \
+    -n ${NAMESPACE} --timeout=120s
 echo "✓ Backend is ready"
 echo ""
 
 # ============================================================================
-# Step 7: github-elicitation-tool source import
+# Step 6: github-elicitation-tool source import
 # ============================================================================
 echo "=============================================="
-echo "Step 7: Import github-elicitation-tool via Kagenti UI"
+echo "Step 6: Import github-elicitation-tool via Kagenti UI"
 echo "=============================================="
 echo ""
 echo "No static github-elicitation-tool manifest is applied by this script."
@@ -452,101 +462,127 @@ else
 fi
 
 # ============================================================================
-# Step 8: Setup Port Forwarding
+# Step 7: Setup Port Forwarding
 # ============================================================================
 echo "=============================================="
-echo "Step 8: Setting Up Port Forwarding"
+echo "Step 7: Setting Up Port Forwarding"
 echo "=============================================="
 echo ""
 
-# Check if port forwards are already running
-EXISTING_PF=$(ps aux | grep "kubectl port-forward" | grep -v grep | grep -E "(kagenti-ui|backend)" | wc -l)
-SHOULD_START_PF=true
-
-if [ "$EXISTING_PF" -gt 0 ]; then
-    echo "⚠️  Port forwards are already running:"
-    ps aux | grep "kubectl port-forward" | grep -v grep | grep -E "(kagenti-ui|backend)"
-    echo ""
-    read -p "Do you want to restart port forwarding? (yes/no): " -r
-    echo ""
-    if [[ $REPLY =~ ^[Yy][Ee][Ss]$ ]]; then
-        echo "Stopping existing port forwards..."
-        pkill -f "kubectl port-forward.*kagenti-ui" 2>/dev/null || true
-        pkill -f "kubectl port-forward.*backend" 2>/dev/null || true
+# Function to kill existing kubectl port-forward processes for a specific port
+kill_port_forward() {
+    local port=$1
+    local pids=$(ps aux | grep "kubectl port-forward" | grep -v grep | grep ":${port}" | awk '{print $2}')
+    if [ -n "$pids" ]; then
+        echo "  Killing existing kubectl port-forward processes for port $port: $pids"
+        echo "$pids" | xargs kill 2>/dev/null || true
         sleep 2
-        echo "✓ Existing port forwards stopped"
-        echo ""
-        SHOULD_START_PF=true
-    else
-        echo "✓ Keeping existing port forwards"
-        echo ""
-        SHOULD_START_PF=false
     fi
-fi
+}
 
-# Only start port forwarding if needed
-if [ "$SHOULD_START_PF" = true ]; then
-    # Start port forwarding in background
-    echo "Starting port forwarding..."
-    echo ""
+# Function to wait until an HTTP endpoint responds (up to 15s)
+wait_for_http() {
+    local url=$1
+    local max_attempts=15
+    for i in $(seq 1 $max_attempts); do
+        if curl -sf --max-time 2 "$url" > /dev/null 2>&1; then
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
 
-# Function to start and verify port forward
+# Function to start port-forward and verify the endpoint is actually reachable
 start_and_verify_pf() {
     local name=$1
     local namespace=$2
     local service=$3
     local port=$4
-    
+    local health_path=${5:-""}
+
+    # Always kill stale port-forwards first — a bound port doesn't mean it works
+    kill_port_forward $port
+
     echo "Starting port-forward for $name..."
     kubectl port-forward -n $namespace svc/$service $port:$port > /tmp/pf-${service}.log 2>&1 &
     local pid=$!
-    
-    # Wait a moment and check if it's still running
+
+    # Give kubectl a moment to bind
     sleep 2
-    if ps -p $pid > /dev/null 2>&1; then
-        echo "✓ $name port-forward started (PID: $pid)"
-        echo "  URL: http://localhost:$port"
-        echo "  Log: /tmp/pf-${service}.log"
-    else
-        echo "❌ Failed to start $name port-forward"
+
+    if ! ps -p $pid > /dev/null 2>&1; then
+        echo "❌ Failed to start $name port-forward (process exited)"
         echo "   Check logs: cat /tmp/pf-${service}.log"
         return 1
     fi
+
+    # If a health path was given, verify the endpoint actually responds
+    if [ -n "$health_path" ]; then
+        echo "  Verifying $name is reachable at http://localhost:$port$health_path ..."
+        if wait_for_http "http://localhost:$port$health_path"; then
+            echo "✓ $name port-forward started and verified (PID: $pid)"
+        else
+            echo "⚠️  $name port-forward started (PID: $pid) but endpoint not yet responding"
+            echo "   Log: /tmp/pf-${service}.log"
+            echo "   Retrying once..."
+            kill $pid 2>/dev/null || true
+            sleep 2
+            kill_port_forward $port
+            kubectl port-forward -n $namespace svc/$service $port:$port > /tmp/pf-${service}.log 2>&1 &
+            pid=$!
+            sleep 3
+            if wait_for_http "http://localhost:$port$health_path"; then
+                echo "✓ $name port-forward started and verified on retry (PID: $pid)"
+            else
+                echo "❌ $name port-forward is running but endpoint still not responding"
+                echo "   Check pod logs: kubectl logs -n $namespace -l app.kubernetes.io/name=$service"
+                echo "   Check pf logs: cat /tmp/pf-${service}.log"
+                return 1
+            fi
+        fi
+    else
+        echo "✓ $name port-forward started (PID: $pid)"
+    fi
+    echo "  URL: http://localhost:$port"
+    echo "  Log: /tmp/pf-${service}.log"
     echo ""
 }
 
-    # Start each port forward
-    start_and_verify_pf "Kagenti Dashboard" "$KAGENTI_NAMESPACE" "kagenti-ui" "8080"
-    start_and_verify_pf "Demo Backend" "$NAMESPACE" "backend" "8187"
-    
-    # Start Keycloak port forward on different port (8081)
-    echo "Starting port-forward for Keycloak Admin..."
-    kubectl port-forward -n keycloak svc/keycloak-service 8081:8080 > /tmp/pf-keycloak.log 2>&1 &
-    keycloak_pid=$!
-    sleep 2
-    if ps -p $keycloak_pid > /dev/null; then
-        echo "✓ Keycloak Admin port-forward started (PID: $keycloak_pid)"
-        echo "  Access at: http://localhost:8081"
-    else
-        echo "⚠️  Warning: Keycloak port-forward failed to start"
-        echo "  You can start it manually: kubectl port-forward -n keycloak svc/keycloak-service 8081:8080"
-    fi
-    echo ""
+echo "Checking and starting port forwards..."
+echo ""
 
-    echo "✓ Port forwarding setup complete"
-    echo ""
-fi
+# Kagenti Dashboard and Keycloak are served via the Istio gateway (NodePort 30080 → host 8080).
+# Do NOT port-forward them — that would shadow the gateway and break hostname-based routing
+# (keycloak.localtest.me:8080 vs kagenti-ui.localtest.me:8080).
+echo "ℹ️  Kagenti Dashboard and Keycloak are accessible via the Istio gateway on port 8080"
+echo "   No port-forward needed for these services."
+echo ""
 
-# Verify all port forwards are running
-echo "Verifying port forwards..."
-RUNNING_PF=$(ps aux | grep "kubectl port-forward" | grep -v grep | grep -E "(kagenti-ui|backend|keycloak)" | wc -l)
-if [ "$RUNNING_PF" -ge 3 ]; then
-    echo "✓ All port forwards are running (UI, Backend, and Keycloak)"
+# Only the demo backend needs a port-forward (no HTTPRoute configured for it)
+start_and_verify_pf "Demo Backend" "$NAMESPACE" "backend" "8187" "/health"
+
+# Final end-to-end check: verify the demo page is actually reachable
+echo "=============================================="
+echo "Final End-to-End Verification"
+echo "=============================================="
+echo ""
+
+echo "Verifying http://localhost:8187/demo is reachable..."
+if wait_for_http "http://localhost:8187/demo"; then
+    echo "✓ Demo page is live at http://localhost:8187/demo"
 else
-    echo "⚠️  Warning: Not all port forwards are running"
-    echo "   Expected: 3, Running: $RUNNING_PF"
-    echo "   You may need to manually start port forwarding:"
-    echo "   ${SCRIPT_DIR}/port-forward.sh"
+    echo "❌ Demo page is NOT reachable at http://localhost:8187/demo"
+    echo ""
+    echo "Troubleshooting:"
+    echo "  1. Check backend pod status:"
+    echo "     kubectl get pods -n ${NAMESPACE} -l app.kubernetes.io/name=backend"
+    echo "  2. Check backend logs:"
+    echo "     kubectl logs -n ${NAMESPACE} -l app.kubernetes.io/name=backend"
+    echo "  3. Check port-forward logs:"
+    echo "     cat /tmp/pf-backend.log"
+    echo "  4. Restart port-forward manually:"
+    echo "     kubectl port-forward -n ${NAMESPACE} svc/backend 8187:8187"
 fi
 echo ""
 
@@ -569,16 +605,10 @@ echo "Access Points"
 echo "=============================================="
 echo ""
 echo "The following services are now accessible:"
-echo "  - Kagenti Dashboard: http://localhost:8080"
-echo "  - Keycloak Admin:    http://localhost:8081"
-echo "  - Demo Backend:      http://localhost:8187"
-echo ""
-echo "IMPORTANT: Access Kagenti UI at http://localhost:8080 or http://kagenti-ui.localtest.me:8080"
-echo "           Do NOT use http://keycloak.localtest.me:8080 (that's the OAuth provider)"
-echo ""
-echo "If using NodePort (Kind/Minikube), also available at:"
-echo "  - Backend: http://localhost:30187"
-echo "  - MCP Server: http://localhost:30184"
+echo "  - Kagenti Dashboard: http://kagenti-ui.localtest.me:8080  (via Istio gateway)"
+echo "  - Keycloak Admin:    http://keycloak.localtest.me:8080    (via Istio gateway)"
+echo "  - Demo Backend:      http://localhost:8187                (via port-forward)"
+echo "  - Demo Backend:      http://localhost:30187               (via NodePort)"
 echo ""
 echo "=============================================="
 echo "Next Steps"

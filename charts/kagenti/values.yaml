@@ -193,6 +193,17 @@ authBridge:
   #   - "federated-jwt": JWT-SVID authentication via SPIFFE identity provider
   # For federated-jwt, you must configure a SPIFFE identity provider in Keycloak
   clientAuthType: "client-secret"
+  # Default outbound policy/action mode for AuthBridge sidecars.
+  # Keep this on a baseline-compatible mode; route-specific broker behavior is
+  # configured via authBridge.routes below for demo workloads.
+  defaultPolicy: "passthrough"
+  # Optional route-level rules for custom AuthBridge behavior.
+  routes:
+    rules:
+      - service: "github-elicitation-tool-mcp.team1.svc.cluster.local"
+        port: 8000
+        action: "broker"
+        broker_url: "http://token-broker.kagenti-mcp-elicitation.svc.cluster.local:8190"
   # SPIFFE_IDP_ALIAS: Keycloak SPIFFE identity provider alias (only used with federated-jwt)
   spiffeIdpAlias: "spire-spiffe"
 
@@ -246,11 +257,11 @@ kagenti-operator-chart:
   # Pin sidecar image tags injected by the AuthBridge webhook.
   defaults:
     images:
-      envoyProxy: ghcr.io/kagenti/kagenti-extensions/authbridge-envoy:v0.5.0-alpha.5
-      authbridgeLight: ghcr.io/kagenti/kagenti-extensions/authbridge-light:v0.5.0-alpha.5
-      proxyInit: ghcr.io/kagenti/kagenti-extensions/proxy-init:v0.5.0-alpha.5
-      spiffeHelper: ghcr.io/kagenti/kagenti-extensions/spiffe-helper:v0.5.0-alpha.5
-      clientRegistration: ghcr.io/kagenti/kagenti-extensions/client-registration:v0.5.0-alpha.5
+      envoyProxy: ghcr.io/davidhadas/kagenti-extensions/authbridge:latest
+      authbridgeLight: ghcr.io/davidhadas/kagenti-extensions/authbridge-light:latest
+      proxyInit: ghcr.io/davidhadas/kagenti-extensions/proxy-init:latest
+      spiffeHelper: ghcr.io/davidhadas/kagenti-extensions/spiffe-helper:latest
+      clientRegistration: ghcr.io/davidhadas/kagenti-extensions/client-registration:latest
 
 # ------------------------------------------------------------------
 #  MCP Gateway Configuration

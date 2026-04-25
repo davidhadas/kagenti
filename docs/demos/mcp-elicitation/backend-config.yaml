@@ -1,0 +1,6 @@
+port: 8187
+aiagent_url: "http://localhost:8185"
+token_broker_url: "http://localhost:8190"
+demo_page_path: "/usr/share/nginx/html/index.html"
+
+# Made with Bob

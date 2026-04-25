@@ -60,6 +60,16 @@ User → Backend / Kagenti UI → Agent in team1 (with AuthBridge) → github-el
 - auth remains on the agent/AuthBridge/demo infrastructure side
 - the wrapper only forwards MCP traffic to the upstream demo MCP server
 
+## Backend Authentication
+
+The backend requires Keycloak authentication to call the agent service. See [BACKEND_AUTH_IMPLEMENTATION.md](./BACKEND_AUTH_IMPLEMENTATION.md) for detailed implementation guide.
+
+**Quick Summary:**
+- Backend collects username/password from the demo UI
+- Uses Keycloak password grant to obtain access token
+- Includes token in `Authorization: Bearer <token>` header when calling agent
+- Agent's AuthBridge validates the token
+
 ## Prerequisites
 
 - Kubernetes cluster with Kagenti installed
@@ -83,11 +93,35 @@ because `github-elicitation-tool` is imported from source.
 
 ## Deployment Steps
 
+### Step 0: Configure Environment
+
+**Important:** Source the `.env` file to set required environment variables:
+
+```bash
+cd docs/demos/mcp-elicitation
+source .env
+```
+
+The `.env` file contains:
+- `GITHUB_OAUTH_CLIENT_ID` - GitHub OAuth app client ID
+- `GITHUB_OAUTH_CLIENT_SECRET` - GitHub OAuth app client secret
+- `GITHUB_TOKEN` - Personal Access Token for pulling private GHCR images
+
+**For Kind clusters:** The `GITHUB_TOKEN` is required to authenticate with GitHub Container Registry and pull private images before loading them into Kind.
+
 ### Step 1: Deploy demo infrastructure
 
 ```bash
 ./scripts/deploy.sh
 ```
+
+The script will:
+- Detect if you're using a Kind cluster
+- If Kind: authenticate with GHCR using `GITHUB_TOKEN` and pull/load images
+- Deploy all demo components
+- Configure Keycloak
+- Set up port forwarding
+- Verify the demo is accessible
 
 This deploys:
 
@@ -109,20 +143,20 @@ Use **Import Tool** with these values:
 
 - **Namespace**: `team1`
 - **Tool Name**: `github-elicitation-tool`
-- **Deployment Method**: `Build from source`
-- **Git URL**: your Git URL for this repository
-- **Git Revision**: your working branch, for example `main`
-- **Context Directory**: `.`
+- **Git Repository URL**: `https://github.com/davidhadas/kagenti.git`
+- **Git Branch or Tag**: `mcp_elicitation`
+- **Select Tool**: leave as `Select an example...`
+- **Source Subfolder**: `kagenti/tools/github-elicitation-tool`
 - **Workload Type**: `Deployment`
 - **MCP Transport Protocol**: `streamable_http`
 - **Enable external access to the tool endpoint**: `false`
 - **Enable AuthBridge sidecar injection**: `false`
 - **Enable SPIRE identity**: `false`
 
-Why `Context Directory` is `.`:
-- the Dockerfile copies files using repo-root-relative paths:
-  - `kagenti/tools/github-elicitation-tool/pyproject.toml`
-  - `kagenti/tools/github-elicitation-tool/app.py`
+Why `Source Subfolder` is `kagenti/tools/github-elicitation-tool`:
+- the tool is a custom source-imported wrapper, not a built-in example
+- `Select Tool` is only for pre-configured examples
+- the Dockerfile was adjusted to build correctly from that subfolder as the source context
 
 After creation, Kagenti should start a Shipwright build for the tool.
 

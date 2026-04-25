@@ -37,6 +37,11 @@ authBridge:
   # The authbridge sidecar will connect to this service to obtain OAuth tokens.
   # This URL points to the Token Broker ClusterIP service on port 8190.
   tokenBrokerUrl: "http://token-broker.kagenti-mcp-elicitation.svc.cluster.local:8190"
+  
+  # Action mode: Use "broker" to exchange incoming tokens for downstream service tokens
+  # This is required for the MCP elicitation demo where the backend sends user tokens
+  # and AuthBridge needs to exchange them for MCP server-specific tokens
+  defaultPolicy: "broker"
 
 # ------------------------------------------------------------------
 # Additional Configuration Notes

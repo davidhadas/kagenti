@@ -1,4 +1,25 @@
 ---
+# Backend Config ConfigMap
+# Contains backend-config.yaml for the backend service
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: kagenti-mcp-elicitation
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/component: config
+    app.kubernetes.io/part-of: kagenti
+data:
+  backend-config.yaml: |
+    port: 8187
+    aiagent_url: "http://git-issue-agent.team1.svc.cluster.local:8080"
+    demo_page_path: "/usr/share/nginx/html/index.html"
+    token_broker_url: "http://token-broker.kagenti-mcp-elicitation.svc.cluster.local:8190"
+    keycloak_url: "http://keycloak-service.keycloak.svc.cluster.local:8080"
+    keycloak_realm: "kagenti"
+
+---
 # Demo UI ConfigMap
 # Contains the HTML interface for interacting with the MCP demo
 apiVersion: v1
@@ -78,10 +99,14 @@ data:
             </div>
             
             <div class="section">
-                <h2>User Identity</h2>
+                <h2>User Authentication</h2>
                 <div class="input-group">
-                    <label for="userId">User ID:</label>
-                    <input type="text" id="userId" placeholder="e.g., demo-user" value="demo-user">
+                    <label for="username">Keycloak Username:</label>
+                    <input type="text" id="username" placeholder="e.g., demo-user" value="demo-user">
+                </div>
+                <div class="input-group">
+                    <label for="password">Keycloak Password:</label>
+                    <input type="password" id="password" placeholder="Enter your password" value="">
                 </div>
             </div>
             
@@ -109,9 +134,15 @@ data:
             let oauthWindow = null;
 
             async function submitTask(task) {
-                const userId = document.getElementById('userId').value.trim();
-                if (!userId) {
-                    showStatus('error', 'Please enter a User ID');
+                const username = document.getElementById('username').value.trim();
+                const password = document.getElementById('password').value.trim();
+                
+                if (!username) {
+                    showStatus('error', 'Please enter a username');
+                    return;
+                }
+                if (!password) {
+                    showStatus('error', 'Please enter a password');
                     return;
                 }
 
@@ -120,17 +151,40 @@ data:
                 showStatus('info', `Submitting task: "${task}"...`);
 
                 try {
-                    // Step 1: Submit task and get job_id
+                    // Step 1: Submit task with credentials and get job_id
                     const response = await fetch('/task', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ user_id: userId, task: task })
+                        body: JSON.stringify({
+                            user_id: username,
+                            username: username,
+                            password: password,
+                            task: task
+                        })
                     });
 
                     if (!response.ok) {
-                        const error = await response.json();
-                        showStatus('error', 'Error: ' + (error.message || error.error || 'Task submission failed'));
-                        resultDiv.innerHTML = '<pre>' + JSON.stringify(error, null, 2) + '</pre>';
+                        // Try to parse as JSON, but handle plain text errors too
+                        const contentType = response.headers.get('content-type');
+                        let errorMessage = 'Task submission failed';
+                        
+                        if (contentType && contentType.includes('application/json')) {
+                            try {
+                                const error = await response.json();
+                                errorMessage = error.message || error.error || errorMessage;
+                                resultDiv.innerHTML = '<pre>' + JSON.stringify(error, null, 2) + '</pre>';
+                            } catch (e) {
+                                const text = await response.text();
+                                errorMessage = text || errorMessage;
+                                resultDiv.innerHTML = '<pre>' + text + '</pre>';
+                            }
+                        } else {
+                            const text = await response.text();
+                            errorMessage = text || errorMessage;
+                            resultDiv.innerHTML = '<pre>' + text + '</pre>';
+                        }
+                        
+                        showStatus('error', 'Error: ' + errorMessage);
                         return;
                     }
 
@@ -306,7 +360,7 @@ spec:
       serviceAccountName: backend
       containers:
       - name: backend
-        image: ghcr.io/davidhadas/kagenti-backend:latest
+        image: localhost/kagenti-backend-local:latest
         imagePullPolicy: IfNotPresent
         ports:
         - name: http
@@ -318,6 +372,16 @@ spec:
           value: "http://mcp-server.kagenti-mcp-elicitation.svc.cluster.local:8184"
         - name: TOKEN_BROKER_URL
           value: "http://token-broker.kagenti-mcp-elicitation.svc.cluster.local:8190"
+        
+        # Agent Service configuration
+        - name: AGENT_SERVICE_URL
+          value: "http://git-issue-agent.team1.svc.cluster.local:8080"
+        
+        # Keycloak configuration for authentication
+        - name: KEYCLOAK_URL
+          value: "http://keycloak-service.keycloak.svc.cluster.local:8080"
+        - name: KEYCLOAK_REALM
+          value: "kagenti"
         
         # Service configuration
         - name: PORT
@@ -339,10 +403,13 @@ spec:
             memory: "256Mi"
             cpu: "500m"
         
-        # Mount the demo UI ConfigMap
+        # Mount the demo UI and config ConfigMaps
         volumeMounts:
         - name: demo-ui
           mountPath: /usr/share/nginx/html
+          readOnly: true
+        - name: backend-config
+          mountPath: /config
           readOnly: true
         
         livenessProbe:
@@ -364,6 +431,9 @@ spec:
       - name: demo-ui
         configMap:
           name: backend-demo-ui
+      - name: backend-config
+        configMap:
+          name: backend-config
       
       restartPolicy: Always
 
