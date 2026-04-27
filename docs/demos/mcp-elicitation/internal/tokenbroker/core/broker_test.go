@@ -88,6 +88,10 @@ func newMockSessionStore() *mockSessionStore {
 
 func (m *mockSessionStore) CreateSession(userID string) (string, error) {
 	sessionKey := "session_" + userID
+	return m.CreateSessionWithKey(userID, sessionKey)
+}
+
+func (m *mockSessionStore) CreateSessionWithKey(userID, sessionKey string) (string, error) {
 	m.sessions[sessionKey] = &Session{
 		SessionKey:           sessionKey,
 		UserID:               userID,

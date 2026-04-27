@@ -149,6 +149,9 @@ AGENT_ENDPOINT = "AGENT_ENDPOINT"
 DEFAULT_KEYCLOAK_INTERNAL_URL = "http://keycloak-service.keycloak.svc:8080"
 DEFAULT_KEYCLOAK_REALM = "kagenti"
 
+# Default Token Broker URL (used by AuthBridge ConfigMaps)
+DEFAULT_BROKER_URL = "http://token-broker.kagenti-mcp-elicitation.svc.cluster.local:8190"
+
 # Default spiffe-helper configuration for AuthBridge sidecars
 DEFAULT_SPIFFE_HELPER_CONF = (
     'agent_address = "/spiffe-workload-api/spire-agent.sock"\n'

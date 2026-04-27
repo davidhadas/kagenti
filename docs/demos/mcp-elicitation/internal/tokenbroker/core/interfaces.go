@@ -11,6 +11,10 @@ type SessionStore interface {
 	// CreateSession creates a new session for a user and returns the session key.
 	CreateSession(userID string) (sessionKey string, err error)
 
+	// CreateSessionWithKey creates a new session for a user with a specific session key.
+	// The session key is extracted from the user's JWT token claims.
+	CreateSessionWithKey(userID, sessionKey string) (string, error)
+
 	// GetSession retrieves a session by its key.
 	GetSession(sessionKey string) (*Session, error)
 

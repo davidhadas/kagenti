@@ -199,11 +199,7 @@ authBridge:
   defaultPolicy: "passthrough"
   # Optional route-level rules for custom AuthBridge behavior.
   routes:
-    rules:
-      - service: "github-elicitation-tool-mcp.team1.svc.cluster.local"
-        port: 8000
-        action: "broker"
-        broker_url: "http://token-broker.kagenti-mcp-elicitation.svc.cluster.local:8190"
+    rules: []
   # SPIFFE_IDP_ALIAS: Keycloak SPIFFE identity provider alias (only used with federated-jwt)
   spiffeIdpAlias: "spire-spiffe"
 

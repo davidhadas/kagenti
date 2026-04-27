@@ -132,16 +132,21 @@ echo "All preflight checks passed!"
 echo ""
 
 # ============================================================================
-# Build Backend Image
+# Build Backend and Token Broker Images
 # ============================================================================
 echo "=============================================="
-echo "Building Backend from Local Source"
+echo "Building Backend and Token Broker from Local Source"
 echo "=============================================="
 echo ""
 echo "Building backend image with Keycloak authentication..."
 cd "${DEMO_DIR}"
 docker build -t localhost/kagenti-backend-local:latest -f Dockerfile .
 echo "✓ Backend image built successfully"
+echo ""
+
+echo "Building token broker image with JWT authentication..."
+docker build -t localhost/kagenti-token-broker-local:latest -f Dockerfile.tokenbroker .
+echo "✓ Token broker image built successfully"
 echo ""
 cd "${SCRIPT_DIR}"
 
@@ -211,13 +216,22 @@ echo ""
     echo "✓ Backend image loaded"
     echo ""
 
+    # Load locally-built token broker image
+    echo "Loading localhost/kagenti-token-broker-local:latest into Kind cluster..."
+    if ! kind load docker-image localhost/kagenti-token-broker-local:latest --name "${KIND_CLUSTER}"; then
+        echo "❌ Error: Failed to load token broker image into Kind"
+        exit 1
+    fi
+    echo "✓ Token broker image loaded"
+    echo ""
+
     # Verify critical images are present in the Kind node
     echo "Verifying images are available inside Kind node..."
     REQUIRED_IMAGES=(
         "ghcr.io/davidhadas/kagenti-mcp-server:latest"
-        "ghcr.io/davidhadas/kagenti-token-broker:latest"
         "ghcr.io/davidhadas/kagenti-extensions/authbridge:latest"
         "localhost/kagenti-backend-local:latest"
+        "localhost/kagenti-token-broker-local:latest"
     )
     for IMG in "${REQUIRED_IMAGES[@]}"; do
         if docker exec "${KIND_CLUSTER}-control-plane" crictl images 2>/dev/null | grep -q "$(echo $IMG | cut -d: -f1)"; then
@@ -379,6 +393,11 @@ kubectl apply -f "${K8S_DIR}/04-backend.yaml"
 kubectl rollout restart deployment/backend -n ${NAMESPACE} 
 
 
+echo "Deploying git-issue-agent..."
+kubectl rollout restart deployment/git-issue-agent -n team1
+
+
+
 # ============================================================================
 # Step 5: Verify Deployments
 # ============================================================================
@@ -396,6 +415,9 @@ echo ""
 
 echo "Waiting for Backend rollout to complete..."
 kubectl rollout status deployment/backend -n ${NAMESPACE} --timeout=120s
+
+echo "Waiting for git-issue-agent rollout to complete..."
+kubectl rollout status deployment/git-issue-agent -n team1 --timeout=120s
 
 echo ""
 echo "Waiting for Backend pod to pass readiness probe..."

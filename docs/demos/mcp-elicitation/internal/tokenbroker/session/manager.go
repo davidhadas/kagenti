@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/tokenbroker/core"
+	"github.com/kagenti/kagenti/internal/tokenbroker/core"
 	"github.com/google/uuid"
 )
 
@@ -39,6 +39,14 @@ func NewSessionManager(sessionTimeout time.Duration, maxSessionsPerUser int, clo
 
 // CreateSession creates a new session for a user and returns the session key.
 func (sm *SessionManager) CreateSession(userID string) (string, error) {
+	// Generate session key
+	sessionKey := uuid.New().String()
+	return sm.CreateSessionWithKey(userID, sessionKey)
+}
+
+// CreateSessionWithKey creates a new session for a user with a specific session key.
+// The session key is extracted from the user's JWT token claims.
+func (sm *SessionManager) CreateSessionWithKey(userID, sessionKey string) (string, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -53,8 +61,13 @@ func (sm *SessionManager) CreateSession(userID string) (string, error) {
 		}
 	}
 
-	// Generate session key
-	sessionKey := uuid.New().String()
+	// Check if session key already exists
+	if _, exists := sm.sessions[sessionKey]; exists {
+		sm.logger.Warn("Session key already exists",
+			"session_key", sessionKey,
+			"user_id", userID)
+		return "", fmt.Errorf("session key already exists")
+	}
 
 	// Create session
 	now := sm.clock.Now()
@@ -78,7 +91,7 @@ func (sm *SessionManager) CreateSession(userID string) (string, error) {
 	}
 	sm.userSessions[userID] = append(sm.userSessions[userID], sessionKey)
 
-	sm.logger.Info("Session created",
+	sm.logger.Info("Session created with provided key",
 		"session_key", sessionKey,
 		"user_id", userID)
 

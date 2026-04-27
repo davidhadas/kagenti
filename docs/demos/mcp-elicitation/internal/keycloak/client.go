@@ -1,11 +1,13 @@
 package keycloak
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 )
@@ -25,10 +27,26 @@ type TokenResponse struct {
 	TokenType        string `json:"token_type"`
 }
 
+// TokenWithClaims holds a token with its parsed claims
+type TokenWithClaims struct {
+	Token      string
+	UserID     string
+	SessionKey string // Will be populated from jti claim
+	ExpiresAt  time.Time
+}
+
 // CachedToken holds a token with expiration
 type CachedToken struct {
 	Token     string
 	ExpiresAt time.Time
+}
+
+// JWTClaims represents the standard claims in a Keycloak JWT token
+type JWTClaims struct {
+	Sub               string `json:"sub"`                // Subject (user ID)
+	JTI               string `json:"jti"`                // JWT ID (unique token identifier) - used as session_key
+	PreferredUsername string `json:"preferred_username"` // Username
+	Exp               int64  `json:"exp"`                // Expiration time
 }
 
 // Client manages Keycloak authentication
@@ -55,18 +73,19 @@ func NewClient(keycloakURL, realm string) *Client {
 
 // GetUserToken obtains a Keycloak token using password grant
 func (c *Client) GetUserToken(username, password string) (string, error) {
-	// Check cache first
-	cacheKey := fmt.Sprintf("%s:%s", username, password)
-	c.cacheMutex.RLock()
-	if cached, exists := c.cache[cacheKey]; exists {
-		if time.Now().Before(cached.ExpiresAt) {
-			c.cacheMutex.RUnlock()
-			return cached.Token, nil
-		}
+	tokenWithClaims, err := c.GetUserTokenWithClaims(username, password)
+	if err != nil {
+		return "", err
 	}
-	c.cacheMutex.RUnlock()
+	return tokenWithClaims.Token, nil
+}
 
-	// Request new token
+// GetUserTokenWithClaims obtains a Keycloak token and extracts jti as session_key
+// The jti (JWT ID) claim is a unique identifier for each token, perfect for session management
+// Note: We don't cache tokens because each token request should create a new session
+// with a unique jti (session_key). Caching would reuse the same session_key for multiple sessions.
+func (c *Client) GetUserTokenWithClaims(username, password string) (*TokenWithClaims, error) {
+	// Request new token from Keycloak
 	tokenURL := fmt.Sprintf("%s/realms/%s/protocol/openid-connect/token",
 		c.config.URL, c.config.Realm)
 
@@ -77,35 +96,92 @@ func (c *Client) GetUserToken(username, password string) (string, error) {
 	data.Set("password", password)
 	data.Set("scope", "openid profile email")
 	// Request audience for the AI Agent to satisfy AuthBridge validation
-	// The audience must match the client ID that AuthBridge expects
 	data.Set("audience", "git-issue-agent")
 
 	resp, err := c.httpClient.PostForm(tokenURL, data)
 	if err != nil {
-		return "", fmt.Errorf("failed to request token: %w", err)
+		return nil, fmt.Errorf("failed to request token: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("keycloak returned status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("keycloak returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var tokenResp TokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
-		return "", fmt.Errorf("failed to decode token response: %w", err)
+		return nil, fmt.Errorf("failed to decode token response: %w", err)
 	}
 
-	// Cache the token (with 30 second buffer before expiration)
-	expiresAt := time.Now().Add(time.Duration(tokenResp.ExpiresIn-30) * time.Second)
-	c.cacheMutex.Lock()
-	c.cache[cacheKey] = &CachedToken{
-		Token:     tokenResp.AccessToken,
-		ExpiresAt: expiresAt,
+	// Parse JWT to extract claims (including jti which we'll use as session_key)
+	claims, err := c.parseJWTClaims(tokenResp.AccessToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse token claims: %w", err)
 	}
-	c.cacheMutex.Unlock()
 
-	return tokenResp.AccessToken, nil
+	// Use jti (JWT ID) as the session_key - it's unique per token
+	if claims.JTI == "" {
+		return nil, fmt.Errorf("token missing jti claim")
+	}
+
+	// Extract UUID from jti (Keycloak format is "prefix:uuid", we want just the UUID)
+	sessionKey := extractUUIDFromJTI(claims.JTI)
+
+	// Use preferred_username or sub as user_id
+	userID := claims.PreferredUsername
+	if userID == "" {
+		userID = claims.Sub
+	}
+	if userID == "" {
+		return nil, fmt.Errorf("token missing user identifier")
+	}
+
+	expiresAt := time.Unix(claims.Exp, 0)
+
+	return &TokenWithClaims{
+		Token:      tokenResp.AccessToken,
+		UserID:     userID,
+		SessionKey: sessionKey, // Use UUID part of jti as session_key
+		ExpiresAt:  expiresAt,
+	}, nil
+}
+
+// extractUUIDFromJTI extracts the UUID portion from Keycloak's jti claim
+// Keycloak jti format is typically "prefix:uuid" (e.g., "onrtro:8ae0e5d0-a74a-7cf7-4f5e-64276681e647")
+// We extract just the UUID part for cleaner session keys
+func extractUUIDFromJTI(jti string) string {
+	// Check if jti contains a colon (prefix:uuid format)
+	if idx := strings.LastIndex(jti, ":"); idx != -1 {
+		// Return the part after the last colon
+		return jti[idx+1:]
+	}
+	// If no colon, return the whole jti (already a UUID)
+	return jti
+}
+
+// parseJWTClaims parses a JWT token and extracts standard claims
+// Note: This is a simple parser that doesn't verify the signature
+func (c *Client) parseJWTClaims(token string) (*JWTClaims, error) {
+	// Split the JWT into parts
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid JWT format")
+	}
+
+	// Decode the payload (second part)
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode JWT payload: %w", err)
+	}
+
+	// Parse the claims
+	var claims JWTClaims
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JWT claims: %w", err)
+	}
+
+	return &claims, nil
 }
 
 // ClearCache clears the token cache

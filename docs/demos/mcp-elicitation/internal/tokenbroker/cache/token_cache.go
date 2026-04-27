@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/tokenbroker/core"
+	"github.com/kagenti/kagenti/internal/tokenbroker/core"
 )
 
 // TokenEntry represents a cached token.

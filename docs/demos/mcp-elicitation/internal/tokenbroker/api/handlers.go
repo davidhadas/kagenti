@@ -2,14 +2,16 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/tokenbroker/core"
 	"github.com/go-chi/chi/v5"
+	"github.com/kagenti/kagenti/internal/tokenbroker/core"
 )
 
 // Handler handles HTTP requests for the Token Broker API.
@@ -90,10 +92,35 @@ func (h *Handler) HandleCreateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("Creating session", "user_id", userID)
+	// Extract Bearer token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		h.logger.Warn("Missing Authorization header")
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Missing Authorization header")
+		return
+	}
 
-	// Create session
-	sessionKey, err := h.sessionStore.CreateSession(userID)
+	// Parse Bearer token
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		h.logger.Warn("Invalid Authorization header format")
+		writeError(w, http.StatusUnauthorized, "unauthorized", "Invalid Authorization header format")
+		return
+	}
+	bearerToken := parts[1]
+
+	// Extract session_key from JWT token claims
+	sessionKey, err := h.extractSessionKeyFromToken(bearerToken)
+	if err != nil {
+		h.logger.Error("Failed to extract session_key from token", "error", err, "user_id", userID)
+		writeError(w, http.StatusBadRequest, "invalid_token", fmt.Sprintf("Failed to extract session_key from token: %v", err))
+		return
+	}
+
+	h.logger.Info("Creating session", "user_id", userID, "session_key", sessionKey)
+
+	// Create session with the session_key from the token
+	returnedSessionKey, err := h.sessionStore.CreateSessionWithKey(userID, sessionKey)
 	if err != nil {
 		if err.Error() == "max sessions per user exceeded" {
 			writeError(w, http.StatusTooManyRequests, "too_many_sessions", err.Error())
@@ -104,29 +131,139 @@ func (h *Handler) HandleCreateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("Session created", "session_key", sessionKey, "user_id", userID)
+	h.logger.Info("Session created", "session_key", returnedSessionKey, "user_id", userID)
 
 	// Return session key
 	writeJSON(w, http.StatusCreated, map[string]string{
-		"oauth_session_key": sessionKey,
+		"oauth_session_key": returnedSessionKey,
 	})
 }
 
-// HandleGetToken handles POST /sessions/{sessionKey}/token
-func (h *Handler) HandleGetToken(w http.ResponseWriter, r *http.Request) {
-	sessionKey := chi.URLParam(r, "sessionKey")
-	userID := r.Header.Get("X-User-ID")
-	mcpServerURL := r.Header.Get("X-Mcp-Server-Url")
+// TokenClaims represents the standard claims extracted from a Keycloak JWT token
+type TokenClaims struct {
+	JTI               string `json:"jti"`                // JWT ID - used as session_key
+	Sub               string `json:"sub"`                // Subject (user ID)
+	PreferredUsername string `json:"preferred_username"` // Username - used as user_id
+}
 
-	if userID == "" {
-		writeError(w, http.StatusBadRequest, "invalid_request", "Missing X-User-ID header")
-		return
+// extractSessionKeyFromToken extracts the jti claim from a JWT token (used as session_key)
+// Strips any prefix from Keycloak's jti format (e.g., "prefix:uuid" -> "uuid")
+func (h *Handler) extractSessionKeyFromToken(token string) (string, error) {
+	claims, err := h.extractTokenClaims(token)
+	if err != nil {
+		return "", err
 	}
+	return extractUUIDFromJTI(claims.JTI), nil
+}
+
+// extractUUIDFromJTI extracts the UUID portion from Keycloak's jti claim
+// Keycloak jti format is typically "prefix:uuid" (e.g., "onrtro:8ae0e5d0-a74a-7cf7-4f5e-64276681e647")
+// We extract just the UUID part for cleaner session keys
+func extractUUIDFromJTI(jti string) string {
+	// Check if jti contains a colon (prefix:uuid format)
+	if idx := strings.LastIndex(jti, ":"); idx != -1 {
+		// Return the part after the last colon
+		return jti[idx+1:]
+	}
+	// If no colon, return the whole jti (already a UUID)
+	return jti
+}
+
+// extractTokenClaims extracts jti and user_id claims from a Keycloak JWT token
+func (h *Handler) extractTokenClaims(token string) (*TokenClaims, error) {
+	// Split the JWT into parts
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("invalid JWT format")
+	}
+
+	// Decode the payload (second part)
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode JWT payload: %w", err)
+	}
+
+	// Parse the claims
+	var claims TokenClaims
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JWT claims: %w", err)
+	}
+
+	// jti is used as session_key
+	if claims.JTI == "" {
+		return nil, fmt.Errorf("jti claim not found in token")
+	}
+
+	// Use preferred_username or sub as user_id
+	if claims.PreferredUsername == "" && claims.Sub == "" {
+		return nil, fmt.Errorf("user identifier not found in token")
+	}
+
+	return &claims, nil
+}
+
+// getUserID extracts the user ID from token claims (preferred_username or sub)
+func getUserID(claims *TokenClaims) string {
+	if claims.PreferredUsername != "" {
+		return claims.PreferredUsername
+	}
+	return claims.Sub
+}
+
+// validateBearerToken extracts and validates the Bearer token from the Authorization header
+// Returns the token claims if valid, or an error
+func (h *Handler) validateBearerToken(r *http.Request, expectedSessionKey string) (*TokenClaims, error) {
+	// Extract Bearer token from Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return nil, fmt.Errorf("missing Authorization header")
+	}
+
+	// Parse Bearer token
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return nil, fmt.Errorf("invalid Authorization header format")
+	}
+	bearerToken := parts[1]
+
+	// Extract claims from token
+	claims, err := h.extractTokenClaims(bearerToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract claims from token: %w", err)
+	}
+
+	// Extract UUID from JTI (strip prefix if present, e.g., "onrtro:uuid" -> "uuid")
+	tokenSessionKey := extractUUIDFromJTI(claims.JTI)
+
+	// Verify that the token's session_key (UUID from jti) matches the URL parameter
+	if tokenSessionKey != expectedSessionKey {
+		return nil, fmt.Errorf("token jti mismatch: expected %s, got %s (full jti: %s)", expectedSessionKey, tokenSessionKey, claims.JTI)
+	}
+
+	return claims, nil
+}
+
+// HandleGetToken handles POST /sessions/{session_key}/token
+func (h *Handler) HandleGetToken(w http.ResponseWriter, r *http.Request) {
+	sessionKey := chi.URLParam(r, "session_key")
+	mcpServerURL := r.Header.Get("X-Mcp-Server-Url")
 
 	if mcpServerURL == "" {
 		writeError(w, http.StatusBadRequest, "invalid_request", "Missing X-Mcp-Server-Url header")
 		return
 	}
+
+	// Validate Bearer token and extract claims
+	claims, err := h.validateBearerToken(r, sessionKey)
+	if err != nil {
+		h.logger.Warn("Token validation failed",
+			"session_key", sessionKey,
+			"error", err)
+		writeError(w, http.StatusUnauthorized, "unauthorized", fmt.Sprintf("Invalid token: %v", err))
+		return
+	}
+
+	userID := getUserID(claims)
 
 	h.logger.Info("Token request",
 		"session_key", sessionKey,
@@ -178,9 +315,9 @@ func (h *Handler) HandleGetToken(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// HandleEvents handles POST /sessions/{sessionKey}/events
+// HandleEvents handles POST /sessions/{session_key}/events
 func (h *Handler) HandleEvents(w http.ResponseWriter, r *http.Request) {
-	sessionKey := chi.URLParam(r, "sessionKey")
+	sessionKey := chi.URLParam(r, "session_key")
 	userID := r.Header.Get("X-User-ID")
 
 	if userID == "" {
@@ -209,6 +346,27 @@ func (h *Handler) handleOAuthCompletion(w http.ResponseWriter, r *http.Request, 
 		"user_id", userID,
 		"code_length", len(code),
 		"state_length", len(state))
+
+	// Validate Bearer token and extract claims
+	claims, err := h.validateBearerToken(r, sessionKey)
+	if err != nil {
+		h.logger.Warn("Token validation failed for OAuth completion",
+			"session_key", sessionKey,
+			"error", err)
+		writeError(w, http.StatusUnauthorized, "unauthorized", fmt.Sprintf("Invalid token: %v", err))
+		return
+	}
+
+	// Verify user_id from token matches the provided user_id
+	tokenUserID := getUserID(claims)
+	if tokenUserID != userID {
+		h.logger.Warn("User ID mismatch for OAuth completion",
+			"session_key", sessionKey,
+			"token_user_id", tokenUserID,
+			"provided_user_id", userID)
+		writeError(w, http.StatusUnauthorized, "unauthorized", "User ID mismatch")
+		return
+	}
 
 	// Validate session
 	if err := h.sessionStore.ValidateSession(sessionKey, userID); err != nil {
@@ -242,6 +400,27 @@ func (h *Handler) handleEventLongPoll(w http.ResponseWriter, r *http.Request, se
 	h.logger.Debug("Event long-poll started",
 		"session_key", sessionKey,
 		"user_id", userID)
+
+	// Validate Bearer token and extract claims
+	claims, err := h.validateBearerToken(r, sessionKey)
+	if err != nil {
+		h.logger.Warn("Token validation failed for event poll",
+			"session_key", sessionKey,
+			"error", err)
+		writeError(w, http.StatusUnauthorized, "unauthorized", fmt.Sprintf("Invalid token: %v", err))
+		return
+	}
+
+	// Verify user_id from token matches the provided user_id
+	tokenUserID := getUserID(claims)
+	if tokenUserID != userID {
+		h.logger.Warn("User ID mismatch for event poll",
+			"session_key", sessionKey,
+			"token_user_id", tokenUserID,
+			"provided_user_id", userID)
+		writeError(w, http.StatusUnauthorized, "unauthorized", "User ID mismatch")
+		return
+	}
 
 	// Validate session
 	if err := h.sessionStore.ValidateSession(sessionKey, userID); err != nil {
@@ -287,15 +466,21 @@ func (h *Handler) handleEventLongPoll(w http.ResponseWriter, r *http.Request, se
 	}
 }
 
-// HandleEndSession handles POST /sessions/{sessionKey}/end
+// HandleEndSession handles POST /sessions/{session_key}/end
 func (h *Handler) HandleEndSession(w http.ResponseWriter, r *http.Request) {
-	sessionKey := chi.URLParam(r, "sessionKey")
-	userID := r.Header.Get("X-User-ID")
+	sessionKey := chi.URLParam(r, "session_key")
 
-	if userID == "" {
-		writeError(w, http.StatusBadRequest, "invalid_request", "Missing X-User-ID header")
+	// Validate Bearer token and extract claims
+	claims, err := h.validateBearerToken(r, sessionKey)
+	if err != nil {
+		h.logger.Warn("Token validation failed for end session",
+			"session_key", sessionKey,
+			"error", err)
+		writeError(w, http.StatusUnauthorized, "unauthorized", fmt.Sprintf("Invalid token: %v", err))
 		return
 	}
+
+	userID := getUserID(claims)
 
 	h.logger.Info("Ending session",
 		"session_key", sessionKey,

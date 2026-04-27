@@ -145,6 +145,10 @@ data:
   # KEYCLOAK_NAMESPACE: Not used by sidecars. Included for reference by Helm-hook Jobs.
   # Sidecars get credentials from local keycloak-admin-secret (replicated by agent-oauth-secret Job).
   KEYCLOAK_NAMESPACE: "{{ $root.Values.keycloak.namespace }}"
+  # CLIENT_NAME: Used by authbridge entrypoint script for client identification
+  # Format: namespace/workload-name (e.g., team1/git-issue-agent)
+  # This is a placeholder that will be replaced by the operator/webhook with actual values
+  CLIENT_NAME: "{{ . }}/placeholder"
   # ISSUER: Used by envoy-proxy go-processor for inbound JWT validation.
   # Optional - auto-derived from KEYCLOAK_URL + KEYCLOAK_REALM if not set.
   # Set explicitly when the internal KEYCLOAK_URL differs from the frontend URL

@@ -7,10 +7,13 @@ import (
 	"net/url"
 	"sync"
 	"time"
+
+	"github.com/kagenti/kagenti/internal/keycloak"
 )
 
 type Authenticator interface {
 	GetUserToken(username, password string) (string, error)
+	GetUserTokenWithClaims(username, password string) (*keycloak.TokenWithClaims, error)
 }
 
 // SessionManager manages user sessions with the Token Broker.
@@ -31,9 +34,9 @@ type UserSession struct {
 	EventChan       chan Event
 	StopChan        chan struct{}
 	AgentURL        string
-	getToken        func() (string, error)
 	eventPollerDone chan struct{}
 	currentJobID    string // Current job being processed
+	cachedToken     string // Cached bearer token for this session (same token used to create session)
 	mu              sync.RWMutex
 }
 
@@ -76,8 +79,8 @@ func (sm *SessionManager) LinkJobToSession(userID, jobID string) {
 	}
 }
 
-// CreateSession creates a new session for a user.
-func (sm *SessionManager) CreateSession(ctx context.Context, userID, agentURL string, getToken func() (string, error)) (*UserSession, error) {
+// CreateSessionWithClaims creates a new session for a user using token with claims.
+func (sm *SessionManager) CreateSessionWithClaims(ctx context.Context, userID, agentURL string, tokenWithClaims *keycloak.TokenWithClaims) (*UserSession, error) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
@@ -86,15 +89,22 @@ func (sm *SessionManager) CreateSession(ctx context.Context, userID, agentURL st
 		return existing, nil
 	}
 
-	bearerToken, err := getToken()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get bearer token for session creation: %w", err)
+	// Use session_key from token claims
+	sessionKey := tokenWithClaims.SessionKey
+	if sessionKey == "" {
+		return nil, fmt.Errorf("session_key not found in token claims")
 	}
 
-	// Create session with Token Broker
-	sessionKey, err := sm.client.CreateSession(ctx, userID, bearerToken)
+	// Create session with Token Broker using the session_key from token
+	// The Token Broker will return the same session_key that we provide
+	returnedSessionKey, err := sm.client.CreateSession(ctx, userID, tokenWithClaims.Token)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session with Token Broker: %w", err)
+	}
+
+	// Verify the returned session key matches the one from the token
+	if returnedSessionKey != sessionKey {
+		return nil, fmt.Errorf("session key mismatch: token has %s, broker returned %s", sessionKey, returnedSessionKey)
 	}
 
 	// Create user session
@@ -105,8 +115,8 @@ func (sm *SessionManager) CreateSession(ctx context.Context, userID, agentURL st
 		EventChan:       make(chan Event, 10),
 		StopChan:        make(chan struct{}),
 		AgentURL:        agentURL,
-		getToken:        getToken,
 		eventPollerDone: make(chan struct{}),
+		cachedToken:     tokenWithClaims.Token, // Cache the token used to create the session
 	}
 
 	sm.sessions[userID] = session
@@ -115,6 +125,13 @@ func (sm *SessionManager) CreateSession(ctx context.Context, userID, agentURL st
 	go sm.pollEvents(session)
 
 	return session, nil
+}
+
+// GetCachedToken returns the cached bearer token for this session
+func (s *UserSession) GetCachedToken() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cachedToken
 }
 
 // GetSession retrieves a session for a user.
@@ -145,9 +162,10 @@ func (sm *SessionManager) EndSession(ctx context.Context, userID string) error {
 	close(session.StopChan)
 	<-session.eventPollerDone
 
-	bearerToken, err := session.getToken()
-	if err != nil {
-		return fmt.Errorf("failed to get bearer token for ending session: %w", err)
+	// Use cached token to maintain same JTI throughout session lifecycle
+	bearerToken := session.GetCachedToken()
+	if bearerToken == "" {
+		return fmt.Errorf("cached bearer token not found for session")
 	}
 
 	// End session with Token Broker
@@ -167,8 +185,10 @@ func (sm *SessionManager) pollEvents(session *UserSession) {
 		case <-session.StopChan:
 			return
 		default:
-			bearerToken, err := session.getToken()
-			if err != nil {
+			// Use cached token to maintain same JTI throughout session lifecycle
+			bearerToken := session.GetCachedToken()
+			if bearerToken == "" {
+				// This shouldn't happen, but if it does, wait and retry
 				time.Sleep(5 * time.Second)
 				continue
 			}
@@ -245,9 +265,10 @@ func (sm *SessionManager) CompleteOAuth(ctx context.Context, userID, code, state
 		return err
 	}
 
-	bearerToken, err := session.getToken()
-	if err != nil {
-		return fmt.Errorf("failed to get bearer token for OAuth completion: %w", err)
+	// Use cached token to maintain same JTI throughout session lifecycle
+	bearerToken := session.GetCachedToken()
+	if bearerToken == "" {
+		return fmt.Errorf("cached bearer token not found for OAuth completion")
 	}
 
 	return sm.client.CompleteOAuth(ctx, session.SessionKey, userID, code, state, bearerToken)

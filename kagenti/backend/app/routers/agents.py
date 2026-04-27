@@ -77,6 +77,7 @@ from app.core.constants import (
     # AuthBridge ConfigMap defaults
     DEFAULT_KEYCLOAK_INTERNAL_URL,
     DEFAULT_KEYCLOAK_REALM,
+    DEFAULT_BROKER_URL,
     DEFAULT_SPIFFE_HELPER_CONF,
     DEFAULT_ENVOY_YAML,
 )
@@ -125,6 +126,10 @@ class OutboundRoute(BaseModel):
     host: str = Field(..., min_length=1)
     target_audience: str = Field(..., min_length=1)
     token_scopes: str = "openid"
+    action: Optional[str] = Field(
+        None,
+        description='Action type: "exchange", "broker", or "passthrough". None defaults to "exchange".'
+    )
 
 
 class SecretKeyRef(BaseModel):
@@ -1985,6 +1990,7 @@ def _ensure_authbridge_configmaps(
             "KEYCLOAK_REALM": realm,
             "ISSUER": issuer,
             "SPIRE_ENABLED": "true" if spire_enabled else "false",
+            "BROKER_URL": DEFAULT_BROKER_URL,
         },
     )
 
@@ -2228,7 +2234,16 @@ def _build_env_vars(request: "CreateAgentRequest") -> List[dict]:
     Returns:
         List of environment variable dictionaries.
     """
-    env_vars = list(DEFAULT_ENV_VARS)
+    env_vars = [dict(ev) for ev in DEFAULT_ENV_VARS]
+    container_port = (
+        request.servicePorts[0].targetPort
+        if request.servicePorts
+        else DEFAULT_IN_CLUSTER_PORT
+    )
+    for ev in env_vars:
+        if ev["name"] == "PORT":
+            ev["value"] = str(container_port)
+            break
     service_port = (
         request.servicePorts[0].port if request.servicePorts else DEFAULT_OFF_CLUSTER_PORT
     )

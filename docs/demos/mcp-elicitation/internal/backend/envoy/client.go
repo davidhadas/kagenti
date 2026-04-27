@@ -27,6 +27,8 @@ func NewTokenBrokerClient(baseURL string) *TokenBrokerClient {
 }
 
 // CreateSession creates a new session with the Token Broker.
+// The Token Broker will extract the session_key from the JWT token's claims.
+// This method returns the session_key that was extracted from the token for verification.
 func (c *TokenBrokerClient) CreateSession(ctx context.Context, userID, bearerToken string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/sessions", nil)
 	if err != nil {
@@ -35,6 +37,8 @@ func (c *TokenBrokerClient) CreateSession(ctx context.Context, userID, bearerTok
 
 	req.Header.Set("Authorization", "Bearer "+bearerToken)
 	req.Header.Set("X-User-ID", userID)
+	// Note: We no longer send X-OAuth-Session-Key header during session creation
+	// The Token Broker will extract session_key from the JWT token claims
 
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -55,6 +59,7 @@ func (c *TokenBrokerClient) CreateSession(ctx context.Context, userID, bearerTok
 		return "", fmt.Errorf("failed to decode response: %w", err)
 	}
 
+	// The Token Broker returns the session_key it extracted from the JWT token
 	return result.OAuthSessionKey, nil
 }
 

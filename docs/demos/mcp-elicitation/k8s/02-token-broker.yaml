@@ -40,7 +40,7 @@ spec:
       serviceAccountName: token-broker
       containers:
       - name: token-broker
-        image: ghcr.io/davidhadas/kagenti-token-broker:latest
+        image: localhost/kagenti-token-broker-local:latest
         imagePullPolicy: IfNotPresent
         ports:
         - name: http

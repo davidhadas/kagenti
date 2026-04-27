@@ -1,6 +1,7 @@
 package tokenbroker_test
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,13 +14,43 @@ import (
 	"testing"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/tokenbroker/api"
-	"github.com/github/github-mcp-server/internal/tokenbroker/cache"
-	"github.com/github/github-mcp-server/internal/tokenbroker/core"
-	"github.com/github/github-mcp-server/internal/tokenbroker/oauthflow"
-	"github.com/github/github-mcp-server/internal/tokenbroker/session"
+	"github.com/kagenti/kagenti/internal/tokenbroker/api"
+	"github.com/kagenti/kagenti/internal/tokenbroker/cache"
+	"github.com/kagenti/kagenti/internal/tokenbroker/core"
+	"github.com/kagenti/kagenti/internal/tokenbroker/oauthflow"
+	"github.com/kagenti/kagenti/internal/tokenbroker/session"
 	"github.com/go-chi/chi/v5"
 )
+
+// createTestJWT creates a test JWT token with Keycloak-style claims (jti, sub, preferred_username)
+func createTestJWT(sessionKey, userID string) string {
+	// Create header
+	header := map[string]interface{}{
+		"alg": "HS256",
+		"typ": "JWT",
+	}
+	headerJSON, _ := json.Marshal(header)
+	headerB64 := base64.RawURLEncoding.EncodeToString(headerJSON)
+
+	// Create payload with Keycloak-style claims
+	// jti is used as session_key, preferred_username as user_id
+	// Note: In tests, we use the sessionKey directly as jti (no prefix)
+	// In production, Keycloak adds a prefix like "realm:uuid", which we strip
+	payload := map[string]interface{}{
+		"jti":                sessionKey, // JWT ID - used as session_key (UUID only in tests)
+		"sub":                userID,     // Subject
+		"preferred_username": userID,     // Username - used as user_id
+		"exp":                time.Now().Add(1 * time.Hour).Unix(),
+		"iat":                time.Now().Unix(),
+	}
+	payloadJSON, _ := json.Marshal(payload)
+	payloadB64 := base64.RawURLEncoding.EncodeToString(payloadJSON)
+
+	// Create a fake signature (not validated in tests)
+	signature := base64.RawURLEncoding.EncodeToString([]byte("fake_signature"))
+
+	return fmt.Sprintf("%s.%s.%s", headerB64, payloadB64, signature)
+}
 
 // --- Fake MCP Server ---
 
@@ -156,11 +187,18 @@ func setupTokenBrokerServer(t *testing.T, mcpServerURL string, waitTimeout time.
 func brokerCreateSession(t *testing.T, brokerURL, userID string) string {
 	t.Helper()
 
+	// Generate a session key for the JWT
+	sessionKey := fmt.Sprintf("test-session-%d", time.Now().UnixNano())
+
+	// Create JWT with session_key and user_id
+	token := createTestJWT(sessionKey, userID)
+
 	req, err := http.NewRequest("POST", brokerURL+"/sessions", nil)
 	if err != nil {
 		t.Fatalf("creating session request: %v", err)
 	}
 	req.Header.Set("X-User-ID", userID)
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -182,17 +220,24 @@ func brokerCreateSession(t *testing.T, brokerURL, userID string) string {
 	if result.OAuthSessionKey == "" {
 		t.Fatal("empty session key")
 	}
+	// Verify the returned session key matches the one in the JWT
+	if result.OAuthSessionKey != sessionKey {
+		t.Fatalf("session key mismatch: expected %s, got %s", sessionKey, result.OAuthSessionKey)
+	}
 	return result.OAuthSessionKey
 }
 
 func brokerRequestToken(t *testing.T, brokerURL, sessionKey, userID, mcpServerURL string) (*http.Response, string) {
 	t.Helper()
 
+	// Create JWT with session_key and user_id
+	token := createTestJWT(sessionKey, userID)
+
 	req, err := http.NewRequest("POST", brokerURL+"/sessions/"+sessionKey+"/token", nil)
 	if err != nil {
 		t.Fatalf("creating token request: %v", err)
 	}
-	req.Header.Set("X-User-ID", userID)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-Mcp-Server-Url", mcpServerURL)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -208,10 +253,14 @@ func brokerRequestToken(t *testing.T, brokerURL, sessionKey, userID, mcpServerUR
 func brokerPollEvents(t *testing.T, brokerURL, sessionKey, userID string) *core.Event {
 	t.Helper()
 
+	// Create JWT with session_key and user_id
+	token := createTestJWT(sessionKey, userID)
+
 	req, err := http.NewRequest("POST", brokerURL+"/sessions/"+sessionKey+"/events", nil)
 	if err != nil {
 		t.Fatalf("creating events request: %v", err)
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-User-ID", userID)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -238,11 +287,15 @@ func brokerPollEvents(t *testing.T, brokerURL, sessionKey, userID string) *core.
 func brokerCompleteOAuth(t *testing.T, brokerURL, sessionKey, userID, code, state string) *http.Response {
 	t.Helper()
 
+	// Create JWT with session_key and user_id
+	token := createTestJWT(sessionKey, userID)
+
 	u := fmt.Sprintf("%s/sessions/%s/events?code=%s&state=%s", brokerURL, sessionKey, url.QueryEscape(code), url.QueryEscape(state))
 	req, err := http.NewRequest("POST", u, nil)
 	if err != nil {
 		t.Fatalf("creating OAuth completion request: %v", err)
 	}
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-User-ID", userID)
 
 	resp, err := http.DefaultClient.Do(req)
@@ -256,11 +309,14 @@ func brokerCompleteOAuth(t *testing.T, brokerURL, sessionKey, userID, code, stat
 func brokerEndSession(t *testing.T, brokerURL, sessionKey, userID string) *http.Response {
 	t.Helper()
 
+	// Create JWT with session_key and user_id
+	token := createTestJWT(sessionKey, userID)
+
 	req, err := http.NewRequest("POST", brokerURL+"/sessions/"+sessionKey+"/end", nil)
 	if err != nil {
 		t.Fatalf("creating end session request: %v", err)
 	}
-	req.Header.Set("X-User-ID", userID)
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

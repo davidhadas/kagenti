@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/github/github-mcp-server/internal/tokenbroker/core"
+	"github.com/kagenti/kagenti/internal/tokenbroker/core"
 )
 
 // FakeClock for testing

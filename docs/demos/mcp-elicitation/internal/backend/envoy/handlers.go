@@ -82,17 +82,12 @@ func (h *Handler) HandleTask(w http.ResponseWriter, r *http.Request) {
 		"job_id": job.ID,
 	})
 
-	// Create getToken closure
-	getToken := func() (string, error) {
-		return h.authenticator.GetUserToken(req.Username, req.Password)
-	}
-
 	// Process task asynchronously
-	go processTask(r.Context(), h, job, getToken)
+	go processTask(r.Context(), h, job, req.Username, req.Password)
 }
 
 // processTask processes a task asynchronously.
-func processTask(ctx context.Context, h *Handler, job *Job, getToken func() (string, error)) {
+func processTask(ctx context.Context, h *Handler, job *Job, username, password string) {
 	// Update status to processing
 	h.jobManager.UpdateJobStatus(job.ID, JobStatusProcessing)
 
@@ -103,7 +98,15 @@ func processTask(ctx context.Context, h *Handler, job *Job, getToken func() (str
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		session, err = h.sessionManager.CreateSession(ctx, job.UserID, h.agentURL, getToken)
+		// Get token with claims to extract session_key
+		tokenWithClaims, err := h.authenticator.GetUserTokenWithClaims(username, password)
+		if err != nil {
+			h.logger.Error("Failed to get token with claims", "error", err, "user_id", job.UserID, "job_id", job.ID)
+			h.jobManager.SetJobError(job.ID, fmt.Sprintf("Failed to get token with claims: %v", err))
+			return
+		}
+
+		session, err = h.sessionManager.CreateSessionWithClaims(ctx, job.UserID, h.agentURL, tokenWithClaims)
 		if err != nil {
 			h.logger.Error("Failed to create session", "error", err, "user_id", job.UserID, "job_id", job.ID)
 			h.jobManager.SetJobError(job.ID, fmt.Sprintf("Failed to create session: %v", err))
@@ -119,13 +122,8 @@ func processTask(ctx context.Context, h *Handler, job *Job, getToken func() (str
 	// Link job to session for OAuth event handling
 	h.sessionManager.LinkJobToSession(job.UserID, job.ID)
 
-	// Get Bearer token
-	bearerToken, err := getToken()
-	if err != nil {
-		h.logger.Error("Failed to get bearer token", "error", err, "user_id", job.UserID, "job_id", job.ID)
-		h.jobManager.SetJobError(job.ID, fmt.Sprintf("Failed to get bearer token: %v", err))
-		return
-	}
+	// Get Bearer token from session cache (reuse the same token that created the session)
+	bearerToken := session.GetCachedToken()
 
 	// Forward request to AI Agent with session key
 	body, err := h.sessionManager.client.ForwardToAgent(

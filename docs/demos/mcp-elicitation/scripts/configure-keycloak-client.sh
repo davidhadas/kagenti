@@ -68,6 +68,9 @@ if [ -n "$CLIENT_ID" ]; then
     else
         echo "✓ Audience mapper already exists"
     fi
+    
+    echo "✓ Using Keycloak's standard jti claim as session_key (no custom mapper needed)"
+    echo "✓ Using Keycloak's standard preferred_username claim as user_id (no custom mapper needed)"
 else
     echo "⚠ Could not find client ID, skipping audience mapper configuration"
 fi

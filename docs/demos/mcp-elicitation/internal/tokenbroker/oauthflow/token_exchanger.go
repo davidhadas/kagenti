@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/github/github-mcp-server/internal/tokenbroker/cache"
+	"github.com/kagenti/kagenti/internal/tokenbroker/cache"
 )
 
 // TokenExchanger exchanges an authorization code for an access token.
