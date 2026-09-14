@@ -65,17 +65,6 @@ from app.routers import (  # pylint: disable=wrong-import-position
 
 # Conditionally import feature-flagged modules.
 # pylint: disable=wrong-import-position,no-name-in-module,import-error
-_triggers_modules_loaded = False
-if settings.rossoctl_feature_flag_triggers:
-    try:
-        from app.routers import sandbox_trigger  # noqa: E402
-
-        _triggers_modules_loaded = True
-    except ImportError:
-        logging.getLogger(__name__).warning(
-            "TRIGGERS flag enabled but trigger modules not installed — skipping"
-        )
-
 _integrations_modules_loaded = False
 if settings.rossoctl_feature_flag_integrations:
     try:
@@ -245,10 +234,6 @@ app.include_router(contexts.storage_classes_router, prefix="/api/v1")
 # Feature-flagged routers (variables are assigned inside try/except blocks above;
 # pylint cannot track that _*_modules_loaded guards their usage).
 # pylint: disable=used-before-assignment
-if _triggers_modules_loaded:
-    app.include_router(sandbox_trigger.router, prefix="/api/v1")
-    logger.info("Feature flag TRIGGERS enabled — trigger routes registered")
-
 if _integrations_modules_loaded:
     app.include_router(integrations.router, prefix="/api/v1")
     logger.info("Feature flag INTEGRATIONS enabled — integration routes registered")

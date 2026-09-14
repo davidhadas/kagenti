@@ -28,7 +28,6 @@ import { IntegrationsPage } from './pages/IntegrationsPage';
 import { IntegrationDetailPage } from './pages/IntegrationDetailPage';
 import { AddIntegrationPage } from './pages/AddIntegrationPage';
 import { NotFoundPage } from './pages/NotFoundPage';
-import { TriggerManagementPage } from './pages/TriggerManagementPage';
 
 function App() {
   const features = useFeatureFlags();
@@ -146,9 +145,6 @@ function App() {
             <Route path="/integrations/add" element={<ProtectedRoute><AddIntegrationPage /></ProtectedRoute>} />
             <Route path="/integrations/:namespace/:name" element={<ProtectedRoute><IntegrationDetailPage /></ProtectedRoute>} />
           </>
-        )}
-        {features.triggers && (
-          <Route path="/triggers" element={<ProtectedRoute><TriggerManagementPage /></ProtectedRoute>} />
         )}
         <Route
           path="/mcp-gateway"

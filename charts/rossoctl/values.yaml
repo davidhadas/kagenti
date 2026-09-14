@@ -10,9 +10,6 @@ featureFlags:
   # Third-party integration endpoints.
   # (Currently undocumented)
   integrations: false
-  # Event-driven trigger system.
-  # See PR #996
-  triggers: false
   # kubernetes-sigs/agent-sandbox Sandbox workload type.
   # Requires agent-sandbox CRDs (Enabled by `--with-agent-sandbox`).
   # See docs/architecture/agent-sandbox.md

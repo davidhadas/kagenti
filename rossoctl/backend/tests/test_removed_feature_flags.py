@@ -14,7 +14,10 @@ from app.core.config import Settings
 from app.routers.config import FeatureFlagsResponse
 
 # Extended by the triggers and integrations commits.
-REMOVED_FLAGS = (("sandbox", "rossoctl_feature_flag_sandbox"),)
+REMOVED_FLAGS = (
+    ("sandbox", "rossoctl_feature_flag_sandbox"),
+    ("triggers", "rossoctl_feature_flag_triggers"),
+)
 
 # Flags that must survive — guards against an over-broad removal.
 LIVE_FLAGS = ("agentSandbox", "skills", "simulatedTools", "admin")

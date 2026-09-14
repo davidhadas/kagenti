@@ -30,7 +30,6 @@ class FeatureFlagsResponse(BaseModel):
 
     builds: bool = Field(description="Shipwright build-from-source capability available")
     integrations: bool = Field(description="Third-party integration endpoints")
-    triggers: bool = Field(description="Event-driven trigger system")
     agentSandbox: bool = Field(description="agent-sandbox (k8s-sigs) as a workload type")
     skills: bool = Field(description="Skill management system (CRUD + catalog UI)")
     externalSkills: bool = Field(description="External skill registry references")
@@ -86,7 +85,6 @@ async def get_feature_flags(
     return FeatureFlagsResponse(
         builds=kube.api_group_exists("shipwright.io"),
         integrations=settings.rossoctl_feature_flag_integrations,
-        triggers=settings.rossoctl_feature_flag_triggers,
         agentSandbox=settings.rossoctl_feature_flag_agent_sandbox,
         skills=settings.rossoctl_feature_flag_skills,
         externalSkills=settings.rossoctl_feature_flag_external_skills,

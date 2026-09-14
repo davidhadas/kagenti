@@ -153,8 +153,6 @@ spec:
             # Feature flags
             - name: ROSSOCTL_FEATURE_FLAG_INTEGRATIONS
               value: "{{ .Values.featureFlags.integrations }}"
-            - name: ROSSOCTL_FEATURE_FLAG_TRIGGERS
-              value: "{{ .Values.featureFlags.triggers }}"
             - name: ROSSOCTL_FEATURE_FLAG_AGENT_SANDBOX
               value: "{{ .Values.featureFlags.agentSandbox }}"
             - name: ROSSOCTL_FEATURE_FLAG_SKILLS

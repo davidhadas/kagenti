@@ -364,18 +364,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, features }) => {
                 </NavList>
               )}
 
-              {features?.triggers && (
-                <NavList>
-                  <NavItem
-                    itemId="triggers"
-                    isActive={isNavItemActive('/triggers')}
-                    onClick={() => handleNavSelect('/triggers')}
-                  >
-                    Triggers
-                  </NavItem>
-                </NavList>
-              )}
-
               <NavGroup title="Gateway & Routing">
                 <NavList>
                   <NavItem

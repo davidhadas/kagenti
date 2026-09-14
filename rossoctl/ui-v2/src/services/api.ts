@@ -1173,28 +1173,6 @@ export interface SessionTreeUsage {
   aggregate: SessionTokenUsage;
 }
 
-export const triggerService = {
-  async create(data: {
-    type: 'cron' | 'webhook' | 'alert';
-    skill?: string;
-    schedule?: string;
-    event?: string;
-    repo?: string;
-    branch?: string;
-    pr_number?: number;
-    alert?: string;
-    cluster?: string;
-    severity?: string;
-    namespace?: string;
-    ttl_hours?: number;
-  }): Promise<{ sandbox_claim: string; namespace: string }> {
-    return apiFetch('/sandbox/trigger', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
-};
-
 /**
  * Graph card service for fetching agent topology data.
  * Falls back to hardcoded sandbox-legion topology when the endpoint is unavailable.

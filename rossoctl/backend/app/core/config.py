@@ -77,7 +77,6 @@ class Settings(BaseSettings):
 
     # Feature flags — all experimental features default to disabled
     rossoctl_feature_flag_integrations: bool = False
-    rossoctl_feature_flag_triggers: bool = False
     rossoctl_feature_flag_agent_sandbox: bool = False
     rossoctl_feature_flag_authbridge_api: bool = False
     rossoctl_feature_flag_skills: bool = False
