@@ -349,50 +349,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, features }) => {
                       Skills
                     </NavItem>
                   )}
-                  {features?.sandbox && (
-                    <>
-                      <NavItem
-                        itemId="sandbox"
-                        isActive={isNavItemActive('/sandbox')}
-                        onClick={() => handleNavSelect('/sandbox')}
-                      >
-                        Sessions
-                      </NavItem>
-                      <NavItem
-                        itemId="sandboxes"
-                        isActive={isNavItemActive('/sandboxes')}
-                        onClick={() => handleNavSelect('/sandboxes')}
-                      >
-                        Sandboxes
-                      </NavItem>
-                    </>
-                  )}
                 </NavList>
               </NavGroup>
-
-              {features?.integrations && (
-                <NavList>
-                  <NavItem
-                    itemId="integrations"
-                    isActive={isNavItemActive('/integrations')}
-                    onClick={() => handleNavSelect('/integrations')}
-                  >
-                    Integrations
-                  </NavItem>
-                </NavList>
-              )}
-
-              {features?.triggers && (
-                <NavList>
-                  <NavItem
-                    itemId="triggers"
-                    isActive={isNavItemActive('/triggers')}
-                    onClick={() => handleNavSelect('/triggers')}
-                  >
-                    Triggers
-                  </NavItem>
-                </NavList>
-              )}
 
               <NavGroup title="Gateway & Routing">
                 <NavList>
@@ -422,15 +380,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, features }) => {
 
               <NavGroup title="Operations">
                 <NavList>
-                  {features?.sandbox && (
-                    <NavItem
-                      itemId="session-graph"
-                      isActive={isNavItemActive('/sandbox/graph')}
-                      onClick={() => handleNavSelect('/sandbox/graph')}
-                    >
-                      Session Graph
-                    </NavItem>
-                  )}
                   <NavItem
                     itemId="observability"
                     isActive={isNavItemActive('/observability')}

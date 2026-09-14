@@ -65,48 +65,6 @@ from app.routers import (  # pylint: disable=wrong-import-position
 
 # Conditionally import feature-flagged modules.
 # pylint: disable=wrong-import-position,no-name-in-module,import-error
-_sandbox_modules_loaded = False
-if settings.rossoctl_feature_flag_sandbox:
-    try:
-        from app.routers import (  # noqa: E402
-            sandbox,
-            sandbox_deploy,
-            sandbox_files,
-            token_usage,
-            sidecar,
-            events,
-            models,
-            llm_keys,
-        )
-        from app.services.session_db import close_all_pools  # noqa: E402
-
-        _sandbox_modules_loaded = True
-    except ImportError:
-        logging.getLogger(__name__).warning(
-            "SANDBOX flag enabled but sandbox modules not installed — skipping"
-        )
-
-_triggers_modules_loaded = False
-if settings.rossoctl_feature_flag_triggers:
-    try:
-        from app.routers import sandbox_trigger  # noqa: E402
-
-        _triggers_modules_loaded = True
-    except ImportError:
-        logging.getLogger(__name__).warning(
-            "TRIGGERS flag enabled but trigger modules not installed — skipping"
-        )
-
-_integrations_modules_loaded = False
-if settings.rossoctl_feature_flag_integrations:
-    try:
-        from app.routers import integrations  # noqa: E402
-
-        _integrations_modules_loaded = True
-    except ImportError:
-        logging.getLogger(__name__).warning(
-            "INTEGRATIONS flag enabled but integration modules not installed — skipping"
-        )
 _skills_modules_loaded = False
 if settings.rossoctl_feature_flag_skills:
     try:
@@ -115,7 +73,8 @@ if settings.rossoctl_feature_flag_skills:
         _skills_modules_loaded = True
     except ImportError:
         logging.getLogger(__name__).warning(
-            "SKILLS flag enabled but skills modules not installed — skipping"
+            "SKILLS flag enabled but skills modules not installed — skipping",
+            exc_info=True,
         )
 
 _acp_modules_loaded = False
@@ -126,7 +85,8 @@ if settings.rossoctl_feature_flag_acp:
         _acp_modules_loaded = True
     except ImportError:
         logging.getLogger(__name__).warning(
-            "ACP flag enabled but acp modules not installed — skipping"
+            "ACP flag enabled but acp modules not installed — skipping",
+            exc_info=True,
         )
 
 _simulation_modules_loaded = False
@@ -137,7 +97,8 @@ if settings.rossoctl_feature_flag_simulated_tools:
         _simulation_modules_loaded = True
     except ImportError:
         logging.getLogger(__name__).warning(
-            "SIMULATED_TOOLS flag enabled but simulation modules not installed — skipping"
+            "SIMULATED_TOOLS flag enabled but simulation modules not installed — skipping",
+            exc_info=True,
         )
 
 _dreaming_modules_loaded = False
@@ -148,7 +109,8 @@ if settings.rossoctl_feature_flag_dreaming:
         _dreaming_modules_loaded = True
     except ImportError:
         logging.getLogger(__name__).warning(
-            "DREAMING flag enabled but dreaming modules not installed — skipping"
+            "DREAMING flag enabled but dreaming modules not installed — skipping",
+            exc_info=True,
         )
 # pylint: enable=wrong-import-position,no-name-in-module,import-error
 
@@ -223,15 +185,6 @@ async def lifespan(app: FastAPI):
         except Exception:
             pass
 
-    # Shutdown sandbox services (only if enabled and loaded)
-    if _sandbox_modules_loaded:
-        from app.services.sidecar_manager import get_sidecar_manager  # pylint: disable=import-error,no-name-in-module
-
-        await get_sidecar_manager().shutdown()
-
-        # Close session DB pools
-        await close_all_pools()  # pylint: disable=used-before-assignment
-
     logger.info("Shutting down Rossoctl Backend API")
 
 
@@ -271,25 +224,6 @@ app.include_router(contexts.storage_classes_router, prefix="/api/v1")
 # Feature-flagged routers (variables are assigned inside try/except blocks above;
 # pylint cannot track that _*_modules_loaded guards their usage).
 # pylint: disable=used-before-assignment
-if _sandbox_modules_loaded:
-    app.include_router(sandbox.router, prefix="/api/v1")
-    app.include_router(sandbox_deploy.router, prefix="/api/v1")
-    app.include_router(sandbox_files.router, prefix="/api/v1")
-    app.include_router(token_usage.router, prefix="/api/v1")
-    app.include_router(sidecar.router, prefix="/api/v1")
-    app.include_router(events.router, prefix="/api/v1")
-    app.include_router(models.router, prefix="/api/v1")
-    app.include_router(llm_keys.router, prefix="/api/v1")
-    logger.info("Feature flag SANDBOX enabled — sandbox routes registered")
-
-if _triggers_modules_loaded:
-    app.include_router(sandbox_trigger.router, prefix="/api/v1")
-    logger.info("Feature flag TRIGGERS enabled — trigger routes registered")
-
-if _integrations_modules_loaded:
-    app.include_router(integrations.router, prefix="/api/v1")
-    logger.info("Feature flag INTEGRATIONS enabled — integration routes registered")
-
 if _skills_modules_loaded:
     app.include_router(skills.router, prefix="/api/v1")
     logger.info("Feature flag SKILLS enabled — skills routes registered")

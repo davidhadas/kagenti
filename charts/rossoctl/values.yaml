@@ -7,16 +7,6 @@ domain: localtest.me
 #  Feature flags: experimental features disabled by default
 # ------------------------------------------------------------------
 featureFlags:
-  # Sandbox runtime (session management, file browser, sidecars).
-  # NOT YET FULLY IMPLEMENTED — backend modules not merged. Do not enable.
-  # See PR #996
-  sandbox: false
-  # Third-party integration endpoints.
-  # (Currently undocumented)
-  integrations: false
-  # Event-driven trigger system.
-  # See PR #996
-  triggers: false
   # kubernetes-sigs/agent-sandbox Sandbox workload type.
   # Requires agent-sandbox CRDs (Enabled by `--with-agent-sandbox`).
   # See docs/architecture/agent-sandbox.md

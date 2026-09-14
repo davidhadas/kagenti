@@ -16,4 +16,3 @@ export { SkillCatalogPage } from './SkillCatalogPage';
 export { SkillDetailPage } from './SkillDetailPage';
 export { ImportSkillPage } from './ImportSkillPage';
 export { NotFoundPage } from './NotFoundPage';
-export { SandboxCreatePage } from './SandboxCreatePage';
