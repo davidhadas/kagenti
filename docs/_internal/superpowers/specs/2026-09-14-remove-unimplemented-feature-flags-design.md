@@ -129,6 +129,9 @@ the three sidecar implementations under `app/services/sidecars/`, and it imports
 `ROSSOCTL_FEATURE_FLAG_SANDBOX: "true"` env entry. The adjacent
 `ROSSOCTL_FEATURE_FLAG_ACP: "true"` is legitimate (`acp.py` exists) and stays.
 
+`CLAUDE.md:195-197` — delete the three rows from the "Current flags" table, one
+per vertical commit. See §7.
+
 ### 4.4 UI (`rossoctl/ui-v2/src/`)
 
 | File | Change |
@@ -144,20 +147,62 @@ the three sidecar implementations under `app/services/sidecars/`, and it imports
 grep for `features.sandbox` does not find it. It is live and must be **edited**,
 not deleted.
 
-### 4.5 `services/api.ts`: method, not a list
+### 4.5 `services/api.ts`: 9 removable units, enumerated
 
-`api.ts` is 1,783 lines of live shared client code. Thirteen call sites target
-dead endpoints (`/sandbox/...`, `/integrations`, `/sandbox/trigger`, `/models`),
-but the exported functions wrapping them must be removed by **caller analysis,
-not path matching** — some may be called from surviving code.
+`api.ts` is 1,783 lines of live shared client code with 27 exported symbols.
+The removable set was found by **caller analysis, not path matching**: for each
+of the 27 exports, grep `src/` for callers and keep it unless every caller is in
+§6's deletion set.
 
-The procedure, per commit: for each exported symbol whose body targets a dead
-endpoint, grep the whole `src/` tree for remaining callers after that commit's
-page deletions. Remove only those with zero. `tsc` will not catch a leftover —
-`noUnusedLocals` does not flag unused *exports* — so this grep pass is the check
-and must be run explicitly rather than assumed.
+Path matching would have been wrong in both directions, which is why the method
+matters:
+
+- It would have **missed** `sessionGraphService`, `sandboxFileService`,
+  `tokenUsageService`, `getPodMetrics` and `getPodEvents` — dead, but not
+  matching a `/sandbox`-shaped literal.
+- It would have **wrongly deleted** `sandboxService` and `modelsService` — both
+  hit dead endpoints, but both are called by the **live** `SandboxWizard.tsx`
+  (`getConfig`, `updateSandbox`, `createSandbox`, `getAvailableModels`).
+
+| Unit | Lines | Commit | Sole callers |
+|---|---|---|---|
+| `sessionGraphService` | 802-815 | sandbox | `SessionGraphPage` |
+| `sandboxFileService` | 1163-1236 | sandbox | `FileBrowser`, `FilePreviewModal`, `SandboxesPage` |
+| `tokenUsageService` | 1238-1277 | sandbox | `LlmUsagePanel`, `SessionStatsPanel` |
+| `sidecarService` | 1279-1329 | sandbox | `SidecarTab`, `SandboxPage` |
+| `getPodStatus` | 1462-1495 | sandbox | `PodStatusPanel` |
+| `getPodMetrics` | 1497-1504 | sandbox | `PodStatusPanel` |
+| `getPodEvents` | 1506-1549 | sandbox | `PodStatusPanel` |
+| `triggerService` | 1330-1401 | triggers | `TriggerManagementPage` |
+| `integrationService` | 1089-1162 | integrations | the three Integration pages |
+
+411 lines total. Delete bottom-up within each commit so earlier deletions do not
+shift later line numbers.
+
+**`sandboxService` and `modelsService` are kept whole and untrimmed.** Both are
+entangled with the live `agentSandbox` wizard, which already depends on backend
+routes that were never merged (§7 finding 1). Trimming their individually-unused
+methods is cosmetic, risks breaking a live component, and belongs with the
+follow-up that fixes that dependency — not with a flag removal.
+
+`graphCardService` (1403-1425) has **no callers at all**, before or after this
+change. It is pre-existing dead code and is left alone for the same reason as
+the seven files in §7.
+
+`tsc` cannot backstop this step: `noUnusedLocals` does not flag unused
+*exports*. The grep pass is the check and must be run, not assumed.
 
 **`services/eventService.ts` stays entirely untouched.** See §7.
+
+### 4.6 One barrel edit is required
+
+`src/pages/index.ts:19` re-exports `SandboxCreatePage`, which commit 2 deletes.
+Because `tsconfig.json` sets `"include": ["src"]`, `tsc` compiles that barrel
+even though nothing imports it — so the stale re-export is a **build failure**,
+not dead weight. Delete line 19.
+
+`src/hooks/index.ts` (exports only `useNamespaces`) and `src/services/index.ts`
+(exports none of the nine removed units) need no change.
 
 ## 5. The one edit that is not a deletion
 
@@ -247,8 +292,9 @@ hooks/index.ts  pages/index.ts  services/index.ts
 ```
 
 The three `index.ts` barrels are unreachable because nothing imports them at
-all — not because their exports are dead. Consequently **no barrel file needs
-editing** in this change.
+all — not because their exports are dead. They are nonetheless still *compiled*
+(`"include": ["src"]`), which is why one of them needs a one-line edit: see
+§4.6. Unreachable is not the same as ignored by `tsc`.
 
 **Two pre-existing defects were discovered and are deliberately not fixed
 here.** Both should be filed as follow-ups; neither is caused or worsened by
@@ -269,10 +315,19 @@ this change:
    changes no runtime behaviour — it never ran — but it does remove the only
    shutdown hook that was ever written for it.
 
-**No documentation and no UI tests change.** Neither references any of the three
-flags: the five UI test files under `src/` touch none of the deleted code, and
+**No UI tests change.** The five UI test files under `src/` touch none of the
+deleted code.
+
+**One documentation file does change: `CLAUDE.md:195-197`.** Its "Current
+flags" table lists all three removed flags by name. `docs/` itself is clean —
 `docs/reference/install-options.md` and `docs/operate/install-helm.md` do not
-list these flags.
+mention them — which is why an earlier survey of `docs/` alone concluded no
+documentation change was needed. Each vertical commit deletes its own row,
+leaving `rossoctl_feature_flag_admin` as the table's only entry.
+
+`docs/_internal/superpowers/plans/2026-04-22-agent-sandbox-workload-type.md`
+also names the old flags and is deliberately **not** edited: it is a historical
+plan document, not a live reference. The §8 sweep therefore excludes `docs/`.
 
 ## 8. Verification
 
@@ -297,9 +352,20 @@ Final sweep across the whole repo:
 grep -rn 'featureFlags\.\(sandbox\|triggers\|integrations\)\|FEATURE_FLAG_\(SANDBOX\|TRIGGERS\|INTEGRATIONS\)\|feature_flag_\(sandbox\|triggers\|integrations\)'
 ```
 
-Expected: zero matches. The pattern is anchored on word boundaries so it does
-not match `agentSandbox` / `agent_sandbox`; verify that by confirming the live
-`agentSandbox` references still exist afterwards.
+Expected: zero matches, with `docs/` excluded (§7 explains why). The pattern is
+anchored on word boundaries so it does not match `agentSandbox` /
+`agent_sandbox`; verify that by confirming the live `agentSandbox` references
+still exist afterwards.
+
+**The sweep has one blind spot that needs its own check.** It matches
+`featureFlags.sandbox` — the Helm *template* form — and therefore cannot see the
+YAML *key* form in `values.yaml`, where the flags are declared as bare
+`sandbox: false` under a `featureFlags:` parent. A forgotten values entry would
+pass the sweep silently. Check it directly:
+
+```
+grep -nE '^\s+(sandbox|triggers|integrations):' charts/rossoctl/values.yaml
+```
 
 ## 9. Consequences
 
