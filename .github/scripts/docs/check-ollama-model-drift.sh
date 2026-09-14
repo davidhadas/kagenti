@@ -2,14 +2,19 @@
 #
 # check-ollama-model-drift.sh
 #
-# Guards against the demo docs drifting out of sync with the Ollama model name
-# that is the source of truth in the rossoctl/examples repo.
+# Guards against the docs drifting out of sync with the Ollama model name that
+# is the source of truth in the rossoctl/examples repo.
 #
-# Currently scoped to the weather demo ONLY, because it is the sole agent that
-# actually publishes an `.env.ollama` in rossoctl/examples. The image, generic,
-# file-organizer, and slack demos reference an `.env.ollama` that does not yet
-# exist in the examples repo -- see rossoctl/rossoctl#2527. Extend the CHECKS
-# array once those files are published.
+# Checks the model table in docs/get-started/configure-a-model.md, whose
+# `ollama`-preset row names the model verbatim (e.g. "The default in the
+# `ollama` preset"). The source of truth is the weather demo's `.env.ollama`
+# in rossoctl/examples — the sole agent that publishes one. If the examples
+# repo repins its model and the docs page is not updated, this fails.
+#
+# The doc must contain the model as a substring (grep -F). The page is a menu
+# of tested models, so the guarded value can move rows without breaking the
+# check, as long as the current `.env.ollama` model still appears somewhere on
+# the page.
 #
 # Exit codes: 0 = in sync, 1 = drift detected, 2 = could not fetch source.
 
@@ -17,7 +22,7 @@ set -euo pipefail
 
 # doc_path <TAB> raw_env_url
 CHECKS=(
-  "docs/demos/demo-weather-agent.md	https://raw.githubusercontent.com/rossoctl/examples/refs/heads/main/a2a/weather_service/.env.ollama"
+  "docs/get-started/configure-a-model.md	https://raw.githubusercontent.com/rossoctl/examples/refs/heads/main/a2a/weather_service/.env.ollama"
 )
 
 fetch_with_retry() {

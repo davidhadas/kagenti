@@ -93,12 +93,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
-      # Guards the demo docs against drifting out of sync with the Ollama model
-      # name that is the source of truth in rossoctl/examples. Currently scoped
-      # to the weather demo only — it is the sole agent that publishes an
-      # `.env.ollama` in the examples repo. The other demos reference an
-      # `.env.ollama` that does not yet exist there (rossoctl/rossoctl#2527);
-      # extend the CHECKS array in the script once those files are published.
+      # Guards docs/get-started/configure-a-model.md against drifting out of
+      # sync with the Ollama model name that is the source of truth in
+      # rossoctl/examples (the weather demo's `.env.ollama` — the sole agent
+      # that publishes one). The page names that model in its `ollama`-preset
+      # table row; if the examples repo repins and the page is not updated,
+      # this fails.
       #
       # Real drift (script exit 1) fails the job. A source-fetch failure
       # (exit 2, e.g. network flake reaching raw.githubusercontent.com) is
