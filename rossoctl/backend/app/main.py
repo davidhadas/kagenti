@@ -115,7 +115,8 @@ if settings.rossoctl_feature_flag_skills:
         _skills_modules_loaded = True
     except ImportError:
         logging.getLogger(__name__).warning(
-            "SKILLS flag enabled but skills modules not installed — skipping"
+            "SKILLS flag enabled but skills modules not installed — skipping",
+            exc_info=True,
         )
 
 _acp_modules_loaded = False
@@ -126,7 +127,8 @@ if settings.rossoctl_feature_flag_acp:
         _acp_modules_loaded = True
     except ImportError:
         logging.getLogger(__name__).warning(
-            "ACP flag enabled but acp modules not installed — skipping"
+            "ACP flag enabled but acp modules not installed — skipping",
+            exc_info=True,
         )
 
 _simulation_modules_loaded = False
@@ -137,7 +139,8 @@ if settings.rossoctl_feature_flag_simulated_tools:
         _simulation_modules_loaded = True
     except ImportError:
         logging.getLogger(__name__).warning(
-            "SIMULATED_TOOLS flag enabled but simulation modules not installed — skipping"
+            "SIMULATED_TOOLS flag enabled but simulation modules not installed — skipping",
+            exc_info=True,
         )
 
 _dreaming_modules_loaded = False
@@ -148,7 +151,8 @@ if settings.rossoctl_feature_flag_dreaming:
         _dreaming_modules_loaded = True
     except ImportError:
         logging.getLogger(__name__).warning(
-            "DREAMING flag enabled but dreaming modules not installed — skipping"
+            "DREAMING flag enabled but dreaming modules not installed — skipping",
+            exc_info=True,
         )
 # pylint: enable=wrong-import-position,no-name-in-module,import-error
 
