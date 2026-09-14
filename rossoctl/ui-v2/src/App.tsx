@@ -24,9 +24,6 @@ import { AdminPage } from './pages/AdminPage';
 import { SkillCatalogPage } from './pages/SkillCatalogPage';
 import { SkillDetailPage } from './pages/SkillDetailPage';
 import { ImportSkillPage } from './pages/ImportSkillPage';
-import { IntegrationsPage } from './pages/IntegrationsPage';
-import { IntegrationDetailPage } from './pages/IntegrationDetailPage';
-import { AddIntegrationPage } from './pages/AddIntegrationPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 
 function App() {
@@ -137,13 +134,6 @@ function App() {
                 </ProtectedRoute>
               }
             />
-          </>
-        )}
-        {features.integrations && (
-          <>
-            <Route path="/integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
-            <Route path="/integrations/add" element={<ProtectedRoute><AddIntegrationPage /></ProtectedRoute>} />
-            <Route path="/integrations/:namespace/:name" element={<ProtectedRoute><IntegrationDetailPage /></ProtectedRoute>} />
           </>
         )}
         <Route

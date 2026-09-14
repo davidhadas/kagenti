@@ -151,8 +151,6 @@ spec:
               value: {{ .Values.ui.backend.contextServiceUrl | quote }}
             {{- end }}
             # Feature flags
-            - name: ROSSOCTL_FEATURE_FLAG_INTEGRATIONS
-              value: "{{ .Values.featureFlags.integrations }}"
             - name: ROSSOCTL_FEATURE_FLAG_AGENT_SANDBOX
               value: "{{ .Values.featureFlags.agentSandbox }}"
             - name: ROSSOCTL_FEATURE_FLAG_SKILLS
@@ -490,12 +488,6 @@ rules:
   - apiGroups: ["agents.x-k8s.io"]
     resources: ["sandboxes"]
     verbs: ["get", "list", "watch", "create", "delete"]
-  {{- end }}
-  {{- if .Values.featureFlags.integrations }}
-  # Integration CRDs for repository integrations
-  - apiGroups: ["rossoctl.io"]
-    resources: ["integrations", "integrations/status"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1

@@ -68,7 +68,6 @@ type DisplayedFlag = Exclude<keyof FeatureFlags, 'admin'>;
 
 const FLAG_LABELS: Record<DisplayedFlag, string> = {
   builds: 'Builds (Shipwright)',
-  integrations: 'Integrations',
   agentSandbox: 'Agent Sandbox',
   skills: 'Skills',
   authbridgeAPI: 'AuthBridge API',

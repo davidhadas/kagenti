@@ -65,16 +65,6 @@ from app.routers import (  # pylint: disable=wrong-import-position
 
 # Conditionally import feature-flagged modules.
 # pylint: disable=wrong-import-position,no-name-in-module,import-error
-_integrations_modules_loaded = False
-if settings.rossoctl_feature_flag_integrations:
-    try:
-        from app.routers import integrations  # noqa: E402
-
-        _integrations_modules_loaded = True
-    except ImportError:
-        logging.getLogger(__name__).warning(
-            "INTEGRATIONS flag enabled but integration modules not installed — skipping"
-        )
 _skills_modules_loaded = False
 if settings.rossoctl_feature_flag_skills:
     try:
@@ -234,10 +224,6 @@ app.include_router(contexts.storage_classes_router, prefix="/api/v1")
 # Feature-flagged routers (variables are assigned inside try/except blocks above;
 # pylint cannot track that _*_modules_loaded guards their usage).
 # pylint: disable=used-before-assignment
-if _integrations_modules_loaded:
-    app.include_router(integrations.router, prefix="/api/v1")
-    logger.info("Feature flag INTEGRATIONS enabled — integration routes registered")
-
 if _skills_modules_loaded:
     app.include_router(skills.router, prefix="/api/v1")
     logger.info("Feature flag SKILLS enabled — skills routes registered")

@@ -192,7 +192,6 @@ and lets us decouple merge velocity from release readiness.
 
 | Flag | Controls |
 |------|----------|
-| `rossoctl_feature_flag_integrations` | Third-party integration endpoints |
 | `rossoctl_feature_flag_admin` | Platform Status card and /platform-status endpoint |
 
 ### TODO

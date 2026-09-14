@@ -21,7 +21,6 @@ def _make_config_app(simulated_tools: bool) -> FastAPI:
 
     # Feature flags are read straight off `settings` in get_feature_flags.
     mock_settings = MagicMock()
-    mock_settings.rossoctl_feature_flag_integrations = False
     mock_settings.rossoctl_feature_flag_agent_sandbox = False
     mock_settings.rossoctl_feature_flag_skills = False
     mock_settings.rossoctl_feature_flag_external_skills = False

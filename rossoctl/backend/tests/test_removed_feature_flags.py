@@ -17,6 +17,7 @@ from app.routers.config import FeatureFlagsResponse
 REMOVED_FLAGS = (
     ("sandbox", "rossoctl_feature_flag_sandbox"),
     ("triggers", "rossoctl_feature_flag_triggers"),
+    ("integrations", "rossoctl_feature_flag_integrations"),
 )
 
 # Flags that must survive — guards against an over-broad removal.

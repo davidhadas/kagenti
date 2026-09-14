@@ -6,7 +6,6 @@ import { useState, useEffect } from 'react';
 export interface FeatureFlags {
   /** Shipwright build-from-source capability available in the cluster. */
   builds: boolean;
-  integrations: boolean;
   /** agent-sandbox (kubernetes-sigs) as a fourth workload type. */
   agentSandbox: boolean;
   skills: boolean;
@@ -26,7 +25,6 @@ export interface FeatureFlags {
 
 const DEFAULT_FLAGS: FeatureFlags = {
   builds: false,
-  integrations: false,
   agentSandbox: false,
   skills: false,
   authbridgeAPI: false,
@@ -50,7 +48,6 @@ export function useFeatureFlags(): FeatureFlags {
       .then((data) => {
         const validated: FeatureFlags = {
           builds: data.builds === true,
-          integrations: data.integrations === true,
           agentSandbox: data.agentSandbox === true,
           skills: data.skills === true,
           authbridgeAPI: data.authbridgeAPI === true,
