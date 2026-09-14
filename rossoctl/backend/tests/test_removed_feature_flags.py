@@ -13,7 +13,7 @@ import pytest
 from app.core.config import Settings
 from app.routers.config import FeatureFlagsResponse
 
-# Extended by the triggers and integrations commits.
+# The three flags removed by this branch — (api_name, settings_name) per flag.
 REMOVED_FLAGS = (
     ("sandbox", "rossoctl_feature_flag_sandbox"),
     ("triggers", "rossoctl_feature_flag_triggers"),

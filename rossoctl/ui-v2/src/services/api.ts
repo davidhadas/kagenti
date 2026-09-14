@@ -783,12 +783,6 @@ export interface GraphEdge {
   task: string;
 }
 
-export interface SessionGraphData {
-  root: string;
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-}
-
 /**
  * Chat service for A2A agent communication
  */
@@ -1085,13 +1079,6 @@ export interface SessionTokenUsage {
   total_cost: number;
 }
 
-export interface SessionTreeUsage {
-  context_id: string;
-  own_usage: SessionTokenUsage;
-  children: SessionTokenUsage[];
-  aggregate: SessionTokenUsage;
-}
-
 /**
  * Graph card service for fetching agent topology data.
  * Falls back to hardcoded sandbox-legion topology when the endpoint is unavailable.
@@ -1186,22 +1173,6 @@ export interface PodEvent {
   count: number;
 }
 
-export interface PodInfo {
-  component: string;
-  deployment: string;
-  replicas: number;
-  ready_replicas: number;
-  pod_name: string | null;
-  status: string;
-  restarts: number;
-  last_restart_reason: string | null;
-  resources: {
-    requests: { cpu: string; memory: string };
-    limits: { cpu: string; memory: string };
-  };
-  events: PodEvent[];
-}
-
 /**
  * Pod metrics types and API (metrics-server data)
  */
@@ -1213,24 +1184,6 @@ export interface ContainerMetrics {
   memory_usage_bytes: number;
   memory_limit_bytes: number;
   memory_usage_raw: string;
-}
-
-export interface PodMetrics {
-  component: string;
-  pod_name: string;
-  limits_cpu: string;
-  limits_memory: string;
-  containers: ContainerMetrics[];
-}
-
-export interface PodEventDetail {
-  pod_name: string;
-  component: string;
-  type: string;
-  reason: string;
-  message: string;
-  timestamp: string;
-  count: number;
 }
 
 /**

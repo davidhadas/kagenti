@@ -296,8 +296,8 @@ all — not because their exports are dead. They are nonetheless still *compiled
 (`"include": ["src"]`), which is why one of them needs a one-line edit: see
 §4.6. Unreachable is not the same as ignored by `tsc`.
 
-**Two pre-existing defects were discovered and are deliberately not fixed
-here.** Both should be filed as follow-ups; neither is caused or worsened by
+**Three pre-existing defects were discovered and are deliberately not fixed
+here.** All should be filed as follow-ups; none is caused or worsened by
 this change:
 
 1. **The live `agentSandbox` wizard calls a route that was never merged.**
@@ -314,6 +314,12 @@ this change:
    whenever `rossoctl_feature_flag_sidecars` is set. Removing the dead branch
    changes no runtime behaviour — it never ran — but it does remove the only
    shutdown hook that was ever written for it.
+
+3. **The rendered backend ClusterRole grants no `configmaps` `delete` rule,
+   but the live `skills` router deletes ConfigMaps.** See §9: the deleted
+   `sandbox` RBAC block had been accidentally masking this gap. It predates
+   this branch and is not introduced by it, but should be tracked and fixed
+   independently.
 
 **No UI tests change.** The five UI test files under `src/` touch none of the
 deleted code.
@@ -361,19 +367,41 @@ still exist afterwards.
 `featureFlags.sandbox` — the Helm *template* form — and therefore cannot see the
 YAML *key* form in `values.yaml`, where the flags are declared as bare
 `sandbox: false` under a `featureFlags:` parent. A forgotten values entry would
-pass the sweep silently. Check it directly:
+pass the sweep silently — and scoping the check to `charts/rossoctl/values.yaml`
+alone is exactly what let two shipping env values files (`deployments/envs/
+ocp_values.yaml` and `deployments/envs/ocp_ci_values.yaml`) go unnoticed with all
+three flags still enabled. Check it repo-wide instead:
 
 ```
-grep -nE '^\s+(sandbox|triggers|integrations):' charts/rossoctl/values.yaml
+grep -rnE '^[[:space:]]+(sandbox|triggers|integrations):' --include='*.yaml' \
+  --include='*.yml' --exclude-dir=node_modules --exclude-dir=.git \
+  --exclude-dir=.superpowers .
 ```
+
+Three matches are known-benign and should not be chased: `rossoctl/examples/
+agents/sandbox_agent_buildconfig_ocp.yaml` (`triggers: []`, a BuildConfig trigger
+list), `rossoctl/examples/mcpservers/weather_tool_buildconfig.yaml` (same), and
+`deployments/sandbox/test-sandbox.yaml` (`sandbox: test-sandbox-001`, a pod
+label). Any other match is a real miss.
 
 ## 9. Consequences
 
 **A privilege reduction, not just a cleanup.** Deleting the `sandbox` RBAC
 block permanently removes `pods` `create`, `pods/exec` `get`+`create`, and
-`pods/log` from the backend ClusterRole, along with `configmaps` and `secrets`
+`pods/log` from the backend ClusterRole, along with `secrets`
 `create`/`patch`/`delete`. `pods/exec` in particular is a container-escape-grade
-permission that no shipping code path uses. Worth leading with in the PR body.
+permission that no shipping code path uses, and `KubernetesService.create_secret`
+(`rossoctl/backend/app/services/kubernetes.py:574-606`) has no callers, so the
+`secrets` claim is genuinely unused too. `configmaps` `delete` is the exception:
+the live `skills` router deletes ConfigMaps
+(`rossoctl/backend/app/routers/skills.py:737,882,894` and
+`rossoctl/backend/app/services/skill_autosync.py:225`), and after this branch the
+rendered backend ClusterRole grants `configmaps` only `get,list,create,update,patch`
+— no rule grants `delete`. This is **not a regression**: the `sandbox` flag
+defaulted to `false`, and the two OCP env files that did enable it do not enable
+`skills`. But the branch makes a pre-existing latent chart gap permanent — the
+`sandbox` RBAC block had been accidentally masking it — rather than causing the
+gap itself. Worth leading with in the PR body.
 
 **A stale `featureFlags.sandbox: true` becomes a silent no-op rather than a
 Helm error.** The chart has no `values.schema.json`, so Helm ignores unknown

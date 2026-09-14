@@ -352,7 +352,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children, features }) => {
                 </NavList>
               </NavGroup>
 
-
               <NavGroup title="Gateway & Routing">
                 <NavList>
                   <NavItem
