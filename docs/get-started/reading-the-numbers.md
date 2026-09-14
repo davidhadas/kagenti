@@ -64,26 +64,35 @@ otherwise see.
 | `Esc` | Return to the previous view |
 | `/` | Filter the events |
 | `p` | Pause and resume the stream |
-| `y` | Write the event to a file in `/tmp` |
+| `y` | Write the event to a file in `~/.cortex/abctl-events/` |
 | `g` `G` | Move to the top or the bottom |
 | `q` or `Ctrl+C` | Quit |
 
-The `/` key filters the events by a **substring match on the method**. For example, `messages` shows
-only the events whose method contains that text. It is a text match on the method, not a query
-language. You cannot filter on a condition such as a duration.
+The `/` key filters the events by a **text match**. For example, `messages` shows only the events
+that contain that text. The match covers many fields of an event, not the method alone — the host,
+the method, the plugin name, the reason, the path, and the message content all count.
+
+Two searches are special:
+
+- `deny` shows only the events that a plugin denied.
+- `plugin:<name>` shows only the events that the named plugin acted on. For example, `plugin:jwt-validation`.
+
+It is a text match, not a query language. You cannot filter on a condition such as a duration.
 
 ## Read the tokens
 
-A model call has a cost in tokens. Cortex separates the tokens into five categories, because each
-category has a different price.
+A model call has a cost in tokens. Cortex prices the tokens in four categories, because each category
+has a different rate.
 
 | Category | What it is | Why it is separate |
 | --- | --- | --- |
 | **Input** | The prompt tokens that the model read for the first time | You pay the full rate for these. |
-| **Cache read** | The prompt tokens that the model read from its cache | Much less than the input rate. This is caching that operates. |
 | **Cache write** | The prompt tokens that the model wrote to its cache | More than the input rate. This is the one-time cost to store the prompt. |
+| **Cache read** | The prompt tokens that the model read from its cache | Much less than the input rate. This is caching that operates. |
 | **Output** | The tokens that the model generated | |
-| **Reasoning** | The output tokens that the model used to reason | A part of the output on some models. |
+
+Cortex also captures a **reasoning** count. These are the output tokens that the model used to reason,
+on a model that reports them. They are a part of the output count, not a fifth priced category.
 
 ### Why cache read and cache write are two numbers
 
@@ -111,8 +120,9 @@ session.
 - **The cost is an estimate, unless the provider returns an exact figure.** Cortex computes the cost
   from published rates for each model. When the provider returns an exact cost (for example, the
   `x-litellm-response-cost` header from LiteLLM), Cortex uses that figure instead.
-- **The rates come from a table for each model.** A model that Cortex does not recognize has no rate,
-  so its cost is zero even when its token counts are correct.
+- **The rates come from a table for each model.** A model that Cortex does not recognize has no rate.
+  Cortex then shows no cost for that call, rather than a misleading zero, even though the token counts
+  are still correct. A blank cost with correct tokens means the model is unpriced, not free.
 
 <!-- VERIFY v0.9.0: confirm the rate source (built-in table vs. config), and the exact provider
      headers Cortex reads for an authoritative cost, once #950/#952 land. -->

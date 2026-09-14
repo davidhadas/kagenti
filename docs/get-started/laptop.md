@@ -54,8 +54,8 @@ Use Claude Code in the normal way. There is no environment variable to set. The 
 appear in `abctl`.
 
 In `abctl observe`, press `Enter` on a session to see its events. Press `Enter` on an event to see
-its full content. Press `/` to filter the events by a substring match on the method. Press `q` to
-quit.
+its full content. Press `/` to filter the events by a text match. Press `q` to quit. To learn what
+the filter matches, read [Read the numbers](reading-the-numbers.md#watch-a-session).
 
 RossoCortex reads this traffic. It does not change the traffic until you enable a plugin that changes
 it.

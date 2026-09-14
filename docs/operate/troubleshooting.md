@@ -103,7 +103,8 @@ The agent runs, but `abctl observe` shows no events. Check each cause in order:
 - **The token count is zero.** RossoCortex reads the token counts from the reply of the model. A
   reply that Cortex cannot parse gives no counts. Confirm that the model is an OpenAI-compatible or an
   Anthropic endpoint.
-- **The cost is zero, but the tokens are correct.** Cortex has no rate for that model. See
+- **The cost is blank, but the tokens are correct.** Cortex has no rate for that model, so it shows
+  no cost rather than a misleading zero. See
   [Read the cost](../get-started/reading-the-numbers.md#read-the-cost).
 - **The pruning figure is zero.** The agent has no tool definitions to remove, or you did not enable
   pruning. See [Read the pruning savings](../get-started/reading-the-numbers.md#read-the-pruning-savings).
