@@ -1008,8 +1008,6 @@ spec:
           value: "false"
         - name: DOMAIN_NAME
           value: "localtest.me"
-        - name: ROSSOCTL_FEATURE_FLAG_SANDBOX
-          value: "true"
         - name: ROSSOCTL_FEATURE_FLAG_ACP
           value: "true"
         - name: POSTGRES_HOST

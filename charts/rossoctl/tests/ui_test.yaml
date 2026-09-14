@@ -58,3 +58,36 @@ tests:
           content:
             name: CONTEXT_SERVICE_URL
             value: http://context-service.example:8080
+
+  # rossoctl#1764: the PVC rule was gated on `or sandbox simulatedTools`.
+  # Removing the sandbox flag must narrow that condition, not delete the rule —
+  # the simulated-tools delete path (#2151) enumerates and tears down PVCs.
+  - it: grants PVC permissions when simulatedTools is enabled
+    set:
+      featureFlags.simulatedTools: true
+    documentSelector:
+      path: kind
+      value: ClusterRole
+    asserts:
+      - isKind:
+          of: ClusterRole
+      - contains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["persistentvolumeclaims"]
+            verbs: ["get", "list", "create", "patch", "delete"]
+
+  - it: withholds PVC permissions when no feature needing them is enabled
+    documentSelector:
+      path: kind
+      value: ClusterRole
+    asserts:
+      - isKind:
+          of: ClusterRole
+      - notContains:
+          path: rules
+          content:
+            apiGroups: [""]
+            resources: ["persistentvolumeclaims"]
+            verbs: ["get", "list", "create", "patch", "delete"]

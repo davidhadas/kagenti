@@ -151,8 +151,6 @@ spec:
               value: {{ .Values.ui.backend.contextServiceUrl | quote }}
             {{- end }}
             # Feature flags
-            - name: ROSSOCTL_FEATURE_FLAG_SANDBOX
-              value: "{{ .Values.featureFlags.sandbox }}"
             - name: ROSSOCTL_FEATURE_FLAG_INTEGRATIONS
               value: "{{ .Values.featureFlags.integrations }}"
             - name: ROSSOCTL_FEATURE_FLAG_TRIGGERS
@@ -270,14 +268,6 @@ spec:
                   name: rossoctl-ui-oauth-secret
                   key: SCOPE
                   optional: true
-            {{- if .Values.featureFlags.sandbox }}
-            - name: LITELLM_MASTER_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: litellm-proxy-secret
-                  key: master-key
-                  optional: true
-            {{- end }}
           resources:
             {{- toYaml .Values.ui.backend.resources | nindent 12 }}
           livenessProbe:
@@ -463,21 +453,6 @@ rules:
   - apiGroups: ["discovery.k8s.io"]
     resources: ["endpointslices"]
     verbs: ["list"]
-  {{- if .Values.featureFlags.sandbox }}
-  # Sandbox-specific: create pods, exec, logs, and mutate configmaps/secrets/PVCs
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["create"]
-  - apiGroups: [""]
-    resources: ["pods/exec", "pods/log"]
-    verbs: ["get", "create"]
-  - apiGroups: [""]
-    resources: ["configmaps"]
-    verbs: ["create", "patch", "delete"]
-  - apiGroups: [""]
-    resources: ["secrets"]
-    verbs: ["create", "patch", "delete"]
-  {{- end }}
   # Deployments, StatefulSets and Services for managing workloads
   - apiGroups: ["apps"]
     resources: ["deployments", "statefulsets"]
@@ -499,9 +474,9 @@ rules:
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["rolebindings"]
     verbs: ["get", "create"]
-  {{- if or .Values.featureFlags.sandbox .Values.featureFlags.simulatedTools }}
-  # PersistentVolumeClaims — sandbox agent workspace storage, and simulated-tool
-  # StatefulSet volumes that the delete path enumerates and tears down (#2151).
+  {{- if .Values.featureFlags.simulatedTools }}
+  # PersistentVolumeClaims — simulated-tool StatefulSet volumes that the delete
+  # path enumerates and tears down (#2151).
   - apiGroups: [""]
     resources: ["persistentvolumeclaims"]
     verbs: ["get", "list", "create", "patch", "delete"]

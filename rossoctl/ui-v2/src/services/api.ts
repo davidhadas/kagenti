@@ -18,9 +18,6 @@ import type {
   IntegrationWebhook,
   IntegrationSchedule,
   IntegrationAlert,
-  FileEntry,
-  FileContent,
-  PodStorageStats,
   Skill,
   SkillDetail,
   SkillFile,
@@ -799,17 +796,6 @@ export interface SessionGraphData {
   edges: GraphEdge[];
 }
 
-export const sessionGraphService = {
-  async getGraph(
-    namespace: string,
-    contextId: string
-  ): Promise<SessionGraphData> {
-    return apiFetch(
-      `/chat/${encodeURIComponent(namespace)}/sessions/${encodeURIComponent(contextId)}/graph`
-    );
-  },
-};
-
 /**
  * Chat service for A2A agent communication
  */
@@ -1157,54 +1143,6 @@ export const integrationService = {
   },
 };
 
-/**
- * Sandbox file service for browsing agent sandbox files
- */
-export const sandboxFileService = {
-  async listDirectory(
-    namespace: string,
-    agentName: string,
-    path: string,
-    contextId?: string
-  ): Promise<{ entries: FileEntry[] }> {
-    // When contextId is provided, use the context-scoped endpoint
-    // which browses /workspace/{contextId}/ and path is relative to that root
-    if (contextId) {
-      return apiFetch(
-        `/sandbox/${encodeURIComponent(namespace)}/files/${encodeURIComponent(agentName)}/${encodeURIComponent(contextId)}?path=${encodeURIComponent(path)}`
-      );
-    }
-    return apiFetch(
-      `/sandbox/${encodeURIComponent(namespace)}/files/${encodeURIComponent(agentName)}/list?path=${encodeURIComponent(path)}`
-    );
-  },
-
-  async getFileContent(
-    namespace: string,
-    agentName: string,
-    filePath: string,
-    contextId?: string
-  ): Promise<FileContent> {
-    if (contextId) {
-      return apiFetch(
-        `/sandbox/${encodeURIComponent(namespace)}/files/${encodeURIComponent(agentName)}/${encodeURIComponent(contextId)}?path=${encodeURIComponent(filePath)}`
-      );
-    }
-    return apiFetch(
-      `/sandbox/${encodeURIComponent(namespace)}/files/${encodeURIComponent(agentName)}/content?path=${encodeURIComponent(filePath)}`
-    );
-  },
-
-  async getStorageStats(
-    namespace: string,
-    agentName: string
-  ): Promise<PodStorageStats> {
-    return apiFetch<PodStorageStats>(
-      `/sandbox/${encodeURIComponent(namespace)}/stats/${encodeURIComponent(agentName)}`
-    );
-  },
-};
-
 // ---------------------------------------------------------------------------
 // LiteLLM Token Usage analytics
 // ---------------------------------------------------------------------------
@@ -1235,98 +1173,6 @@ export interface SessionTreeUsage {
   aggregate: SessionTokenUsage;
 }
 
-export const tokenUsageService = {
-  async getSessionTokenUsage(contextId: string): Promise<SessionTokenUsage> {
-    return apiFetch<SessionTokenUsage>(
-      `/token-usage/sessions/${encodeURIComponent(contextId)}`
-    );
-  },
-
-  async getSessionTreeUsage(
-    contextId: string,
-    namespace?: string
-  ): Promise<SessionTreeUsage> {
-    const qs = namespace ? `?namespace=${encodeURIComponent(namespace)}` : '';
-    return apiFetch<SessionTreeUsage>(
-      `/token-usage/sessions/${encodeURIComponent(contextId)}/tree${qs}`
-    );
-  },
-};
-
-/**
- * Sidecar agent service for managing session sidecars
- */
-export interface SidecarInfo {
-  context_id: string;
-  sidecar_type: string;
-  parent_context_id: string;
-  enabled: boolean;
-  auto_approve: boolean;
-  config: Record<string, unknown>;
-  observation_count: number;
-  pending_count: number;
-}
-
-export interface SidecarObservation {
-  id: string;
-  sidecar_type: string;
-  timestamp: number;
-  message: string;
-  severity: string;
-  requires_approval: boolean;
-}
-
-export const sidecarService = {
-  async list(namespace: string, contextId: string): Promise<SidecarInfo[]> {
-    return apiFetch(`/sandbox/${encodeURIComponent(namespace)}/sessions/${encodeURIComponent(contextId)}/sidecars`);
-  },
-
-  async enable(namespace: string, contextId: string, sidecarType: string, config?: { auto_approve?: boolean; config?: Record<string, unknown> }): Promise<SidecarInfo> {
-    return apiFetch(`/sandbox/${encodeURIComponent(namespace)}/sessions/${encodeURIComponent(contextId)}/sidecars/${encodeURIComponent(sidecarType)}/enable`, {
-      method: 'POST',
-      body: JSON.stringify(config || {}),
-    });
-  },
-
-  async disable(namespace: string, contextId: string, sidecarType: string): Promise<{ status: string }> {
-    return apiFetch(`/sandbox/${encodeURIComponent(namespace)}/sessions/${encodeURIComponent(contextId)}/sidecars/${encodeURIComponent(sidecarType)}/disable`, {
-      method: 'POST',
-    });
-  },
-
-  async updateConfig(namespace: string, contextId: string, sidecarType: string, config: Record<string, unknown>): Promise<SidecarInfo> {
-    return apiFetch(`/sandbox/${encodeURIComponent(namespace)}/sessions/${encodeURIComponent(contextId)}/sidecars/${encodeURIComponent(sidecarType)}/config`, {
-      method: 'PUT',
-      body: JSON.stringify(config),
-    });
-  },
-
-  async reset(namespace: string, contextId: string, sidecarType: string): Promise<{ status: string }> {
-    return apiFetch(`/sandbox/${encodeURIComponent(namespace)}/sessions/${encodeURIComponent(contextId)}/sidecars/${encodeURIComponent(sidecarType)}/reset`, {
-      method: 'POST',
-    });
-  },
-
-  async approve(namespace: string, contextId: string, sidecarType: string, msgId: string): Promise<{ status: string }> {
-    return apiFetch(`/sandbox/${encodeURIComponent(namespace)}/sessions/${encodeURIComponent(contextId)}/sidecars/${encodeURIComponent(sidecarType)}/approve/${encodeURIComponent(msgId)}`, {
-      method: 'POST',
-    });
-  },
-
-  async deny(namespace: string, contextId: string, sidecarType: string, msgId: string): Promise<{ status: string }> {
-    return apiFetch(`/sandbox/${encodeURIComponent(namespace)}/sessions/${encodeURIComponent(contextId)}/sidecars/${encodeURIComponent(sidecarType)}/deny/${encodeURIComponent(msgId)}`, {
-      method: 'POST',
-    });
-  },
-
-  observationUrl(namespace: string, contextId: string, sidecarType: string): string {
-    return `/api/v1/sandbox/${encodeURIComponent(namespace)}/sessions/${encodeURIComponent(contextId)}/sidecars/${encodeURIComponent(sidecarType)}/observations`;
-  },
-};
-
-/**
- * Sandbox trigger service for managing automated triggers
- */
 export const triggerService = {
   async create(data: {
     type: 'cron' | 'webhook' | 'alert';
@@ -1459,10 +1305,6 @@ export interface PodInfo {
   events: PodEvent[];
 }
 
-export async function getPodStatus(namespace: string, agentName: string): Promise<{ pods: PodInfo[] }> {
-  return apiFetch(`/sandbox/${encodeURIComponent(namespace)}/agents/${encodeURIComponent(agentName)}/pod-status`);
-}
-
 /**
  * Pod metrics types and API (metrics-server data)
  */
@@ -1492,24 +1334,6 @@ export interface PodEventDetail {
   message: string;
   timestamp: string;
   count: number;
-}
-
-export async function getPodMetrics(
-  namespace: string,
-  agentName: string,
-): Promise<{ pods: PodMetrics[] }> {
-  return apiFetch(
-    `/sandbox/${encodeURIComponent(namespace)}/pods/${encodeURIComponent(agentName)}/metrics`,
-  );
-}
-
-export async function getPodEvents(
-  namespace: string,
-  agentName: string,
-): Promise<{ events: PodEventDetail[] }> {
-  return apiFetch(
-    `/sandbox/${encodeURIComponent(namespace)}/pods/${encodeURIComponent(agentName)}/events`,
-  );
 }
 
 /**
