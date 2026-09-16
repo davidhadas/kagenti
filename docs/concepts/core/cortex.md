@@ -1,19 +1,60 @@
 ---
 title: RossoCortex
-description: The data plane proxy, the four control points and the plugin chain.
+description: See and understand what your AI agent sends — every model, tool and API call, on your own machine.
 sidebar_position: 3
 ---
 
-RossoCortex is the data plane of Rossoctl. It is a proxy between an agent and each external service
-that the agent uses. The external services are models, tools, users and other agents.
+RossoCortex shows you what your AI agent actually does. It sits on the request path of the agent and
+reads every model call, every tool call and every external API request that the agent makes. It shows
+the full content of each request and reply, and for a model call it adds the token count and the cost
+— live, on your own machine.
 
-RossoCortex intercepts traffic. It does not require a change to the code of the agent. An agent that
-you did not write, or that you cannot change, therefore receives the same controls as an agent that
-you wrote.
+It needs no change to your agent. An agent that you did not write, or that you cannot change,
+therefore gets the same view as one that you wrote. Two experimental plugins can also reduce the
+traffic: they remove tool definitions that the agent never uses and compact large tool output, which
+lowers your token usage and your cost.
+
+## What you get
+
+- **See every call the agent makes.** Model calls, tool calls (MCP) and agent-to-agent messages,
+  parsed as they happen.
+- **Token and cost numbers for each session.** For each model call, the input, cache-read, cache-write
+  and output tokens; and the cost of the session, computed from published rates. See
+  [Read the numbers](../../get-started/reading-the-numbers.md).
+- **Drill into any request.** The exact call the agent sent — the method, the host, the model or tool,
+  the status, the duration and the full request and reply — as content you can read.
+- **Reduce your token usage (experimental).** Remove tool definitions that the agent does not use, and
+  compact large tool output before the model reads it. Both are experimental and off by default. See
+  [Cost control](../experiments/cost-control.md) and [Context compaction](../experiments/context-compaction.md).
+- **No code change.** RossoCortex intercepts the traffic for you. Your agent runs the same way, and
+  the data never leaves your machine.
+
+## Privacy and data handling
+
+RossoCortex intercepts your agent's traffic through a local proxy on your own machine. It parses each
+call so that it can show you the content, and it keeps the traffic on that machine.
+
+RossoCortex does not collect the traffic, and it does not send it to Rossoctl or to any other service.
+There is no telemetry. The data is for you to read and to inspect. When you stop the service, the data
+goes with it.
+
+## Install it
+
+You can run RossoCortex on macOS or Linux and watch your agent's traffic in about 5 minutes. You do
+not need a Kubernetes cluster. See [Quickstart on a laptop](../../get-started/laptop.md).
+
+Tried it? Tell us what worked and what did not, with the **Laptop feedback** form on
+[rossoctl/cortex](https://github.com/rossoctl/cortex/issues/new/choose).
+
+## How it works
+
+RossoCortex is the data plane of Rossoctl. It is a proxy between an agent and each external service
+that the agent uses. The external services are models, tools, users and other agents. It intercepts
+the traffic, which is how it gives you the view above without a change to the agent.
 
 ![How agents reach RossoCortex, and the plugins that it runs](../../images/rossocortex-overview.svg)
 
-## Where RossoCortex runs
+### Where RossoCortex runs
 
 RossoCortex is one program with three deployment forms.
 
@@ -26,7 +67,7 @@ RossoCortex is one program with three deployment forms.
 On Kubernetes, the sidecar is an Envoy proxy and a Go processor. Envoy moves the data. The processor
 applies the rules.
 
-## The four control points
+### The four control points
 
 RossoCortex separates requests from responses, in both directions. This gives four control points
 around each workload.
@@ -51,7 +92,7 @@ around each workload.
 Most platforms control point 1 only. Points 2 and 3 are necessary for agents. An agent that reads a
 document with a hidden instruction can send a correctly authenticated request that no user asked for.
 
-## The plugin chain
+### The plugin chain
 
 Each control point runs an ordered chain of plugins. A plugin can read the traffic, add data to a
 shared record, change the content, or stop the request.
@@ -71,7 +112,7 @@ The optional control plugins use those records. See the
 [plugin catalogue](https://github.com/rossoctl/cortex/blob/main/authbridge/docs/plugin-catalog.md)
 for the configuration of each one.
 
-## Authentication and authorization are separate decisions
+### Authentication and authorization are separate decisions
 
 The chain treats the two decisions differently.
 
@@ -90,7 +131,7 @@ RossoCortex is moving to [CPEX](https://github.com/contextforge-org/cpex) for th
 CPEX combines the results of policy engines such as Cedar and OPA. The controls above do not change
 when the decision layer changes.
 
-## What RossoCortex does not do
+### What RossoCortex does not do
 
 - It does not change how your agent reasons.
 - It does not replace your agent framework. It is below your agent, not in place of it.
