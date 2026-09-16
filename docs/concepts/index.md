@@ -32,7 +32,7 @@ repository as core or experimental.
 | Agent identity | Ready | [Identity and trust](core/identity.md) |
 | Access control and delegation | Ready | [Identity and trust](core/identity.md) |
 | Agent deployment and discovery | Ready | [Control plane](core/control-plane.md) |
-| The data plane proxy | Ready | [RossoCortex](core/cortex.md) |
+| See every model, tool and API call the agent makes | Ready | [RossoCortex](core/cortex.md) |
 | Traces and network data | Ready | [Observability](../operate/observability.md) |
 | Token counts, cost and latency on a laptop | Ready | [Read the numbers](../get-started/reading-the-numbers.md) |
 

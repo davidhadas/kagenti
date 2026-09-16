@@ -1,42 +1,42 @@
 ---
 title: RossoCortex
-description: See, understand, and reduce what your AI agent sends — every model, tool, and API call, on your own machine.
+description: See and understand what your AI agent sends — every model, tool and API call, on your own machine.
 sidebar_position: 3
 ---
 
 RossoCortex shows you what your AI agent actually does. It sits on the request path of the agent and
-reads every model call, every tool call, and every external API request that the agent makes. For
-each one it shows the token count, the cost, and the full content of the request and the reply —
-live, on your own machine.
+reads every model call, every tool call and every external API request that the agent makes. It shows
+the full content of each request and reply, and for a model call it adds the token count and the cost
+— live, on your own machine.
 
 It needs no change to your agent. An agent that you did not write, or that you cannot change,
-therefore gets the same view as one that you wrote. And once RossoCortex can see the traffic, it can
-also reduce it: it removes tool definitions that the agent never uses and compacts large tool output,
-which lowers your token usage and your cost.
+therefore gets the same view as one that you wrote. Two experimental plugins can also reduce the
+traffic: they remove tool definitions that the agent never uses and compact large tool output, which
+lowers your token usage and your cost.
 
 ## What you get
 
-- **See every call the agent makes.** Model calls, tool calls (MCP), and agent-to-agent messages,
-  decrypted and parsed as they happen. See [Quickstart on a laptop](../../get-started/laptop.md).
-- **Real token and cost numbers for each session.** Input, cache-read, cache-write, and output tokens,
-  and the cost of each call. See [Read the numbers](../../get-started/reading-the-numbers.md).
+- **See every call the agent makes.** Model calls, tool calls (MCP) and agent-to-agent messages,
+  parsed as they happen.
+- **Token and cost numbers for each session.** For each model call, the input, cache-read, cache-write
+  and output tokens; and the cost of the session, computed from published rates. See
+  [Read the numbers](../../get-started/reading-the-numbers.md).
 - **Drill into any request.** The exact call the agent sent — the method, the host, the model or tool,
-  the status, the duration, and the full request and reply — as content you can read.
-- **Reduce your token usage.** Remove tool definitions that the agent does not use, and compact large
-  tool output before the model reads it. See [Cost control](../experiments/cost-control.md) and
-  [Context compaction](../experiments/context-compaction.md).
+  the status, the duration and the full request and reply — as content you can read.
+- **Reduce your token usage (experimental).** Remove tool definitions that the agent does not use, and
+  compact large tool output before the model reads it. Both are experimental and off by default. See
+  [Cost control](../experiments/cost-control.md) and [Context compaction](../experiments/context-compaction.md).
 - **No code change.** RossoCortex intercepts the traffic for you. Your agent runs the same way, and
   the data never leaves your machine.
 
 ## Privacy and data handling
 
-RossoCortex intercepts your agent's traffic through a local proxy on your own machine. It decrypts and
-parses each call so that it can show you the content, and it writes the result to disk on the same
-machine.
+RossoCortex intercepts your agent's traffic through a local proxy on your own machine. It parses each
+call so that it can show you the content, and it keeps the traffic on that machine.
 
-The data stays there. RossoCortex does not collect it, and it does not send it to Rossoctl or to any
-other service. There is no telemetry. You read, inspect, and delete the data yourself; it is on your
-disk, under your control.
+RossoCortex does not collect the traffic, and it does not send it to Rossoctl or to any other service.
+There is no telemetry. The data is for you to read and to inspect. When you stop the service, the data
+goes with it.
 
 ## Install it
 
