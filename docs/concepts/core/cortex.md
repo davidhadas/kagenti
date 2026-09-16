@@ -14,12 +14,6 @@ therefore gets the same view as one that you wrote. And once RossoCortex can see
 also reduce it: it removes tool definitions that the agent never uses and compacts large tool output,
 which lowers your token usage and your cost.
 
-:::note Your data stays on your computer
-RossoCortex captures this traffic on your computer and keeps it there. It does not collect the data
-and it does not send the data to Rossoctl or to any other service. The data is written to disk on your
-own machine, for you to read, to inspect, and to delete.
-:::
-
 ## What you get
 
 - **See every call the agent makes.** Model calls, tool calls (MCP), and agent-to-agent messages,
@@ -33,6 +27,16 @@ own machine, for you to read, to inspect, and to delete.
   [Context compaction](../experiments/context-compaction.md).
 - **No code change.** RossoCortex intercepts the traffic for you. Your agent runs the same way, and
   the data never leaves your machine.
+
+## Privacy and data handling
+
+RossoCortex intercepts your agent's traffic through a local proxy on your own machine. It decrypts and
+parses each call so that it can show you the content, and it writes the result to disk on the same
+machine.
+
+The data stays there. RossoCortex does not collect it, and it does not send it to Rossoctl or to any
+other service. There is no telemetry. You read, inspect, and delete the data yourself; it is on your
+disk, under your control.
 
 ## Install it
 
