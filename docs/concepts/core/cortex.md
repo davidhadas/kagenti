@@ -43,6 +43,9 @@ goes with it.
 You can run RossoCortex on macOS or Linux and watch your agent's traffic in about 5 minutes. You do
 not need a Kubernetes cluster. See [Quickstart on a laptop](../../get-started/laptop.md).
 
+Tried it? Tell us what worked and what did not, with the **Laptop feedback** form on
+[rossoctl/cortex](https://github.com/rossoctl/cortex/issues/new/choose).
+
 ## How it works
 
 RossoCortex is the data plane of Rossoctl. It is a proxy between an agent and each external service
