@@ -32,6 +32,7 @@ following, listed in alphabetical order by name:
 | [Maia Iyer](https://github.com/maia-iyer) | State and Session Management; agent substrate evaluation; Workload Identity & Security; authorization & policy |
 | [Omer Boehm](https://github.com/omerboehm) | AI-based Access Control (AIAC); intent-to-enforcement and policy drift detection; AIAC evaluation framework; AIAC documentation |
 | [Rong Chang](https://github.com/webchang) | Automated Benchmarking Service; cross-version regression benchmarking; Runtime-Attested Agent Card; Agent Delegation |
+| [Ryan Jenkins](https://github.com/RyanJenkins99)<br>(Red Hat) | Terraform / AWS cluster infrastructure; OpenShift and HyperShift cluster lifecycle & cleanup; MCE upgrades |
 
 ## Contact
 
