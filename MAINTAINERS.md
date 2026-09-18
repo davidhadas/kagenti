@@ -1,27 +1,30 @@
 # Project Maintainers
 
+## Project Leads
+
+| Name | Employer | Responsibilities |
+| ---- | -------- | ---------------- |
+| [Jim Cadden](https://github.com/jimcadden) | IBM | Project Lead — strategy & productization; OKR ownership; Road to CNCF / Summit; community operations; public Slack/GitHub & Google Workspace; clawgenti automation |
+| [Mariusz Sabath](https://github.com/mrsabath) | IBM | Project Technical Lead; AuthBridge & Rosso Cortex; Workload Identity & Security; Documentation & Usability; epics & project management; demos; community operations |
+| [Paolo Dettori](https://github.com/pdettori) | IBM | Project Technical Lead; Serverless Harness; Agent Sandboxing; microVM sandbox density experiments; Helm & Installer; community operations |
+
+## Maintainers
+
 The current Maintainers Group for the Rossoctl Project consists of:
 
 | Name | Employer | Responsibilities |
 | ---- | -------- | ---------------- |
-| [Alan Cha](https://github.com/Alan-Cha) | IBM | Keycloak, State Management, Workload Identity and Security, Authorization and Policy Management |
-| [Ed Snible](https://github.com/esnible) | IBM | MCP Gateway, Agent Runtime |
-| [Evaline Ju](https://github.com/evaline-ju) | IBM | Guardrails, Observability & Token Cost, State Management |
-| [Gloire Rubambiza](https://github.com/rubambiza) | IBM | Automation |
-| [Hai Huang](https://github.com/huang195) | IBM | MCP Gateway, Network Security, Agent Runtime, Intent Based Access Control, Authorization and Policy Management |
-| [Jarek Cwiklik](https://github.com/cwiklik) | IBM | Agent Lifecycle Management |
-| [Kelly Abuelsaad](https://github.com/kellyaa) | IBM | Metrics and Measurements, Benchmarking, State Management |
-| [Ladislav Smola](https://github.com/Ladas) | Red Hat | Sandboxing, Automation |
-| [Maia Iyer](https://github.com/maia-iyer) | IBM | Workload Identity and Security, State Management |
-| [Mariusz Sabath](https://github.com/mrsabath) | IBM | Project Technical Lead, Workload Identity, Security |
-| [Morgan Foster](https://github.com/usize) | Red Hat | Workload Identity and Security |
-| [Paolo Dettori](https://github.com/pdettori) | IBM | Project Technical Lead, Agent Lifecycle Management |
-| [Rong Chang](https://github.com/webchang) | IBM | Identity, Attestation, Authorization and Policy Management |
-| [Ryan Jenkins](https://github.com/RyanJenkins99) | Red Hat | Automation, HyperShift CI |
-| [Varsha Prasad Narsing](https://github.com/varshaprasad96) | Red Hat | Agent Runtime |
-| [Kevin Cogan](https://github.com/kevincogan) | Red Hat | Agent Runtime |
-| [Ella Rabinovich](https://github.com/ellarabi) | IBM | Guardrails, Evaluation & Benchmarking |
-| [Abigail Goldsteen](https://github.com/abigailgold) | IBM | Data Security & Privacy, Guardrails |
+| [Abigail Goldsteen](https://github.com/abigailgold) | IBM | Data Security & Privacy; risk assessment & policy engine; JSON→Rego compiler; Data Governance Risk UI |
+| [Alan Cha](https://github.com/Alan-Cha) | IBM | Keycloak; SPIFFE auth; Workload Identity & Security; mission-based eventing; sandbox experiments; coding-agent integrations (Codex, OpenCode) |
+| [Aleksander Slominski](https://github.com/aslom) | IBM | Eventing / event-driven agents; mission-based eventing; BYO Cortex skill; AI agent teleportation |
+| [Ed Snible](https://github.com/esnible) | IBM | Cortex / abctl CLI & TUI (owner); rossoctl-cli; usability & documentation; Praxis proxy; coding-agent integrations |
+| [Ella Rabinovich](https://github.com/ellarabi) | IBM | Guardrails; Evaluation & Benchmarking |
+| [Evaline Ju](https://github.com/evaline-ju) | IBM | Guardrails; Cortex session-budget plugin + HITL; Observability & token cost; MCP Gateway; conversation-snapshot / tau-bench analysis |
+| [Gloire Rubambiza](https://github.com/rubambiza) | IBM | Automation; RepoMan automation platform; Agent Skills marketplace; clawgenti bot operator; org-wide CI & repo governance |
+| [Hai Huang](https://github.com/huang195) | IBM | AuthBridge / Cortex proxy; plugin pipeline architecture; token & cost accounting; network security & TLS; IBAC |
+| [Jarek Cwiklik](https://github.com/cwiklik) | IBM | Agent Lifecycle Management; operator & webhook; release management; sandbox CRDs & warm pools |
+| [Maia Iyer](https://github.com/maia-iyer) | IBM | State and Session Management; agent substrate evaluation; Workload Identity & Security; authorization & policy |
+| [Rong Chang](https://github.com/webchang) | IBM | Automated Benchmarking Service; cross-version regression benchmarking; Runtime-Attested Agent Card; Agent Delegation |
 
 ## Contact
 
