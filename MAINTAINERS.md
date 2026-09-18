@@ -2,6 +2,9 @@
 
 ## Project Leads
 
+Project Leads are also Maintainers. This table records areas of project and
+team leadership; it does not confer authority beyond that of a Maintainer.
+
 Listed in alphabetical order by name.
 
 | Name | Employer | Responsibilities |
