@@ -30,6 +30,7 @@ following, listed in alphabetical order by name:
 | [Hai Huang](https://github.com/huang195) | IBM | AuthBridge / Cortex proxy; plugin pipeline architecture; token & cost accounting; network security & TLS; IBAC |
 | [Jarek Cwiklik](https://github.com/cwiklik) | IBM | Agent Lifecycle Management; operator & webhook; release management; sandbox CRDs & warm pools |
 | [Maia Iyer](https://github.com/maia-iyer) | IBM | State and Session Management; agent substrate evaluation; Workload Identity & Security; authorization & policy |
+| [Omer Boehm](https://github.com/omerboehm) | IBM | AI-based Access Control (AIAC); intent-to-enforcement and policy drift detection; AIAC evaluation framework; AIAC documentation |
 | [Rong Chang](https://github.com/webchang) | IBM | Automated Benchmarking Service; cross-version regression benchmarking; Runtime-Attested Agent Card; Agent Delegation |
 
 ## Contact
