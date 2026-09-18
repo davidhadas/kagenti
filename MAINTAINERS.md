@@ -2,6 +2,8 @@
 
 ## Project Leads
 
+Listed in alphabetical order by name.
+
 | Name | Employer | Responsibilities |
 | ---- | -------- | ---------------- |
 | [Jim Cadden](https://github.com/jimcadden) | IBM | Project Lead — strategy & productization; OKR ownership; Road to CNCF / Summit; community operations; public Slack/GitHub & Google Workspace; clawgenti automation |
@@ -10,7 +12,8 @@
 
 ## Maintainers
 
-The current Maintainers Group for the Rossoctl Project consists of:
+The current Maintainers Group for the Rossoctl Project consists of the
+following, listed in alphabetical order by name:
 
 | Name | Employer | Responsibilities |
 | ---- | -------- | ---------------- |
